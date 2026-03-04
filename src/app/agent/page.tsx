@@ -716,60 +716,56 @@ export default function AgentPage() {
                   <Label className="text-sm font-semibold flex items-center gap-2">
                     <Mic className="h-4 w-4" /> Model &amp; Voice
                   </Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Choose the LLM model and TTS engine. OpenAI Voice uses the built-in Realtime voice.
+                    ElevenLabs uses OpenAI for reasoning (text-only) and ElevenLabs for speech output.
+                  </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label htmlFor="rt-model" className="text-xs text-muted-foreground">
-                        Model
-                      </Label>
-                      <Select
-                        value={runtimeConfig.model ?? "gpt-4o-mini-realtime-preview"}
-                        onValueChange={(v) =>
-                          setRuntimeConfig((prev) => ({ ...prev, model: v }))
-                        }
-                      >
-                        <SelectTrigger id="rt-model">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="gpt-4o-mini-realtime-preview">
-                            gpt-4o-mini-realtime-preview
-                          </SelectItem>
-                          <SelectItem value="gpt-4o-realtime-preview">
-                            gpt-4o-realtime-preview
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="rt-tts-provider" className="text-xs text-muted-foreground">
-                        TTS Provider
-                      </Label>
-                      <Select
-                        value={runtimeConfig.tts?.provider ?? "openai_realtime"}
-                        onValueChange={(v) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            tts: { ...prev.tts, provider: v },
-                          }))
-                        }
-                      >
-                        <SelectTrigger id="rt-tts-provider">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="openai_realtime">OpenAI Realtime</SelectItem>
-                          <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="rt-model-provider" className="text-xs text-muted-foreground">
+                      Model &amp; TTS Engine
+                    </Label>
+                    <Select
+                      value={`${runtimeConfig.model ?? "gpt-4o-mini-realtime-preview"}::${runtimeConfig.tts?.provider ?? "openai_realtime"}`}
+                      onValueChange={(v) => {
+                        const [model, provider] = v.split("::");
+                        setRuntimeConfig((prev) => ({
+                          ...prev,
+                          model,
+                          tts: { ...prev.tts, provider },
+                        }));
+                      }}
+                    >
+                      <SelectTrigger id="rt-model-provider">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gpt-4o-mini-realtime-preview::openai_realtime">
+                          gpt-4o-mini-realtime — OpenAI Voice
+                        </SelectItem>
+                        <SelectItem value="gpt-4o-realtime-preview::openai_realtime">
+                          gpt-4o-realtime — OpenAI Voice
+                        </SelectItem>
+                        <SelectItem value="gpt-4o-mini-realtime-preview::elevenlabs">
+                          gpt-4o-mini-realtime — ElevenLabs Voice
+                        </SelectItem>
+                        <SelectItem value="gpt-4o-realtime-preview::elevenlabs">
+                          gpt-4o-realtime — ElevenLabs Voice
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {runtimeConfig.tts?.provider === "elevenlabs" ? (
                     <div className="space-y-4 rounded-lg border p-4 bg-muted/30">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        ElevenLabs TTS Settings
-                      </Label>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          ElevenLabs TTS Settings
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Configure voice synthesis. The agent uses OpenAI Realtime for STT &amp; reasoning and ElevenLabs for speech output.
+                        </p>
+                      </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
@@ -806,6 +802,9 @@ export default function AgentPage() {
                               <SelectItem value="__custom__">Custom Voice ID</SelectItem>
                             </SelectContent>
                           </Select>
+                          <p className="text-[11px] text-muted-foreground">
+                            Pre-built voices or paste a custom voice ID from your ElevenLabs library.
+                          </p>
                         </div>
                         <div className="space-y-1">
                           <Label htmlFor="rt-11l-model" className="text-xs text-muted-foreground">
@@ -831,6 +830,9 @@ export default function AgentPage() {
                               <SelectItem value="eleven_flash_v2">eleven_flash_v2</SelectItem>
                             </SelectContent>
                           </Select>
+                          <p className="text-[11px] text-muted-foreground">
+                            Multilingual v2 = best quality. Flash/Turbo = lower latency.
+                          </p>
                         </div>
                       </div>
 
@@ -886,6 +888,9 @@ export default function AgentPage() {
                             <SelectItem value="zh">中文</SelectItem>
                           </SelectContent>
                         </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                          Primary language for speech synthesis. Affects pronunciation and accent.
+                        </p>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -909,8 +914,8 @@ export default function AgentPage() {
                             className="w-full accent-primary h-2 cursor-pointer"
                           />
                           <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>Variable</span>
-                            <span>Stable</span>
+                            <span>More expressive</span>
+                            <span>More consistent</span>
                           </div>
                         </div>
                         <div className="space-y-1">
@@ -933,8 +938,8 @@ export default function AgentPage() {
                             className="w-full accent-primary h-2 cursor-pointer"
                           />
                           <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>Low</span>
-                            <span>High</span>
+                            <span>More varied</span>
+                            <span>More faithful</span>
                           </div>
                         </div>
                         <div className="space-y-1">
@@ -957,8 +962,8 @@ export default function AgentPage() {
                             className="w-full accent-primary h-2 cursor-pointer"
                           />
                           <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>0.5×</span>
-                            <span>2.0×</span>
+                            <span>0.5× slower</span>
+                            <span>2.0× faster</span>
                           </div>
                         </div>
                       </div>
@@ -1002,6 +1007,7 @@ export default function AgentPage() {
                   )}
                 </div>
 
+                {/* Temperature & Max Tokens */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <Label htmlFor="rt-temp" className="text-xs text-muted-foreground">
@@ -1021,6 +1027,9 @@ export default function AgentPage() {
                         }))
                       }
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      Randomness of responses. Lower = more focused. Higher = more creative.
+                    </p>
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="rt-tokens" className="text-xs text-muted-foreground">
@@ -1040,9 +1049,13 @@ export default function AgentPage() {
                         }))
                       }
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      Max tokens per response. Keep low for faster, shorter replies.
+                    </p>
                   </div>
                 </div>
 
+                {/* Persona */}
                 <div className="space-y-1">
                   <Label htmlFor="rt-persona" className="text-xs text-muted-foreground">
                     Persona
@@ -1062,30 +1075,43 @@ export default function AgentPage() {
                       <SelectItem value="corporate">Corporate</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Defines the agent&apos;s communication style and tone of voice.
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="rt-noise"
-                    checked={runtimeConfig.noiseCancellation ?? true}
-                    onChange={(e) =>
-                      setRuntimeConfig((prev) => ({
-                        ...prev,
-                        noiseCancellation: e.target.checked,
-                      }))
-                    }
-                    className="h-4 w-4 rounded border-border"
-                  />
-                  <Label htmlFor="rt-noise" className="text-sm cursor-pointer">
-                    Noise Cancellation
-                  </Label>
+                {/* Noise Cancellation */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="rt-noise"
+                      checked={runtimeConfig.noiseCancellation ?? true}
+                      onChange={(e) =>
+                        setRuntimeConfig((prev) => ({
+                          ...prev,
+                          noiseCancellation: e.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <Label htmlFor="rt-noise" className="text-sm cursor-pointer">
+                      Noise Cancellation
+                    </Label>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Filters background noise from the caller&apos;s audio for clearer speech recognition.
+                  </p>
                 </div>
 
+                {/* Greeting Message */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold flex items-center gap-2">
                     <MessageSquare className="h-4 w-4" /> Greeting Message
                   </Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    The first message the agent speaks when a call starts. Leave empty to let the agent decide.
+                  </p>
                   <Textarea
                     value={runtimeConfig.greetingMessage ?? ""}
                     onChange={(e) =>
@@ -1098,13 +1124,14 @@ export default function AgentPage() {
                     className="font-mono text-sm resize-none"
                     placeholder="Seja bem-vindo à central da Claro. Pra eu te atender direitinho, me diz por favor o seu nome."
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Leave empty to use the default greeting.
-                  </p>
                 </div>
 
+                {/* Turn Detection (VAD) */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">Turn Detection (VAD)</Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Voice Activity Detection — controls when the agent detects the user has stopped speaking and can respond.
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <Label htmlFor="rt-vad-type" className="text-xs text-muted-foreground">
@@ -1151,6 +1178,9 @@ export default function AgentPage() {
                           }))
                         }
                       />
+                      <p className="text-[11px] text-muted-foreground">
+                        Wait time after silence before responding.
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <Label
@@ -1179,12 +1209,19 @@ export default function AgentPage() {
                           }))
                         }
                       />
+                      <p className="text-[11px] text-muted-foreground">
+                        How quickly the user can interrupt mid-speech.
+                      </p>
                     </div>
                   </div>
                 </div>
 
+                {/* Humanization */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">Humanization</Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Add human-like behaviors to make the agent sound more natural.
+                  </p>
                   <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                     <div className="flex items-center gap-2">
                       <input
@@ -1203,7 +1240,7 @@ export default function AgentPage() {
                         className="h-4 w-4 rounded border-border"
                       />
                       <Label htmlFor="rt-fillers" className="text-sm cursor-pointer">
-                        Fillers
+                        Fillers <span className="text-[10px] text-muted-foreground">(uhm, hmm…)</span>
                       </Label>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1223,7 +1260,7 @@ export default function AgentPage() {
                         className="h-4 w-4 rounded border-border"
                       />
                       <Label htmlFor="rt-typing" className="text-sm cursor-pointer">
-                        Typing sounds
+                        Typing sounds <span className="text-[10px] text-muted-foreground">(keyboard clicks)</span>
                       </Label>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1243,16 +1280,20 @@ export default function AgentPage() {
                         className="h-4 w-4 rounded border-border"
                       />
                       <Label htmlFor="rt-ambience" className="text-sm cursor-pointer">
-                        Office ambience
+                        Office ambience <span className="text-[10px] text-muted-foreground">(background noise)</span>
                       </Label>
                     </div>
                   </div>
                 </div>
 
+                {/* Timeouts */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold flex items-center gap-2">
                     <Timer className="h-4 w-4" /> Timeouts
                   </Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Automatic call termination rules. Leave empty to disable.
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label
