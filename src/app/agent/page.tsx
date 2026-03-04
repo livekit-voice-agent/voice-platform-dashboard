@@ -77,6 +77,7 @@ import {
   History,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const DEFAULT_AGENT = "captador-agent";
 
@@ -127,31 +128,37 @@ function DeployStatusBadge({ status }: { status: DeploymentStatus }) {
 }
 
 export default function AgentPage() {
-  // Agent selection
   const [agents, setAgents] = useState<string[]>([]);
   const [selectedAgent, setSelectedAgent] = useState(DEFAULT_AGENT);
   const [newAgentName, setNewAgentName] = useState("");
   const [showNewAgentInput, setShowNewAgentInput] = useState(false);
 
-  // Instructions
   const [instructions, setInstructions] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  // Worker (available workers for test room dropdown)
   const [availableWorkers, setAvailableWorkers] = useState<string[]>([]);
 
-  // Auto-start toggle
   const [autoStart, setAutoStart] = useState(false);
 
-  // Instructions expand/collapse
   const [instructionsExpanded, setInstructionsExpanded] = useState(false);
 
-  // Restart worker
   const [restarting, setRestarting] = useState(false);
 
-  // Runtime config
+  const ELEVENLABS_VOICES = [
+    { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", desc: "Calm, warm female" },
+    { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella", desc: "Soft, young female" },
+    { id: "ErXwobaYiN019PkySvjV", name: "Antoni", desc: "Well-rounded male" },
+    { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh", desc: "Deep, young male" },
+    { id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli", desc: "Young female" },
+    { id: "VR6AewLTigWG4xSOukaG", name: "Arnold", desc: "Crisp male" },
+    { id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam", desc: "Raspy male" },
+    { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi", desc: "Strong female" },
+    { id: "ODq5zmih8GrVes37Dizd", name: "Patrick", desc: "Natural male" },
+    { id: "pNInz6obpgDQGcFmaJgB", name: "Adam", desc: "Deep male" },
+  ];
+
   const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
     model: "gpt-4o-mini-realtime-preview",
     voice: "coral",
@@ -172,11 +179,24 @@ export default function AgentPage() {
     timeoutSeconds: null,
     maxCallDurationSeconds: null,
     greetingMessage: null,
+    tts: {
+      provider: "elevenlabs",
+      model: "eleven_multilingual_v2",
+      voiceId: "ODq5zmih8GrVes37Dizd",
+      language: "pt",
+      stability: 0.5,
+      similarityBoost: 0.75,
+      speed: 1.0,
+    },
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [runtimeExpanded, setRuntimeExpanded] = useState(false);
+  const [customVoiceId, setCustomVoiceId] = useState("");
 
-  // Knowledge base
+  const isCustomElevenLabsVoice =
+    runtimeConfig.tts?.voiceId != null &&
+    !ELEVENLABS_VOICES.some((v) => v.id === runtimeConfig.tts?.voiceId);
+
   const [knowledgeItems, setKnowledgeItems] = useState<AgentKnowledgeItem[]>(
     []
   );
@@ -185,7 +205,6 @@ export default function AgentPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Test room state
   const [roomDialogOpen, setRoomDialogOpen] = useState(false);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [roomResponse, setRoomResponse] = useState<CreateRoomResponse | null>(
@@ -202,7 +221,6 @@ export default function AgentPage() {
     enable_webrtc: true,
   });
 
-  // Deploy state
   const [deploying, setDeploying] = useState(false);
   const [latestDeployment, setLatestDeployment] =
     useState<AgentDeployment | null>(null);
@@ -213,7 +231,6 @@ export default function AgentPage() {
   const PLAYGROUND_URL =
     "https://agents-playground.livekit.io/#cam=1&mic=1&screen=1&video=1&audio=1&chat=1&theme_color=cyan";
 
-  // Load agents list
   const loadAgents = useCallback(async () => {
     try {
       const list = await agentConfigApi.listAgents();
@@ -224,7 +241,7 @@ export default function AgentPage() {
   }, []);
 
   const loadWorkerStatus = useCallback(async () => {
-    // no-op: worker status now in /workers page
+
   }, []);
 
   const loadAvailableWorkers = useCallback(async () => {
@@ -332,7 +349,6 @@ export default function AgentPage() {
       });
       setLastUpdated(config.updated_at);
       toast.success("Configuration saved!");
-      // Refresh worker status since autoStart may have changed
     } catch {
       toast.error("Failed to save instructions");
     } finally {
@@ -354,7 +370,6 @@ export default function AgentPage() {
     }
   };
 
-  // Knowledge handlers
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -395,7 +410,6 @@ export default function AgentPage() {
     }
   };
 
-  // Room handlers
   const handleCreateRoom = async () => {
     setCreatingRoom(true);
     try {
@@ -422,7 +436,6 @@ export default function AgentPage() {
     setRoomDialogOpen(true);
   };
 
-  // Deploy handlers
   const handleDeploy = async () => {
     setDeploying(true);
     try {
@@ -503,29 +516,27 @@ export default function AgentPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
-      {/* Header with Agent Selector */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <Bot className="h-8 w-8" />
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3 sm:text-3xl">
+            <Bot className="h-7 w-7 sm:h-8 sm:w-8" />
             Agent Configuration
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Edit instructions and knowledge base for your voice agent.
           </p>
         </div>
       </div>
 
-      {/* Agent Selector */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Select Agent</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Select value={selectedAgent} onValueChange={handleAgentChange}>
-              <SelectTrigger className="w-[280px]">
+              <SelectTrigger className="w-full sm:w-[280px]">
                 <SelectValue placeholder="Select an agent" />
               </SelectTrigger>
               <SelectContent>
@@ -571,997 +582,1243 @@ export default function AgentPage() {
         </CardContent>
       </Card>
 
-      {/* Instructions Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Instructions</CardTitle>
-          <CardDescription>
-            Define how the agent should behave during voice calls. Changes take
-            effect on the next call without restarting the worker.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="instructions">Agent Instructions</Label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setInstructionsExpanded((v) => !v)}
-                className="h-7 px-2 text-xs text-muted-foreground"
-              >
-                <ChevronsUpDown className="mr-1 h-3 w-3" />
-                {instructionsExpanded ? "Collapse" : "Expand"}
-              </Button>
-            </div>
-            <div
-              className={`relative ${
-                !instructionsExpanded ? "max-h-[400px]" : ""
-              }`}
-            >
-              <Textarea
-                id="instructions"
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                rows={instructionsExpanded ? 40 : 16}
-                className={`font-mono text-sm resize-none ${
-                  !instructionsExpanded ? "max-h-[400px]" : ""
-                }`}
-                placeholder="You are a helpful voice assistant..."
-              />
-              {!instructionsExpanded && instructions.length > 800 && (
-                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-md" />
-              )}
-            </div>
-          </div>
+      <Tabs defaultValue="config" className="space-y-4">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="config">
+            <Settings2 className="h-4 w-4" />
+            Configuration
+          </TabsTrigger>
+          <TabsTrigger value="knowledge">
+            <BookOpen className="h-4 w-4" />
+            Knowledge
+          </TabsTrigger>
+          <TabsTrigger value="deploy">
+            <Rocket className="h-4 w-4" />
+            Deploy
+          </TabsTrigger>
+          <TabsTrigger value="test">
+            <PhoneCall className="h-4 w-4" />
+            Test
+          </TabsTrigger>
+        </TabsList>
 
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              {lastUpdated && (
-                <span>
-                  Last updated: {new Date(lastUpdated).toLocaleString()}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="autoStart"
-                  checked={autoStart}
-                  onChange={(e) => setAutoStart(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-                <Label htmlFor="autoStart" className="text-sm cursor-pointer">
-                  Auto-start worker
-                </Label>
-              </div>
-              <Button onClick={handleSave} disabled={saving}>
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? "Saving..." : "Save"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleRestart}
-                disabled={restarting}
-              >
-                <RefreshCw
-                  className={`mr-2 h-4 w-4 ${restarting ? "animate-spin" : ""}`}
-                />
-                {restarting ? "Restarting..." : "Restart Worker"}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Runtime Configuration Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Settings2 className="h-5 w-5" />
-                Runtime Configuration
-              </CardTitle>
+        <TabsContent value="config" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Instructions</CardTitle>
               <CardDescription>
-                Model, voice, VAD, humanization, timeouts and greeting. Applied
-                on the next call or after restarting the worker.
+                Define how the agent should behave during voice calls. Changes take
+                effect on the next call without restarting the worker.
               </CardDescription>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setRuntimeExpanded((v) => !v)}
-              className="h-7 px-2 text-xs text-muted-foreground"
-            >
-              <ChevronsUpDown className="mr-1 h-3 w-3" />
-              {runtimeExpanded ? "Collapse" : "Expand"}
-            </Button>
-          </div>
-        </CardHeader>
-        {runtimeExpanded && (
-          <CardContent className="space-y-6">
-            {/* Model & Voice */}
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold flex items-center gap-2">
-                <Mic className="h-4 w-4" /> Model &amp; Voice
-              </Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="rt-model" className="text-xs text-muted-foreground">
-                    Model
-                  </Label>
-                  <Select
-                    value={runtimeConfig.model ?? "gpt-4o-mini-realtime-preview"}
-                    onValueChange={(v) =>
-                      setRuntimeConfig((prev) => ({ ...prev, model: v }))
-                    }
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="instructions">Agent Instructions</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setInstructionsExpanded((v) => !v)}
+                    className="h-7 px-2 text-xs text-muted-foreground"
                   >
-                    <SelectTrigger id="rt-model">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gpt-4o-mini-realtime-preview">
-                        gpt-4o-mini-realtime-preview
-                      </SelectItem>
-                      <SelectItem value="gpt-4o-realtime-preview">
-                        gpt-4o-realtime-preview
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <ChevronsUpDown className="mr-1 h-3 w-3" />
+                    {instructionsExpanded ? "Collapse" : "Expand"}
+                  </Button>
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="rt-voice" className="text-xs text-muted-foreground">
-                    Voice
-                  </Label>
-                  <Select
-                    value={runtimeConfig.voice ?? "coral"}
-                    onValueChange={(v) =>
-                      setRuntimeConfig((prev) => ({ ...prev, voice: v }))
-                    }
-                  >
-                    <SelectTrigger id="rt-voice">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[
-                        "coral",
-                        "alloy",
-                        "ash",
-                        "ballad",
-                        "echo",
-                        "fable",
-                        "nova",
-                        "onyx",
-                        "sage",
-                        "shimmer",
-                        "verse",
-                      ].map((v) => (
-                        <SelectItem key={v} value={v}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            {/* Temperature & Max Tokens */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="rt-temp" className="text-xs text-muted-foreground">
-                  Temperature
-                </Label>
-                <Input
-                  id="rt-temp"
-                  type="number"
-                  step={0.1}
-                  min={0}
-                  max={2}
-                  value={runtimeConfig.temperature ?? 0.3}
-                  onChange={(e) =>
-                    setRuntimeConfig((prev) => ({
-                      ...prev,
-                      temperature: parseFloat(e.target.value) || 0,
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="rt-tokens" className="text-xs text-muted-foreground">
-                  Max Output Tokens
-                </Label>
-                <Input
-                  id="rt-tokens"
-                  type="number"
-                  step={100}
-                  min={100}
-                  max={4096}
-                  value={runtimeConfig.maxTokens ?? 600}
-                  onChange={(e) =>
-                    setRuntimeConfig((prev) => ({
-                      ...prev,
-                      maxTokens: parseInt(e.target.value) || 600,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Persona */}
-            <div className="space-y-1">
-              <Label htmlFor="rt-persona" className="text-xs text-muted-foreground">
-                Persona
-              </Label>
-              <Select
-                value={runtimeConfig.persona ?? "sales"}
-                onValueChange={(v) =>
-                  setRuntimeConfig((prev) => ({ ...prev, persona: v }))
-                }
-              >
-                <SelectTrigger id="rt-persona">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sales">Sales</SelectItem>
-                  <SelectItem value="support">Support</SelectItem>
-                  <SelectItem value="corporate">Corporate</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Noise Cancellation */}
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="rt-noise"
-                checked={runtimeConfig.noiseCancellation ?? true}
-                onChange={(e) =>
-                  setRuntimeConfig((prev) => ({
-                    ...prev,
-                    noiseCancellation: e.target.checked,
-                  }))
-                }
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <Label htmlFor="rt-noise" className="text-sm cursor-pointer">
-                Noise Cancellation
-              </Label>
-            </div>
-
-            {/* Greeting Message */}
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" /> Greeting Message
-              </Label>
-              <Textarea
-                value={runtimeConfig.greetingMessage ?? ""}
-                onChange={(e) =>
-                  setRuntimeConfig((prev) => ({
-                    ...prev,
-                    greetingMessage: e.target.value || null,
-                  }))
-                }
-                rows={3}
-                className="font-mono text-sm resize-none"
-                placeholder="Seja bem-vindo à central da Claro. Pra eu te atender direitinho, me diz por favor o seu nome."
-              />
-              <p className="text-xs text-muted-foreground">
-                Leave empty to use the default greeting.
-              </p>
-            </div>
-
-            {/* Turn Detection (VAD) */}
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Turn Detection (VAD)</Label>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="rt-vad-type" className="text-xs text-muted-foreground">
-                    Type
-                  </Label>
-                  <Select
-                    value={runtimeConfig.turnDetection?.type ?? "server_vad"}
-                    onValueChange={(v) =>
-                      setRuntimeConfig((prev) => ({
-                        ...prev,
-                        turnDetection: { ...prev.turnDetection, type: v },
-                      }))
-                    }
-                  >
-                    <SelectTrigger id="rt-vad-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="server_vad">server_vad</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="rt-vad-silence"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Silence (ms)
-                  </Label>
-                  <Input
-                    id="rt-vad-silence"
-                    type="number"
-                    step={50}
-                    min={100}
-                    max={5000}
-                    value={runtimeConfig.turnDetection?.silence_duration_ms ?? 500}
-                    onChange={(e) =>
-                      setRuntimeConfig((prev) => ({
-                        ...prev,
-                        turnDetection: {
-                          ...prev.turnDetection,
-                          silence_duration_ms: parseInt(e.target.value) || 500,
-                        },
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="rt-vad-interrupt"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Interrupt threshold (ms)
-                  </Label>
-                  <Input
-                    id="rt-vad-interrupt"
-                    type="number"
-                    step={50}
-                    min={50}
-                    max={2000}
-                    value={
-                      runtimeConfig.turnDetection?.interrupt_threshold_ms ?? 200
-                    }
-                    onChange={(e) =>
-                      setRuntimeConfig((prev) => ({
-                        ...prev,
-                        turnDetection: {
-                          ...prev.turnDetection,
-                          interrupt_threshold_ms:
-                            parseInt(e.target.value) || 200,
-                        },
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Humanization */}
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Humanization</Label>
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="rt-fillers"
-                    checked={runtimeConfig.humanization?.fillersEnabled ?? false}
-                    onChange={(e) =>
-                      setRuntimeConfig((prev) => ({
-                        ...prev,
-                        humanization: {
-                          ...prev.humanization,
-                          fillersEnabled: e.target.checked,
-                        },
-                      }))
-                    }
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="rt-fillers" className="text-sm cursor-pointer">
-                    Fillers
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="rt-typing"
-                    checked={runtimeConfig.humanization?.typingSounds ?? false}
-                    onChange={(e) =>
-                      setRuntimeConfig((prev) => ({
-                        ...prev,
-                        humanization: {
-                          ...prev.humanization,
-                          typingSounds: e.target.checked,
-                        },
-                      }))
-                    }
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="rt-typing" className="text-sm cursor-pointer">
-                    Typing sounds
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="rt-ambience"
-                    checked={runtimeConfig.humanization?.ambience ?? false}
-                    onChange={(e) =>
-                      setRuntimeConfig((prev) => ({
-                        ...prev,
-                        humanization: {
-                          ...prev.humanization,
-                          ambience: e.target.checked,
-                        },
-                      }))
-                    }
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="rt-ambience" className="text-sm cursor-pointer">
-                    Office ambience
-                  </Label>
-                </div>
-              </div>
-            </div>
-
-            {/* Timeouts */}
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold flex items-center gap-2">
-                <Timer className="h-4 w-4" /> Timeouts
-              </Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="rt-timeout"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Inactivity timeout (seconds)
-                  </Label>
-                  <Input
-                    id="rt-timeout"
-                    type="number"
-                    min={0}
-                    max={7200}
-                    value={runtimeConfig.timeoutSeconds ?? ""}
-                    onChange={(e) =>
-                      setRuntimeConfig((prev) => ({
-                        ...prev,
-                        timeoutSeconds: e.target.value
-                          ? parseInt(e.target.value)
-                          : null,
-                      }))
-                    }
-                    placeholder="Disabled"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="rt-maxduration"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Max call duration (seconds)
-                  </Label>
-                  <Input
-                    id="rt-maxduration"
-                    type="number"
-                    min={0}
-                    max={14400}
-                    value={runtimeConfig.maxCallDurationSeconds ?? ""}
-                    onChange={(e) =>
-                      setRuntimeConfig((prev) => ({
-                        ...prev,
-                        maxCallDurationSeconds: e.target.value
-                          ? parseInt(e.target.value)
-                          : null,
-                      }))
-                    }
-                    placeholder="Disabled"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Leave empty to disable. Inactivity timeout ends the call after
-                silence; max duration is a hard limit.
-              </p>
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
-      {/* Knowledge Base Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                Knowledge Base
-              </CardTitle>
-              <CardDescription>
-                Upload TXT or PDF files to enrich the agent&apos;s context.
-                Knowledge is automatically appended to instructions.
-              </CardDescription>
-            </div>
-            <Badge variant="secondary">
-              {knowledgeItems.length}{" "}
-              {knowledgeItems.length === 1 ? "file" : "files"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Upload area */}
-          <div className="rounded-lg border border-dashed p-4 space-y-3">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".txt,.pdf"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="knowledge-file"
-                />
-                <Label
-                  htmlFor="knowledge-file"
-                  className="cursor-pointer inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+                <div
+                  className={`relative ${
+                    !instructionsExpanded ? "max-h-[400px]" : ""
+                  }`}
                 >
-                  <Upload className="h-4 w-4" />
-                  {uploading ? "Uploading..." : "Choose file (.txt, .pdf)"}
-                </Label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="summarize"
-                  checked={summarize}
-                  onChange={(e) => setSummarize(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-                <Label htmlFor="summarize" className="text-sm cursor-pointer">
-                  Summarize before saving
-                </Label>
-              </div>
-            </div>
-
-            {summarize && (
-              <div className="flex items-start gap-2 rounded-md bg-yellow-500/10 border border-yellow-500/20 p-3 text-sm text-yellow-700 dark:text-yellow-400">
-                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                <span>
-                  The file will be summarized via AI (gpt-4o-mini) before saving.
-                  This reduces tokens and improves real-time performance, but
-                  some details may be simplified.
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Knowledge items list */}
-          {knowledgeItems.length > 0 ? (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>File</TableHead>
-                    <TableHead className="w-[100px]">Size</TableHead>
-                    <TableHead className="w-[100px]">Type</TableHead>
-                    <TableHead className="w-[140px]">Date</TableHead>
-                    <TableHead className="w-[50px]" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {knowledgeItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="truncate max-w-[200px]">
-                            {item.file_name}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {item.char_count.toLocaleString()} chars
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={item.summarized ? "default" : "outline"}
-                          className="text-xs"
-                        >
-                          {item.summarized ? "Summarized" : "Original"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {new Date(item.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteKnowledge(item.id)}
-                          disabled={deletingId === item.id}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="text-center py-6 text-sm text-muted-foreground">
-              No knowledge files uploaded yet.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Deploy Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Rocket className="h-5 w-5" />
-                Deployment
-              </CardTitle>
-              <CardDescription>
-                Build a Docker image and deploy this agent as a pod via the
-                backend-deploy-controller.
-              </CardDescription>
-            </div>
-            {latestDeployment && (
-              <DeployStatusBadge status={latestDeployment.status} />
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loadingDeploy ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading deployment status...
-            </div>
-          ) : latestDeployment ? (
-            <div className="rounded-md border bg-muted/50 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Latest Version</span>
-                <Badge variant="secondary">v{latestDeployment.version}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Image</span>
-                <code className="text-xs text-muted-foreground max-w-[300px] truncate">
-                  {latestDeployment.image_tag}
-                </code>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Status</span>
-                <DeployStatusBadge status={latestDeployment.status} />
-              </div>
-              {latestDeployment.pod_name && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Pod</span>
-                  <code className="text-xs text-muted-foreground">
-                    {latestDeployment.pod_name}
-                  </code>
+                  <Textarea
+                    id="instructions"
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                    rows={instructionsExpanded ? 40 : 16}
+                    className={`font-mono text-sm resize-none ${
+                      !instructionsExpanded ? "max-h-[400px]" : ""
+                    }`}
+                    placeholder="You are a helpful voice assistant..."
+                  />
+                  {!instructionsExpanded && instructions.length > 800 && (
+                    <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-md" />
+                  )}
                 </div>
-              )}
-              {latestDeployment.error_message && (
-                <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3">
-                  <p className="text-sm text-destructive flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    {latestDeployment.error_message}
-                  </p>
-                </div>
-              )}
-              {deployHealth && latestDeployment.status === "RUNNING" && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Health</span>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        deployHealth.healthy ? "bg-green-500" : "bg-red-500"
-                      }`}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      {deployHealth.healthy ? "Healthy" : "Unhealthy"}
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-muted-foreground">
+                  {lastUpdated && (
+                    <span>
+                      Last updated: {new Date(lastUpdated).toLocaleString()}
                     </span>
-                  </div>
+                  )}
                 </div>
-              )}
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  Created:{" "}
-                  {new Date(latestDeployment.created_at).toLocaleString()}
-                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="autoStart"
+                      checked={autoStart}
+                      onChange={(e) => setAutoStart(e.target.checked)}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <Label htmlFor="autoStart" className="text-sm cursor-pointer">
+                      Auto-start worker
+                    </Label>
+                  </div>
+                  <Button onClick={handleSave} disabled={saving}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {saving ? "Saving..." : "Save"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleRestart}
+                    disabled={restarting}
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${restarting ? "animate-spin" : ""}`}
+                    />
+                    {restarting ? "Restarting..." : "Restart Worker"}
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-sm text-muted-foreground">
-              No deployments yet. Click &quot;Deploy Agent&quot; to create the
-              first deployment.
-            </div>
-          )}
+            </CardContent>
+          </Card>
 
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={handleDeploy}
-              disabled={
-                deploying ||
-                (latestDeployment != null &&
-                  ["BUILDING", "PUSHING", "DEPLOYING"].includes(
-                    latestDeployment.status
-                  ))
-              }
-            >
-              {deploying ||
-              (latestDeployment != null &&
-                ["BUILDING", "PUSHING", "DEPLOYING"].includes(
-                  latestDeployment.status
-                )) ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {latestDeployment?.status === "BUILDING"
-                    ? "Building..."
-                    : latestDeployment?.status === "PUSHING"
-                      ? "Pushing..."
-                      : latestDeployment?.status === "DEPLOYING"
-                        ? "Deploying..."
-                        : "Starting..."}
-                </>
-              ) : (
-                <>
-                  <Rocket className="mr-2 h-4 w-4" />
-                  Deploy Agent
-                  {latestDeployment
-                    ? ` (v${latestDeployment.version + 1})`
-                    : ""}
-                </>
-              )}
-            </Button>
-
-            {latestDeployment?.status === "RUNNING" && (
-              <Button variant="destructive" size="sm" onClick={handleStopDeploy}>
-                <Square className="mr-2 h-4 w-4" />
-                Stop
-              </Button>
-            )}
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadDeployStatus(selectedAgent)}
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
-            </Button>
-
-            <a href="/agent/deployments" className="ml-auto">
-              <Button variant="ghost" size="sm">
-                <History className="mr-2 h-4 w-4" />
-                View History
-              </Button>
-            </a>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Test Room Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Test Room</CardTitle>
-              <CardDescription>
-                Create a test room to try the voice agent in the LiveKit
-                playground.
-              </CardDescription>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <a
-                href={PLAYGROUND_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Open Playground
-              </a>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Create a room and use the token in the LiveKit Agents Playground
-              to test your agent.
-            </p>
-            <Dialog open={roomDialogOpen} onOpenChange={setRoomDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={handleOpenDialog}>
-                  <PhoneCall className="mr-2 h-4 w-4" />
-                  Create Test Room
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings2 className="h-5 w-5" />
+                    Runtime Configuration
+                  </CardTitle>
+                  <CardDescription>
+                    Model, voice, VAD, humanization, timeouts and greeting. Applied
+                    on the next call or after restarting the worker.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setRuntimeExpanded((v) => !v)}
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                >
+                  <ChevronsUpDown className="mr-1 h-3 w-3" />
+                  {runtimeExpanded ? "Collapse" : "Expand"}
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
-                  <DialogTitle>Create Test Room</DialogTitle>
-                  <DialogDescription>
-                    Configure the room parameters and create a test session.
-                  </DialogDescription>
-                </DialogHeader>
+              </div>
+            </CardHeader>
+            {runtimeExpanded && (
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Mic className="h-4 w-4" /> Model &amp; Voice
+                  </Label>
 
-                {!roomResponse ? (
-                  <>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="agent_name">Agent Name</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="rt-model" className="text-xs text-muted-foreground">
+                        Model
+                      </Label>
+                      <Select
+                        value={runtimeConfig.model ?? "gpt-4o-mini-realtime-preview"}
+                        onValueChange={(v) =>
+                          setRuntimeConfig((prev) => ({ ...prev, model: v }))
+                        }
+                      >
+                        <SelectTrigger id="rt-model">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gpt-4o-mini-realtime-preview">
+                            gpt-4o-mini-realtime-preview
+                          </SelectItem>
+                          <SelectItem value="gpt-4o-realtime-preview">
+                            gpt-4o-realtime-preview
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="rt-tts-provider" className="text-xs text-muted-foreground">
+                        TTS Provider
+                      </Label>
+                      <Select
+                        value={runtimeConfig.tts?.provider ?? "openai_realtime"}
+                        onValueChange={(v) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            tts: { ...prev.tts, provider: v },
+                          }))
+                        }
+                      >
+                        <SelectTrigger id="rt-tts-provider">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="openai_realtime">OpenAI Realtime</SelectItem>
+                          <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {runtimeConfig.tts?.provider === "elevenlabs" ? (
+                    <div className="space-y-4 rounded-lg border p-4 bg-muted/30">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        ElevenLabs TTS Settings
+                      </Label>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-11l-voice" className="text-xs text-muted-foreground">
+                            Voice
+                          </Label>
                           <Select
-                            value={roomForm.agent_name}
-                            onValueChange={(value) =>
-                              setRoomForm({ ...roomForm, agent_name: value })
+                            value={
+                              isCustomElevenLabsVoice
+                                ? "__custom__"
+                                : (runtimeConfig.tts?.voiceId ?? "ODq5zmih8GrVes37Dizd")
                             }
+                            onValueChange={(v) => {
+                              if (v === "__custom__") {
+                                setCustomVoiceId(runtimeConfig.tts?.voiceId ?? "");
+                              } else {
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  tts: { ...prev.tts, voiceId: v },
+                                }));
+                                setCustomVoiceId("");
+                              }
+                            }}
                           >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select agent" />
+                            <SelectTrigger id="rt-11l-voice">
+                              <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {availableWorkers.map((name) => (
-                                <SelectItem key={name} value={name}>
-                                  {name}
+                              {ELEVENLABS_VOICES.map((v) => (
+                                <SelectItem key={v.id} value={v.id}>
+                                  {v.name} — {v.desc}
                                 </SelectItem>
                               ))}
+                              <SelectItem value="__custom__">Custom Voice ID</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="customer_name">Customer Name</Label>
-                          <Input
-                            id="customer_name"
-                            value={roomForm.customer_name}
-                            onChange={(e) =>
-                              setRoomForm({
-                                ...roomForm,
-                                customer_name: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="from_number">From Number</Label>
-                          <Input
-                            id="from_number"
-                            value={roomForm.from_number}
-                            onChange={(e) =>
-                              setRoomForm({
-                                ...roomForm,
-                                from_number: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="to_number">To Number</Label>
-                          <Input
-                            id="to_number"
-                            value={roomForm.to_number}
-                            onChange={(e) =>
-                              setRoomForm({
-                                ...roomForm,
-                                to_number: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="channel">Channel</Label>
-                          <Input
-                            id="channel"
-                            value={roomForm.channel}
-                            onChange={(e) =>
-                              setRoomForm({
-                                ...roomForm,
-                                channel: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="direction">Direction</Label>
-                          <Input
-                            id="direction"
-                            value={roomForm.direction}
-                            onChange={(e) =>
-                              setRoomForm({
-                                ...roomForm,
-                                direction: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        onClick={handleCreateRoom}
-                        disabled={creatingRoom}
-                      >
-                        <PhoneCall className="mr-2 h-4 w-4" />
-                        {creatingRoom ? "Creating..." : "Create Room"}
-                      </Button>
-                    </DialogFooter>
-                  </>
-                ) : (
-                  <div className="space-y-4 py-4">
-                    <div className="rounded-md border bg-muted/50 p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Room Name</span>
-                        <Badge variant="secondary">
-                          {roomResponse.room_name}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Session ID</span>
-                        <code className="text-xs text-muted-foreground">
-                          {roomResponse.sessionId}
-                        </code>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Server URL</span>
-                        <code className="text-xs text-muted-foreground">
-                          {roomResponse.url}
-                        </code>
-                      </div>
-                      <div className="space-y-2">
-                        <span className="text-sm font-medium">Token</span>
-                        <div className="flex items-center gap-2">
-                          <code className="text-xs text-muted-foreground break-all flex-1 bg-muted p-2 rounded max-h-20 overflow-auto">
-                            {roomResponse.token}
-                          </code>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              handleCopyToken(roomResponse.token)
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-11l-model" className="text-xs text-muted-foreground">
+                            TTS Model
+                          </Label>
+                          <Select
+                            value={runtimeConfig.tts?.model ?? "eleven_multilingual_v2"}
+                            onValueChange={(v) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, model: v },
+                              }))
                             }
                           >
-                            {copiedToken ? (
-                              <Check className="h-4 w-4" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
+                            <SelectTrigger id="rt-11l-model">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="eleven_multilingual_v2">eleven_multilingual_v2</SelectItem>
+                              <SelectItem value="eleven_turbo_v2_5">eleven_turbo_v2_5</SelectItem>
+                              <SelectItem value="eleven_turbo_v2">eleven_turbo_v2</SelectItem>
+                              <SelectItem value="eleven_flash_v2_5">eleven_flash_v2_5</SelectItem>
+                              <SelectItem value="eleven_flash_v2">eleven_flash_v2</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {(isCustomElevenLabsVoice || customVoiceId !== "" ||
+                        (!ELEVENLABS_VOICES.some((v) => v.id === runtimeConfig.tts?.voiceId) && runtimeConfig.tts?.voiceId)) && (
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-11l-custom-voice" className="text-xs text-muted-foreground">
+                            Custom Voice ID
+                          </Label>
+                          <Input
+                            id="rt-11l-custom-voice"
+                            type="text"
+                            placeholder="Enter ElevenLabs voice ID..."
+                            value={runtimeConfig.tts?.voiceId ?? customVoiceId}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCustomVoiceId(val);
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, voiceId: val },
+                              }));
+                            }}
+                            className="font-mono text-sm"
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-1">
+                        <Label htmlFor="rt-11l-lang" className="text-xs text-muted-foreground">
+                          Language
+                        </Label>
+                        <Select
+                          value={runtimeConfig.tts?.language ?? "pt"}
+                          onValueChange={(v) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              tts: { ...prev.tts, language: v },
+                            }))
+                          }
+                        >
+                          <SelectTrigger id="rt-11l-lang">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pt">Português</SelectItem>
+                            <SelectItem value="en">English</SelectItem>
+                            <SelectItem value="es">Español</SelectItem>
+                            <SelectItem value="fr">Français</SelectItem>
+                            <SelectItem value="de">Deutsch</SelectItem>
+                            <SelectItem value="it">Italiano</SelectItem>
+                            <SelectItem value="ja">日本語</SelectItem>
+                            <SelectItem value="ko">한국어</SelectItem>
+                            <SelectItem value="zh">中文</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-11l-stability" className="text-xs text-muted-foreground">
+                            Stability ({runtimeConfig.tts?.stability?.toFixed(2) ?? "0.50"})
+                          </Label>
+                          <input
+                            id="rt-11l-stability"
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            value={runtimeConfig.tts?.stability ?? 0.5}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, stability: parseFloat(e.target.value) },
+                              }))
+                            }
+                            className="w-full accent-primary h-2 cursor-pointer"
+                          />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>Variable</span>
+                            <span>Stable</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-11l-similarity" className="text-xs text-muted-foreground">
+                            Similarity ({runtimeConfig.tts?.similarityBoost?.toFixed(2) ?? "0.75"})
+                          </Label>
+                          <input
+                            id="rt-11l-similarity"
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            value={runtimeConfig.tts?.similarityBoost ?? 0.75}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, similarityBoost: parseFloat(e.target.value) },
+                              }))
+                            }
+                            className="w-full accent-primary h-2 cursor-pointer"
+                          />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>Low</span>
+                            <span>High</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-11l-speed" className="text-xs text-muted-foreground">
+                            Speed ({runtimeConfig.tts?.speed?.toFixed(1) ?? "1.0"})
+                          </Label>
+                          <input
+                            id="rt-11l-speed"
+                            type="range"
+                            min={0.5}
+                            max={2}
+                            step={0.1}
+                            value={runtimeConfig.tts?.speed ?? 1.0}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, speed: parseFloat(e.target.value) },
+                              }))
+                            }
+                            className="w-full accent-primary h-2 cursor-pointer"
+                          />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>0.5×</span>
+                            <span>2.0×</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-
-                    <DialogFooter className="gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setRoomResponse(null)}
+                  ) : (
+                    /* OpenAI Realtime voice selector */
+                    <div className="space-y-1">
+                      <Label htmlFor="rt-voice" className="text-xs text-muted-foreground">
+                        Voice (OpenAI)
+                      </Label>
+                      <Select
+                        value={runtimeConfig.voice ?? "coral"}
+                        onValueChange={(v) =>
+                          setRuntimeConfig((prev) => ({ ...prev, voice: v }))
+                        }
                       >
-                        Create Another
-                      </Button>
-                      <Button asChild>
-                        <a
-                          href={PLAYGROUND_URL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Open Playground
-                        </a>
-                      </Button>
-                    </DialogFooter>
+                        <SelectTrigger id="rt-voice">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[
+                            "coral",
+                            "alloy",
+                            "ash",
+                            "ballad",
+                            "echo",
+                            "fable",
+                            "nova",
+                            "onyx",
+                            "sage",
+                            "shimmer",
+                            "verse",
+                          ].map((v) => (
+                            <SelectItem key={v} value={v}>
+                              {v}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="rt-temp" className="text-xs text-muted-foreground">
+                      Temperature
+                    </Label>
+                    <Input
+                      id="rt-temp"
+                      type="number"
+                      step={0.1}
+                      min={0}
+                      max={2}
+                      value={runtimeConfig.temperature ?? 0.3}
+                      onChange={(e) =>
+                        setRuntimeConfig((prev) => ({
+                          ...prev,
+                          temperature: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="rt-tokens" className="text-xs text-muted-foreground">
+                      Max Output Tokens
+                    </Label>
+                    <Input
+                      id="rt-tokens"
+                      type="number"
+                      step={100}
+                      min={100}
+                      max={4096}
+                      value={runtimeConfig.maxTokens ?? 600}
+                      onChange={(e) =>
+                        setRuntimeConfig((prev) => ({
+                          ...prev,
+                          maxTokens: parseInt(e.target.value) || 600,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="rt-persona" className="text-xs text-muted-foreground">
+                    Persona
+                  </Label>
+                  <Select
+                    value={runtimeConfig.persona ?? "sales"}
+                    onValueChange={(v) =>
+                      setRuntimeConfig((prev) => ({ ...prev, persona: v }))
+                    }
+                  >
+                    <SelectTrigger id="rt-persona">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sales">Sales</SelectItem>
+                      <SelectItem value="support">Support</SelectItem>
+                      <SelectItem value="corporate">Corporate</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="rt-noise"
+                    checked={runtimeConfig.noiseCancellation ?? true}
+                    onChange={(e) =>
+                      setRuntimeConfig((prev) => ({
+                        ...prev,
+                        noiseCancellation: e.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4 rounded border-border"
+                  />
+                  <Label htmlFor="rt-noise" className="text-sm cursor-pointer">
+                    Noise Cancellation
+                  </Label>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" /> Greeting Message
+                  </Label>
+                  <Textarea
+                    value={runtimeConfig.greetingMessage ?? ""}
+                    onChange={(e) =>
+                      setRuntimeConfig((prev) => ({
+                        ...prev,
+                        greetingMessage: e.target.value || null,
+                      }))
+                    }
+                    rows={3}
+                    className="font-mono text-sm resize-none"
+                    placeholder="Seja bem-vindo à central da Claro. Pra eu te atender direitinho, me diz por favor o seu nome."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty to use the default greeting.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Turn Detection (VAD)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="rt-vad-type" className="text-xs text-muted-foreground">
+                        Type
+                      </Label>
+                      <Select
+                        value={runtimeConfig.turnDetection?.type ?? "server_vad"}
+                        onValueChange={(v) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            turnDetection: { ...prev.turnDetection, type: v },
+                          }))
+                        }
+                      >
+                        <SelectTrigger id="rt-vad-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="server_vad">server_vad</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="rt-vad-silence"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Silence (ms)
+                      </Label>
+                      <Input
+                        id="rt-vad-silence"
+                        type="number"
+                        step={50}
+                        min={100}
+                        max={5000}
+                        value={runtimeConfig.turnDetection?.silence_duration_ms ?? 500}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            turnDetection: {
+                              ...prev.turnDetection,
+                              silence_duration_ms: parseInt(e.target.value) || 500,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="rt-vad-interrupt"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Interrupt threshold (ms)
+                      </Label>
+                      <Input
+                        id="rt-vad-interrupt"
+                        type="number"
+                        step={50}
+                        min={50}
+                        max={2000}
+                        value={
+                          runtimeConfig.turnDetection?.interrupt_threshold_ms ?? 200
+                        }
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            turnDetection: {
+                              ...prev.turnDetection,
+                              interrupt_threshold_ms:
+                                parseInt(e.target.value) || 200,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Humanization</Label>
+                  <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="rt-fillers"
+                        checked={runtimeConfig.humanization?.fillersEnabled ?? false}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            humanization: {
+                              ...prev.humanization,
+                              fillersEnabled: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-border"
+                      />
+                      <Label htmlFor="rt-fillers" className="text-sm cursor-pointer">
+                        Fillers
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="rt-typing"
+                        checked={runtimeConfig.humanization?.typingSounds ?? false}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            humanization: {
+                              ...prev.humanization,
+                              typingSounds: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-border"
+                      />
+                      <Label htmlFor="rt-typing" className="text-sm cursor-pointer">
+                        Typing sounds
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="rt-ambience"
+                        checked={runtimeConfig.humanization?.ambience ?? false}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            humanization: {
+                              ...prev.humanization,
+                              ambience: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-border"
+                      />
+                      <Label htmlFor="rt-ambience" className="text-sm cursor-pointer">
+                        Office ambience
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Timer className="h-4 w-4" /> Timeouts
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="rt-timeout"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Inactivity timeout (seconds)
+                      </Label>
+                      <Input
+                        id="rt-timeout"
+                        type="number"
+                        min={0}
+                        max={7200}
+                        value={runtimeConfig.timeoutSeconds ?? ""}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            timeoutSeconds: e.target.value
+                              ? parseInt(e.target.value)
+                              : null,
+                          }))
+                        }
+                        placeholder="Disabled"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="rt-maxduration"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Max call duration (seconds)
+                      </Label>
+                      <Input
+                        id="rt-maxduration"
+                        type="number"
+                        min={0}
+                        max={14400}
+                        value={runtimeConfig.maxCallDurationSeconds ?? ""}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            maxCallDurationSeconds: e.target.value
+                              ? parseInt(e.target.value)
+                              : null,
+                          }))
+                        }
+                        placeholder="Disabled"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty to disable. Inactivity timeout ends the call after
+                    silence; max duration is a hard limit.
+                  </p>
+                </div>
+
+                <div className="flex justify-end pt-2 border-t">
+                  <Button onClick={handleSave} disabled={saving}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {saving ? "Saving..." : "Save Configuration"}
+                  </Button>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="knowledge" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5" />
+                    Knowledge Base
+                  </CardTitle>
+                  <CardDescription>
+                    Upload TXT or PDF files to enrich the agent&apos;s context.
+                    Knowledge is automatically appended to instructions.
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary">
+                  {knowledgeItems.length}{" "}
+                  {knowledgeItems.length === 1 ? "file" : "files"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border border-dashed p-4 space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="flex-1">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.pdf"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="knowledge-file"
+                    />
+                    <Label
+                      htmlFor="knowledge-file"
+                      className="cursor-pointer inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {uploading ? "Uploading..." : "Choose file (.txt, .pdf)"}
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="summarize"
+                      checked={summarize}
+                      onChange={(e) => setSummarize(e.target.checked)}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <Label htmlFor="summarize" className="text-sm cursor-pointer">
+                      Summarize before saving
+                    </Label>
+                  </div>
+                </div>
+
+                {summarize && (
+                  <div className="flex items-start gap-2 rounded-md bg-yellow-500/10 border border-yellow-500/20 p-3 text-sm text-yellow-700 dark:text-yellow-400">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>
+                      The file will be summarized via AI (gpt-4o-mini) before saving.
+                      This reduces tokens and improves real-time performance, but
+                      some details may be simplified.
+                    </span>
                   </div>
                 )}
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardContent>
-      </Card>
+              </div>
+
+              {knowledgeItems.length > 0 ? (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>File</TableHead>
+                        <TableHead className="w-[100px]">Size</TableHead>
+                        <TableHead className="w-[100px]">Type</TableHead>
+                        <TableHead className="w-[140px]">Date</TableHead>
+                        <TableHead className="w-[50px]" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {knowledgeItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="truncate max-w-[200px]">
+                                {item.file_name}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-xs">
+                            {item.char_count.toLocaleString()} chars
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={item.summarized ? "default" : "outline"}
+                              className="text-xs"
+                            >
+                              {item.summarized ? "Summarized" : "Original"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-xs">
+                            {new Date(item.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteKnowledge(item.id)}
+                              disabled={deletingId === item.id}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-sm text-muted-foreground">
+                  No knowledge files uploaded yet.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="deploy" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Rocket className="h-5 w-5" />
+                    Deployment
+                  </CardTitle>
+                  <CardDescription>
+                    Build a Docker image and deploy this agent as a pod via the
+                    backend-deploy-controller.
+                  </CardDescription>
+                </div>
+                {latestDeployment && (
+                  <DeployStatusBadge status={latestDeployment.status} />
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loadingDeploy ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading deployment status...
+                </div>
+              ) : latestDeployment ? (
+                <div className="rounded-md border bg-muted/50 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Latest Version</span>
+                    <Badge variant="secondary">v{latestDeployment.version}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Image</span>
+                    <code className="text-xs text-muted-foreground max-w-[300px] truncate">
+                      {latestDeployment.image_tag}
+                    </code>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Status</span>
+                    <DeployStatusBadge status={latestDeployment.status} />
+                  </div>
+                  {latestDeployment.pod_name && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Pod</span>
+                      <code className="text-xs text-muted-foreground">
+                        {latestDeployment.pod_name}
+                      </code>
+                    </div>
+                  )}
+                  {latestDeployment.error_message && (
+                    <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3">
+                      <p className="text-sm text-destructive flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        {latestDeployment.error_message}
+                      </p>
+                    </div>
+                  )}
+                  {deployHealth && latestDeployment.status === "RUNNING" && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Health</span>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            deployHealth.healthy ? "bg-green-500" : "bg-red-500"
+                          }`}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {deployHealth.healthy ? "Healthy" : "Unhealthy"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      Created:{" "}
+                      {new Date(latestDeployment.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  No deployments yet. Click &quot;Deploy Agent&quot; to create the
+                  first deployment.
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  onClick={handleDeploy}
+                  disabled={
+                    deploying ||
+                    (latestDeployment != null &&
+                      ["BUILDING", "PUSHING", "DEPLOYING"].includes(
+                        latestDeployment.status
+                      ))
+                  }
+                >
+                  {deploying ||
+                  (latestDeployment != null &&
+                    ["BUILDING", "PUSHING", "DEPLOYING"].includes(
+                      latestDeployment.status
+                    )) ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {latestDeployment?.status === "BUILDING"
+                        ? "Building..."
+                        : latestDeployment?.status === "PUSHING"
+                          ? "Pushing..."
+                          : latestDeployment?.status === "DEPLOYING"
+                            ? "Deploying..."
+                            : "Starting..."}
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="mr-2 h-4 w-4" />
+                      Deploy Agent
+                      {latestDeployment
+                        ? ` (v${latestDeployment.version + 1})`
+                        : ""}
+                    </>
+                  )}
+                </Button>
+
+                {latestDeployment?.status === "RUNNING" && (
+                  <Button variant="destructive" size="sm" onClick={handleStopDeploy}>
+                    <Square className="mr-2 h-4 w-4" />
+                    Stop
+                  </Button>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadDeployStatus(selectedAgent)}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh
+                </Button>
+
+                <a href="/agent/deployments" className="ml-auto">
+                  <Button variant="ghost" size="sm">
+                    <History className="mr-2 h-4 w-4" />
+                    View History
+                  </Button>
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="test" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Test Room</CardTitle>
+                  <CardDescription>
+                    Create a test room to try the voice agent in the LiveKit
+                    playground.
+                  </CardDescription>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <a
+                    href={PLAYGROUND_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open Playground
+                  </a>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Create a room and use the token in the LiveKit Agents Playground
+                  to test your agent.
+                </p>
+                <Dialog open={roomDialogOpen} onOpenChange={setRoomDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button onClick={handleOpenDialog}>
+                      <PhoneCall className="mr-2 h-4 w-4" />
+                      Create Test Room
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                      <DialogTitle>Create Test Room</DialogTitle>
+                      <DialogDescription>
+                        Configure the room parameters and create a test session.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    {!roomResponse ? (
+                      <>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="agent_name">Agent Name</Label>
+                              <Select
+                                value={roomForm.agent_name}
+                                onValueChange={(value) =>
+                                  setRoomForm({ ...roomForm, agent_name: value })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select agent" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {availableWorkers.map((name) => (
+                                    <SelectItem key={name} value={name}>
+                                      {name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="customer_name">Customer Name</Label>
+                              <Input
+                                id="customer_name"
+                                value={roomForm.customer_name}
+                                onChange={(e) =>
+                                  setRoomForm({
+                                    ...roomForm,
+                                    customer_name: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="from_number">From Number</Label>
+                              <Input
+                                id="from_number"
+                                value={roomForm.from_number}
+                                onChange={(e) =>
+                                  setRoomForm({
+                                    ...roomForm,
+                                    from_number: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="to_number">To Number</Label>
+                              <Input
+                                id="to_number"
+                                value={roomForm.to_number}
+                                onChange={(e) =>
+                                  setRoomForm({
+                                    ...roomForm,
+                                    to_number: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="channel">Channel</Label>
+                              <Input
+                                id="channel"
+                                value={roomForm.channel}
+                                onChange={(e) =>
+                                  setRoomForm({
+                                    ...roomForm,
+                                    channel: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="direction">Direction</Label>
+                              <Input
+                                id="direction"
+                                value={roomForm.direction}
+                                onChange={(e) =>
+                                  setRoomForm({
+                                    ...roomForm,
+                                    direction: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button
+                            onClick={handleCreateRoom}
+                            disabled={creatingRoom}
+                          >
+                            <PhoneCall className="mr-2 h-4 w-4" />
+                            {creatingRoom ? "Creating..." : "Create Room"}
+                          </Button>
+                        </DialogFooter>
+                      </>
+                    ) : (
+                      <div className="space-y-4 py-4">
+                        <div className="rounded-md border bg-muted/50 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Room Name</span>
+                            <Badge variant="secondary">
+                              {roomResponse.room_name}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Session ID</span>
+                            <code className="text-xs text-muted-foreground">
+                              {roomResponse.sessionId}
+                            </code>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Server URL</span>
+                            <code className="text-xs text-muted-foreground">
+                              {roomResponse.url}
+                            </code>
+                          </div>
+                          <div className="space-y-2">
+                            <span className="text-sm font-medium">Token</span>
+                            <div className="flex items-center gap-2">
+                              <code className="text-xs text-muted-foreground break-all flex-1 bg-muted p-2 rounded max-h-20 overflow-auto">
+                                {roomResponse.token}
+                              </code>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleCopyToken(roomResponse.token)
+                                }
+                              >
+                                {copiedToken ? (
+                                  <Check className="h-4 w-4" />
+                                ) : (
+                                  <Copy className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <DialogFooter className="gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => setRoomResponse(null)}
+                          >
+                            Create Another
+                          </Button>
+                          <Button asChild>
+                            <a
+                              href={PLAYGROUND_URL}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              Open Playground
+                            </a>
+                          </Button>
+                        </DialogFooter>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

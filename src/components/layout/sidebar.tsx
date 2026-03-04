@@ -4,6 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Bot, Cpu, Rocket } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 const navItems = [
   { href: "/agent", label: "Agent", icon: Bot },
@@ -11,13 +17,17 @@ const navItems = [
   { href: "/workers", label: "Workers", icon: Cpu },
 ];
 
-export function Sidebar() {
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r bg-muted/40">
+    <>
       <div className="flex h-14 items-center border-b px-6">
-        <Link href="/agent" className="flex items-center gap-2 font-semibold">
+        <Link
+          href="/agent"
+          className="flex items-center gap-2 font-semibold"
+          onClick={onNavigate}
+        >
           <Bot className="h-6 w-6" />
           <span>Voice Platform</span>
         </Link>
@@ -25,13 +35,13 @@ export function Sidebar() {
       <nav className="flex-1 space-y-1 p-4">
         {navItems.map((item) => {
           const isActive =
-            item.href === "/agent"
-              ? pathname === "/agent"
-              : pathname.startsWith(item.href);
+            pathname === item.href ||
+            (item.href !== "/" && pathname.startsWith(item.href + "/"));
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                 isActive
@@ -45,6 +55,33 @@ export function Sidebar() {
           );
         })}
       </nav>
+    </>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <aside className="flex h-screen w-64 flex-col border-r bg-muted/40">
+      <SidebarContent />
     </aside>
+  );
+}
+
+export function MobileSidebar({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="left" className="w-64 p-0">
+        <SheetHeader className="sr-only">
+          <SheetTitle>Navigation</SheetTitle>
+        </SheetHeader>
+        <SidebarContent onNavigate={() => onOpenChange(false)} />
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -21,7 +21,6 @@ async function request<T>(
   return res.json();
 }
 
-// Types
 export interface TurnDetectionConfig {
   type?: string;
   silence_duration_ms?: number;
@@ -32,6 +31,16 @@ export interface HumanizationConfig {
   fillersEnabled?: boolean;
   typingSounds?: boolean;
   ambience?: boolean;
+}
+
+export interface TTSConfig {
+  provider?: string;
+  model?: string;
+  voiceId?: string;
+  language?: string;
+  stability?: number;
+  similarityBoost?: number;
+  speed?: number;
 }
 
 export interface RuntimeConfig {
@@ -46,6 +55,7 @@ export interface RuntimeConfig {
   timeoutSeconds?: number | null;
   maxCallDurationSeconds?: number | null;
   greetingMessage?: string | null;
+  tts?: TTSConfig;
 }
 
 export interface AgentConfig {
@@ -61,7 +71,6 @@ export interface AgentConfig {
 
 const DEFAULT_AGENT_NAME = "captador-agent";
 
-// Agent Config API
 export const agentConfigApi = {
   get: (agentName: string = DEFAULT_AGENT_NAME) =>
     request<AgentConfig>(`/agent-config?agentName=${encodeURIComponent(agentName)}`),
@@ -79,7 +88,6 @@ export const agentConfigApi = {
   listAgents: () => request<string[]>("/agent-config/agents"),
 };
 
-// Knowledge Base API
 export interface AgentKnowledgeItem {
   id: string;
   agent_name: string;
@@ -126,7 +134,6 @@ export const agentKnowledgeApi = {
     }),
 };
 
-// Worker API
 export interface WorkerStatusEntry {
   running: boolean;
   hasFile: boolean;
@@ -166,7 +173,7 @@ export const agentWorkerApi = {
     ),
 };
 
-// Room API
+
 export interface CreateRoomRequest {
   agent_name: string;
   from_number: string;
@@ -202,8 +209,6 @@ export const roomApi = {
       body: JSON.stringify(data),
     }),
 };
-
-// ─── Deploy Types ──────────────────────────────────────────────────────────
 
 export type DeploymentStatus =
   | "BUILDING"
@@ -257,8 +262,6 @@ export interface UpdateDeployConfigRequest {
   registry_namespace?: string;
   deploy_controller_url?: string;
 }
-
-// ─── Deploy API ────────────────────────────────────────────────────────────
 
 export const deployApi = {
   triggerDeploy: (agentName: string) =>

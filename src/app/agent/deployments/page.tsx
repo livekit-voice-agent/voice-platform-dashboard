@@ -114,7 +114,6 @@ export default function DeploymentsPage() {
   const [loading, setLoading] = useState(false);
   const [logsDialog, setLogsDialog] = useState<AgentDeployment | null>(null);
 
-  // Config dialog
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [deployConfig, setDeployConfig] = useState<DeployConfig | null>(null);
   const [configForm, setConfigForm] = useState({
@@ -163,7 +162,7 @@ export default function DeploymentsPage() {
         deploy_controller_url: config.deploy_controller_url,
       });
     } catch {
-      // Config not yet created — that's ok
+
     }
   }, []);
 
@@ -204,7 +203,6 @@ export default function DeploymentsPage() {
     }
   };
 
-  // Summary stats
   const totalDeploys = deployments.length;
   const runningDeploys = deployments.filter(
     (d) => d.status === "RUNNING"
@@ -214,9 +212,8 @@ export default function DeploymentsPage() {
   ).length;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <Link href="/agent">
@@ -224,12 +221,12 @@ export default function DeploymentsPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <Rocket className="h-8 w-8" />
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3 sm:text-3xl">
+              <Rocket className="h-7 w-7 sm:h-8 sm:w-8" />
               Deployment History
             </h1>
           </div>
-          <p className="text-muted-foreground ml-11">
+          <p className="text-muted-foreground ml-11 text-sm">
             View all deployments, versions, and build logs.
           </p>
         </div>
@@ -303,7 +300,7 @@ export default function DeploymentsPage() {
       </div>
 
       {/* Agent Selector + Stats */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <Select value={selectedAgent} onValueChange={setSelectedAgent}>
           <SelectTrigger className="w-[280px]">
             <SelectValue placeholder="Select an agent" />

@@ -125,15 +125,14 @@ export default function WorkersPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <Cpu className="h-8 w-8" />
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3 sm:text-3xl">
+            <Cpu className="h-7 w-7 sm:h-8 sm:w-8" />
             Workers
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Manage agent worker processes. Spawn, kill and restart workers.
           </p>
         </div>
@@ -149,8 +148,7 @@ export default function WorkersPage() {
         </Button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total Workers</CardDescription>
@@ -188,9 +186,8 @@ export default function WorkersPage() {
         </Card>
       </div>
 
-      {/* Workers Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle>Worker Processes</CardTitle>
           <CardDescription>
             Workers with auto-start enabled will spawn on API boot and
