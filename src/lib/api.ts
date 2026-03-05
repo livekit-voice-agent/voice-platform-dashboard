@@ -202,14 +202,6 @@ export interface CreateRoomResponse {
   metadata: RoomMetadata;
 }
 
-export const roomApi = {
-  create: (data: CreateRoomRequest) =>
-    request<CreateRoomResponse>("/rooms", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-};
-
 export type DeploymentStatus =
   | "BUILDING"
   | "PUSHING"
@@ -300,4 +292,167 @@ export const deployApi = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+};
+
+// ─── SIP Trunks ──────────────────────────────────────────────
+
+export interface SipInboundTrunk {
+  sipTrunkId: string;
+  name: string;
+  numbers: string[];
+  allowedNumbers: string[];
+  allowedAddresses: string[];
+  krispEnabled: boolean;
+  metadata: string;
+  createdAt?: number;
+}
+
+export interface CreateSipTrunkRequest {
+  name: string;
+  numbers: string[];
+  allowedNumbers?: string[];
+  allowedAddresses?: string[];
+  krispEnabled?: boolean;
+  metadata?: string;
+}
+
+export interface UpdateSipTrunkRequest {
+  name?: string;
+  numbers?: string[];
+  allowedNumbers?: string[];
+  allowedAddresses?: string[];
+  krispEnabled?: boolean;
+  metadata?: string;
+}
+
+export const sipTrunkApi = {
+  create: (data: CreateSipTrunkRequest) =>
+    request<SipInboundTrunk>("/sip-trunks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  list: () => request<SipInboundTrunk[]>("/sip-trunks"),
+
+  getById: (id: string) => request<SipInboundTrunk>(`/sip-trunks/${id}`),
+
+  update: (id: string, data: UpdateSipTrunkRequest) =>
+    request<SipInboundTrunk>(`/sip-trunks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    request<SipInboundTrunk>(`/sip-trunks/${id}`, { method: "DELETE" }),
+};
+
+// ─── Dispatch Rules ──────────────────────────────────────────
+
+export interface DispatchRuleInfo {
+  sipDispatchRuleId: string;
+  name: string;
+  rule?: {
+    dispatchRuleDirect?: { roomName: string; pin?: string };
+    dispatchRuleIndividual?: { roomPrefix: string; pin?: string };
+    dispatchRuleCallee?: { roomPrefix: string; randomize?: boolean; pin?: string };
+  };
+  trunkIds: string[];
+  hidePhoneNumber: boolean;
+  metadata: string;
+  attributes: Record<string, string>;
+  roomConfig?: {
+    agents?: Array<{ agentName: string; metadata?: string }>;
+  };
+  createdAt?: number;
+}
+
+export interface CreateDispatchRuleRequest {
+  name: string;
+  ruleType: "individual" | "direct" | "callee";
+  roomPrefix?: string;
+  roomName?: string;
+  pin?: string;
+  randomize?: boolean;
+  trunkIds?: string[];
+  hidePhoneNumber?: boolean;
+  metadata?: string;
+  attributes?: Record<string, string>;
+  agentName?: string;
+}
+
+export interface UpdateDispatchRuleRequest {
+  name?: string;
+  ruleType?: "individual" | "direct" | "callee";
+  roomPrefix?: string;
+  roomName?: string;
+  pin?: string;
+  randomize?: boolean;
+  trunkIds?: string[];
+  hidePhoneNumber?: boolean;
+  metadata?: string;
+  attributes?: Record<string, string>;
+  agentName?: string;
+}
+
+export const dispatchRuleApi = {
+  create: (data: CreateDispatchRuleRequest) =>
+    request<DispatchRuleInfo>("/dispatch-rules", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  list: () => request<DispatchRuleInfo[]>("/dispatch-rules"),
+
+  getById: (id: string) => request<DispatchRuleInfo>(`/dispatch-rules/${id}`),
+
+  update: (id: string, data: UpdateDispatchRuleRequest) =>
+    request<DispatchRuleInfo>(`/dispatch-rules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    request<DispatchRuleInfo>(`/dispatch-rules/${id}`, { method: "DELETE" }),
+};
+
+// ─── Live Rooms ──────────────────────────────────────────────
+
+export interface LiveKitRoom {
+  sid: string;
+  name: string;
+  emptyTimeout: number;
+  maxParticipants: number;
+  creationTime: string;
+  turnPassword: string;
+  numParticipants: number;
+  numPublishers: number;
+  activeRecording: boolean;
+  metadata: string;
+}
+
+export interface CallSession {
+  id: string;
+  room_name: string;
+  status: string;
+  metadata: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const roomApi = {
+  create: (data: CreateRoomRequest) =>
+    request<CreateRoomResponse>("/rooms", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listSessions: () => request<CallSession[]>("/rooms"),
+
+  listLive: () => request<LiveKitRoom[]>("/rooms/live"),
+
+  deleteLive: (roomName: string) =>
+    request<{ success: boolean; message: string }>(
+      `/rooms/live/${encodeURIComponent(roomName)}`,
+      { method: "DELETE" }
+    ),
 };
