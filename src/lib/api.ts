@@ -24,7 +24,6 @@ async function request<T>(
 export interface TurnDetectionConfig {
   type?: string;
   silence_duration_ms?: number;
-  interrupt_threshold_ms?: number;
 }
 
 export interface HumanizationConfig {
@@ -292,6 +291,75 @@ export const deployApi = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+};
+
+// ─── SIP Trunks ──────────────────────────────────────────────
+
+// ─── Agent Tools ─────────────────────────────────────────────
+
+export type ToolType = "TRANSFER_CALL" | "END_CALL" | "HTTP_REQUEST";
+
+export interface AgentTool {
+  id: string;
+  agent_name: string;
+  name: string;
+  type: ToolType;
+  description: string;
+  parameters: Record<string, any> | null;
+  config: Record<string, any> | null;
+  enabled: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAgentToolRequest {
+  agent_name: string;
+  name: string;
+  type: ToolType;
+  description: string;
+  parameters?: Record<string, any>;
+  config?: Record<string, any>;
+  enabled?: boolean;
+  sort_order?: number;
+}
+
+export interface UpdateAgentToolRequest {
+  name?: string;
+  type?: ToolType;
+  description?: string;
+  parameters?: Record<string, any>;
+  config?: Record<string, any>;
+  enabled?: boolean;
+  sort_order?: number;
+}
+
+export const agentToolsApi = {
+  list: (agentName: string) =>
+    request<AgentTool[]>(
+      `/agent-tools?agentName=${encodeURIComponent(agentName)}`
+    ),
+
+  create: (data: CreateAgentToolRequest) =>
+    request<AgentTool>("/agent-tools", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: UpdateAgentToolRequest) =>
+    request<AgentTool>(`/agent-tools/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    request<AgentTool>(`/agent-tools/${id}`, { method: "DELETE" }),
+
+  seed: (agentName: string) =>
+    request<{ seeded: number; tools: AgentTool[] }>(
+      `/agent-tools/seed/${encodeURIComponent(agentName)}`,
+      { method: "POST" }
+    ),
 };
 
 // ─── SIP Trunks ──────────────────────────────────────────────

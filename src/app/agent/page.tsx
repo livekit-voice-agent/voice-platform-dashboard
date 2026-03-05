@@ -5,11 +5,14 @@ import {
   agentConfigApi,
   agentWorkerApi,
   agentKnowledgeApi,
+  agentToolsApi,
   roomApi,
   deployApi,
   type CreateRoomRequest,
   type CreateRoomResponse,
   type AgentKnowledgeItem,
+  type AgentTool,
+  type ToolType,
   type RuntimeConfig,
   type AgentDeployment,
   type DeploymentStatus,
@@ -75,6 +78,16 @@ import {
   Activity,
   Loader2,
   History,
+  Wrench,
+  ToggleLeft,
+  ToggleRight,
+  Pencil,
+  Globe,
+  Braces,
+  List,
+  Code,
+  PlusCircle,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -167,7 +180,6 @@ export default function AgentPage() {
     turnDetection: {
       type: "server_vad",
       silence_duration_ms: 500,
-      interrupt_threshold_ms: 200,
     },
     noiseCancellation: true,
     humanization: {
@@ -227,6 +239,218 @@ export default function AgentPage() {
   const [deployHealth, setDeployHealth] =
     useState<DeployHealthResponse | null>(null);
   const [loadingDeploy, setLoadingDeploy] = useState(false);
+
+  // ─── Tools state ─────────────────────────────────────────────
+  const [agentTools, setAgentTools] = useState<AgentTool[]>([]);
+  const [loadingTools, setLoadingTools] = useState(false);
+  const [toolDialogOpen, setToolDialogOpen] = useState(false);
+  const [editingTool, setEditingTool] = useState<AgentTool | null>(null);
+  const [savingTool, setSavingTool] = useState(false);
+  const [deletingToolId, setDeletingToolId] = useState<string | null>(null);
+  const [seedingTools, setSeedingTools] = useState(false);
+  const TOOL_TYPES: { value: ToolType; label: string; desc: string }[] = [
+    { value: "TRANSFER_CALL", label: "Transfer Call", desc: "Transfers the call to another department" },
+    { value: "END_CALL", label: "End Call", desc: "Ends the current call" },
+    { value: "HTTP_REQUEST", label: "HTTP Request", desc: "Makes an HTTP request to an external API" },
+  ];
+  const [toolForm, setToolForm] = useState<{
+    name: string;
+    type: ToolType;
+    description: string;
+    parameters: string;
+    config: string;
+    enabled: boolean;
+    sort_order: number;
+  }>({
+    name: "",
+    type: "TRANSFER_CALL",
+    description: "",
+    parameters: "{}",
+    config: "{}",
+    enabled: true,
+    sort_order: 0,
+  });
+
+  // Form builder mode state
+  type ParamRow = { key: string; type: string; description: string; required: boolean; values: string };
+  type ConfigField = { key: string; value: string };
+  const [paramsMode, setParamsMode] = useState<"json" | "form">("json");
+  const [configMode, setConfigMode] = useState<"json" | "form">("json");
+  const [paramRows, setParamRows] = useState<ParamRow[]>([]);
+  const [configFields, setConfigFields] = useState<ConfigField[]>([]);
+
+  // ─── Form <-> JSON sync helpers ─────────────────────────────
+  /** Safely parse a value that may be an object, a JSON string, or a double-encoded JSON string */
+  const safeParseObj = (v: unknown): Record<string, any> => {
+    if (typeof v === "object" && v !== null && !Array.isArray(v)) return v as Record<string, any>;
+    if (typeof v === "string") {
+      try {
+        const parsed = JSON.parse(v);
+        if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) return parsed;
+        // double-encoded: JSON.parse returned a string → parse again
+        if (typeof parsed === "string") {
+          try {
+            const parsed2 = JSON.parse(parsed);
+            if (typeof parsed2 === "object" && parsed2 !== null && !Array.isArray(parsed2)) return parsed2;
+          } catch { /* not double-encoded */ }
+        }
+      } catch { /* not valid JSON */ }
+    }
+    return {};
+  };
+
+  /** Convert any value to a pretty JSON string for the textarea */
+  const toJsonString = (v: unknown): string => {
+    if (typeof v === "string") {
+      // If it's already a valid JSON string representing an object, format it
+      try {
+        const parsed = JSON.parse(v);
+        if (typeof parsed === "object" && parsed !== null) return JSON.stringify(parsed, null, 2);
+        // double-encoded
+        if (typeof parsed === "string") {
+          try {
+            const parsed2 = JSON.parse(parsed);
+            if (typeof parsed2 === "object" && parsed2 !== null) return JSON.stringify(parsed2, null, 2);
+          } catch { /* */ }
+        }
+        return v;
+      } catch {
+        return v;
+      }
+    }
+    if (typeof v === "object" && v !== null) return JSON.stringify(v, null, 2);
+    return "{}";
+  };
+
+  const jsonToParamRows = (json: string): ParamRow[] => {
+    try {
+      const obj = safeParseObj(json);
+      return Object.entries(obj).map(([key, val]: [string, any]) => ({
+        key,
+        type: val?.type || "string",
+        description: val?.description || "",
+        required: val?.required ?? false,
+        values: Array.isArray(val?.values) ? val.values.join(", ") : "",
+      }));
+    } catch {
+      return [];
+    }
+  };
+
+  const paramRowsToJson = (rows: ParamRow[]): string => {
+    const obj: Record<string, any> = {};
+    for (const row of rows) {
+      if (!row.key.trim()) continue;
+      const entry: Record<string, any> = { type: row.type, description: row.description, required: row.required };
+      if (row.type === "enum" && row.values.trim()) {
+        entry.values = row.values.split(",").map((v) => v.trim()).filter(Boolean);
+      }
+      obj[row.key.trim()] = entry;
+    }
+    return JSON.stringify(obj, null, 2);
+  };
+
+  const jsonToConfigFields = (json: string): ConfigField[] => {
+    try {
+      const obj = safeParseObj(json);
+      return Object.entries(obj).map(([key, value]) => ({
+        key,
+        value: typeof value === "object" && value !== null ? JSON.stringify(value) : String(value ?? ""),
+      }));
+    } catch {
+      return [];
+    }
+  };
+
+  const configFieldsToJson = (fields: ConfigField[]): string => {
+    const obj: Record<string, any> = {};
+    for (const f of fields) {
+      if (!f.key.trim()) continue;
+      try {
+        obj[f.key.trim()] = JSON.parse(f.value);
+      } catch {
+        obj[f.key.trim()] = f.value;
+      }
+    }
+    return JSON.stringify(obj, null, 2);
+  };
+
+  const switchParamsMode = (mode: "json" | "form") => {
+    if (mode === "form") {
+      setParamRows(jsonToParamRows(toolForm.parameters));
+    } else {
+      setToolForm((p) => ({ ...p, parameters: paramRowsToJson(paramRows) }));
+    }
+    setParamsMode(mode);
+  };
+
+  const switchConfigMode = (mode: "json" | "form") => {
+    if (mode === "form") {
+      setConfigFields(jsonToConfigFields(toolForm.config));
+    } else {
+      setToolForm((p) => ({ ...p, config: configFieldsToJson(configFields) }));
+    }
+    setConfigMode(mode);
+  };
+
+  const getExampleParamRow = (type: ToolType): ParamRow => {
+    switch (type) {
+      case "HTTP_REQUEST":
+        return { key: "param_name", type: "string", description: "Describe what this parameter is for", required: true, values: "" };
+      case "TRANSFER_CALL":
+        return { key: "department", type: "enum", description: "Department to transfer to", required: true, values: "sales, support, billing" };
+      case "END_CALL":
+        return { key: "reason", type: "enum", description: "Reason for ending the call", required: true, values: "completed, no_interest, callback_requested" };
+      default:
+        return { key: "", type: "string", description: "", required: false, values: "" };
+    }
+  };
+
+  const getExampleParamRows = (type: ToolType): ParamRow[] => {
+    switch (type) {
+      case "HTTP_REQUEST":
+        return [
+          { key: "name", type: "string", description: "Full name of the customer", required: true, values: "" },
+          { key: "email", type: "string", description: "Customer email address", required: true, values: "" },
+          { key: "message", type: "string", description: "Additional notes or message", required: false, values: "" },
+        ];
+      case "TRANSFER_CALL":
+        return [
+          { key: "department", type: "enum", description: "Department to transfer to", required: true, values: "sales, support, billing" },
+          { key: "customer_name", type: "string", description: "Name of the caller", required: true, values: "" },
+          { key: "urgency", type: "enum", description: "Priority level", required: false, values: "low, medium, high" },
+        ];
+      case "END_CALL":
+        return [
+          { key: "reason", type: "enum", description: "Reason for ending the call", required: true, values: "completed, no_interest, callback_requested" },
+        ];
+      default:
+        return [{ key: "", type: "string", description: "", required: false, values: "" }];
+    }
+  };
+
+  const getExampleConfigFields = (type: ToolType): ConfigField[] => {
+    switch (type) {
+      case "HTTP_REQUEST":
+        return [
+          { key: "url", value: "https://api.example.com/endpoint" },
+          { key: "method", value: "POST" },
+          { key: "headers", value: '{"Authorization":"Bearer token"}' },
+          { key: "waitMessage", value: "One moment while I check that for you." },
+        ];
+      case "TRANSFER_CALL":
+        return [
+          { key: "waitMessage", value: "One moment while I process the transfer." },
+          { key: "transferMessage", value: "Transferring you now to the responsible department." },
+          { key: "shutdownReason", value: "sip-call-transferred" },
+          { key: "simulatedDelayMs", value: "3000" },
+        ];
+      case "END_CALL":
+        return [];
+      default:
+        return [{ key: "", value: "" }];
+    }
+  };
 
   const PLAYGROUND_URL =
     "https://agents-playground.livekit.io/#cam=1&mic=1&screen=1&video=1&audio=1&chat=1&theme_color=cyan";
@@ -307,6 +531,18 @@ export default function AgentPage() {
     }
   }, []);
 
+  const loadTools = useCallback(async (agentName: string) => {
+    setLoadingTools(true);
+    try {
+      const items = await agentToolsApi.list(agentName);
+      setAgentTools(items);
+    } catch {
+      setAgentTools([]);
+    } finally {
+      setLoadingTools(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadAgents();
     loadWorkerStatus();
@@ -316,9 +552,10 @@ export default function AgentPage() {
   useEffect(() => {
     loadConfig(selectedAgent);
     loadKnowledge(selectedAgent);
+    loadTools(selectedAgent);
     loadDeployStatus(selectedAgent);
     setRoomForm((prev) => ({ ...prev, agent_name: selectedAgent }));
-  }, [selectedAgent, loadConfig, loadKnowledge, loadDeployStatus]);
+  }, [selectedAgent, loadConfig, loadKnowledge, loadTools, loadDeployStatus]);
 
   const handleAgentChange = (value: string) => {
     if (value === "__new__") {
@@ -329,7 +566,7 @@ export default function AgentPage() {
     setSelectedAgent(value);
   };
 
-  const handleCreateAgent = () => {
+  const handleCreateAgent = async () => {
     const name = newAgentName.trim();
     if (!name) return;
     setShowNewAgentInput(false);
@@ -338,6 +575,12 @@ export default function AgentPage() {
       setAgents((prev) => [...prev, name]);
     }
     setSelectedAgent(name);
+    // Auto-seed default tools for new agents
+    try {
+      await agentToolsApi.seed(name);
+    } catch {
+      // Ignore — tools will be seeded on first save
+    }
   };
 
   const handleSave = async () => {
@@ -420,6 +663,143 @@ export default function AgentPage() {
       toast.error("Failed to create test room");
     } finally {
       setCreatingRoom(false);
+    }
+  };
+
+  // ─── Tool handlers ──────────────────────────────────────────
+  const resetToolForm = () => {
+    setToolForm({
+      name: "",
+      type: "TRANSFER_CALL",
+      description: "",
+      parameters: "{}",
+      config: "{}",
+      enabled: true,
+      sort_order: 0,
+    });
+    setEditingTool(null);
+    setParamsMode("json");
+    setConfigMode("json");
+    setParamRows([]);
+    setConfigFields([]);
+  };
+
+  const openToolDialogForCreate = () => {
+    resetToolForm();
+    setToolDialogOpen(true);
+  };
+
+  const openToolDialogForEdit = (tool: AgentTool) => {
+    setEditingTool(tool);
+    setToolForm({
+      name: tool.name,
+      type: tool.type,
+      description: tool.description,
+      parameters: toJsonString(tool.parameters),
+      config: toJsonString(tool.config),
+      enabled: tool.enabled,
+      sort_order: tool.sort_order,
+    });
+    setToolDialogOpen(true);
+  };
+
+  const handleSaveTool = async () => {
+    setSavingTool(true);
+    try {
+      // Sync form builder to JSON before saving
+      const paramsJson = paramsMode === "form" ? paramRowsToJson(paramRows) : toolForm.parameters;
+      const configJson = configMode === "form" ? configFieldsToJson(configFields) : toolForm.config;
+
+      let parsedParams: Record<string, any> = {};
+      let parsedConfig: Record<string, any> = {};
+      try {
+        parsedParams = JSON.parse(paramsJson || "{}");
+      } catch {
+        toast.error("Invalid JSON in Parameters field");
+        setSavingTool(false);
+        return;
+      }
+      try {
+        parsedConfig = JSON.parse(configJson || "{}");
+      } catch {
+        toast.error("Invalid JSON in Config field");
+        setSavingTool(false);
+        return;
+      }
+
+      if (editingTool) {
+        await agentToolsApi.update(editingTool.id, {
+          name: toolForm.name,
+          type: toolForm.type,
+          description: toolForm.description,
+          parameters: parsedParams,
+          config: parsedConfig,
+          enabled: toolForm.enabled,
+          sort_order: toolForm.sort_order,
+        });
+        toast.success(`Tool "${toolForm.name}" updated!`);
+      } else {
+        await agentToolsApi.create({
+          agent_name: selectedAgent,
+          name: toolForm.name,
+          type: toolForm.type,
+          description: toolForm.description,
+          parameters: parsedParams,
+          config: parsedConfig,
+          enabled: toolForm.enabled,
+          sort_order: toolForm.sort_order,
+        });
+        toast.success(`Tool "${toolForm.name}" created!`);
+      }
+      setToolDialogOpen(false);
+      resetToolForm();
+      await loadTools(selectedAgent);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save tool");
+    } finally {
+      setSavingTool(false);
+    }
+  };
+
+  const handleDeleteTool = async (id: string) => {
+    setDeletingToolId(id);
+    try {
+      await agentToolsApi.delete(id);
+      toast.success("Tool removed");
+      setAgentTools((prev) => prev.filter((t) => t.id !== id));
+    } catch {
+      toast.error("Failed to delete tool");
+    } finally {
+      setDeletingToolId(null);
+    }
+  };
+
+  const handleToggleTool = async (tool: AgentTool) => {
+    try {
+      await agentToolsApi.update(tool.id, { enabled: !tool.enabled });
+      setAgentTools((prev) =>
+        prev.map((t) => (t.id === tool.id ? { ...t, enabled: !t.enabled } : t))
+      );
+      toast.success(`Tool "${tool.name}" ${tool.enabled ? "disabled" : "enabled"}`);
+    } catch {
+      toast.error("Failed to toggle tool");
+    }
+  };
+
+  const handleSeedTools = async () => {
+    setSeedingTools(true);
+    try {
+      const result = await agentToolsApi.seed(selectedAgent);
+      if (result.seeded > 0) {
+        toast.success(`${result.seeded} default tool(s) created!`);
+      } else {
+        toast.info("Default tools already exist for this agent");
+      }
+      await loadTools(selectedAgent);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to seed tools");
+    } finally {
+      setSeedingTools(false);
     }
   };
 
@@ -591,6 +971,10 @@ export default function AgentPage() {
           <TabsTrigger value="knowledge">
             <BookOpen className="h-4 w-4" />
             Knowledge
+          </TabsTrigger>
+          <TabsTrigger value="tools">
+            <Wrench className="h-4 w-4" />
+            Tools
           </TabsTrigger>
           <TabsTrigger value="deploy">
             <Rocket className="h-4 w-4" />
@@ -1182,37 +1566,7 @@ export default function AgentPage() {
                         Wait time after silence before responding.
                       </p>
                     </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="rt-vad-interrupt"
-                        className="text-xs text-muted-foreground"
-                      >
-                        Interrupt threshold (ms)
-                      </Label>
-                      <Input
-                        id="rt-vad-interrupt"
-                        type="number"
-                        step={50}
-                        min={50}
-                        max={2000}
-                        value={
-                          runtimeConfig.turnDetection?.interrupt_threshold_ms ?? 200
-                        }
-                        onChange={(e) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            turnDetection: {
-                              ...prev.turnDetection,
-                              interrupt_threshold_ms:
-                                parseInt(e.target.value) || 200,
-                            },
-                          }))
-                        }
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        How quickly the user can interrupt mid-speech.
-                      </p>
-                    </div>
+
                   </div>
                 </div>
 
@@ -1488,6 +1842,594 @@ export default function AgentPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ─── Tools Tab ──────────────────────────────────────── */}
+        <TabsContent value="tools" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wrench className="h-5 w-5" />
+                    Agent Tools
+                  </CardTitle>
+                  <CardDescription>
+                    Define which tools (functions) the agent can call during a conversation.
+                    Tools are loaded dynamically from the database when the worker starts a new session.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSeedTools}
+                    disabled={seedingTools}
+                  >
+                    {seedingTools ? (
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-1 h-3 w-3" />
+                    )}
+                    Seed Defaults
+                  </Button>
+                  <Button size="sm" onClick={openToolDialogForCreate}>
+                    <Plus className="mr-1 h-3 w-3" />
+                    Add Tool
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingTools ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : agentTools.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Wrench className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No tools configured for this agent.</p>
+                  <p className="text-xs mt-1">
+                    Click &quot;Seed Defaults&quot; to add the standard transfer &amp; end call tools,
+                    or &quot;Add Tool&quot; to create a custom one.
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40px]">#</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="hidden md:table-cell">Description</TableHead>
+                      <TableHead className="w-[80px]">Enabled</TableHead>
+                      <TableHead className="w-[100px] text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {agentTools.map((tool, idx) => (
+                      <TableRow key={tool.id}>
+                        <TableCell className="text-muted-foreground text-xs">{idx + 1}</TableCell>
+                        <TableCell className="font-mono text-sm">{tool.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {tool.type === "TRANSFER_CALL" && "Transfer"}
+                            {tool.type === "END_CALL" && "End Call"}
+                            {tool.type === "HTTP_REQUEST" && (
+                              <span className="flex items-center gap-1">
+                                <Globe className="h-3 w-3" /> HTTP
+                              </span>
+                            )}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground max-w-[300px] truncate">
+                          {tool.description}
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            onClick={() => handleToggleTool(tool)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            title={tool.enabled ? "Disable" : "Enable"}
+                          >
+                            {tool.enabled ? (
+                              <ToggleRight className="h-5 w-5 text-green-500" />
+                            ) : (
+                              <ToggleLeft className="h-5 w-5" />
+                            )}
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => openToolDialogForEdit(tool)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteTool(tool.id)}
+                              disabled={deletingToolId === tool.id}
+                            >
+                              {deletingToolId === tool.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Tool Create/Edit Dialog */}
+          <Dialog open={toolDialogOpen} onOpenChange={(open) => { setToolDialogOpen(open); if (!open) resetToolForm(); }}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingTool ? "Edit Tool" : "Add Tool"}</DialogTitle>
+                <DialogDescription>
+                  {editingTool
+                    ? "Update the tool configuration."
+                    : "Define a new tool that the agent can call during conversations."}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1">
+                  <Label htmlFor="tool-name" className="text-sm">Name</Label>
+                  <Input
+                    id="tool-name"
+                    value={toolForm.name}
+                    onChange={(e) => {
+                      const sanitized = e.target.value
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/[\s.:]+/g, '_')
+                        .replace(/[^a-zA-Z0-9_-]/g, '')
+                        .replace(/_+/g, '_');
+                      setToolForm((p) => ({ ...p, name: sanitized }));
+                    }}
+                    placeholder="e.g. check_availability"
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Only letters, numbers, underscores and hyphens allowed (pattern: ^[a-zA-Z0-9_-]+$).
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="tool-type" className="text-sm">Type</Label>
+                  <Select
+                    value={toolForm.type}
+                    onValueChange={(v) => setToolForm((p) => ({ ...p, type: v as ToolType }))}
+                  >
+                    <SelectTrigger id="tool-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TOOL_TYPES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          <div className="flex flex-col">
+                            <span>{t.label}</span>
+                            <span className="text-xs text-muted-foreground">{t.desc}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="tool-desc" className="text-sm">Description</Label>
+                  <Textarea
+                    id="tool-desc"
+                    value={toolForm.description}
+                    onChange={(e) => setToolForm((p) => ({ ...p, description: e.target.value }))}
+                    rows={2}
+                    placeholder="Describe what this tool does — the LLM uses this to decide when to call it."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Parameters</Label>
+                    <div className="flex items-center gap-1">
+                      {paramsMode === "json" && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-muted-foreground"
+                          onClick={() => {
+                            try {
+                              const parsed = JSON.parse(toolForm.parameters || "{}");
+                              setToolForm((p) => ({ ...p, parameters: JSON.stringify(parsed, null, 2) }));
+                            } catch {
+                              toast.error("Invalid JSON — cannot format");
+                            }
+                          }}
+                        >
+                          <Braces className="mr-1 h-3 w-3" />
+                          Format
+                        </Button>
+                      )}
+                      <div className="flex items-center rounded-md border bg-muted/30">
+                        <Button
+                          type="button"
+                          variant={paramsMode === "json" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-6 px-2 text-xs rounded-r-none"
+                          onClick={() => switchParamsMode("json")}
+                        >
+                          <Code className="mr-1 h-3 w-3" />
+                          JSON
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={paramsMode === "form" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-6 px-2 text-xs rounded-l-none"
+                          onClick={() => switchParamsMode("form")}
+                        >
+                          <List className="mr-1 h-3 w-3" />
+                          Form
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {paramsMode === "json" ? (
+                    <Textarea
+                      id="tool-params"
+                      value={toolForm.parameters}
+                      onChange={(e) => setToolForm((p) => ({ ...p, parameters: e.target.value }))}
+                      rows={6}
+                      className="font-mono text-xs"
+                      placeholder='{"param_name": {"type": "string", "description": "...", "required": true}}'
+                    />
+                  ) : (
+                    <div className="space-y-2 rounded-md border p-3">
+                      {paramRows.length === 0 && (
+                        <div className="text-center py-2 space-y-1.5">
+                          <p className="text-xs text-muted-foreground">No parameters yet.</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-3 text-xs"
+                            onClick={() => setParamRows(getExampleParamRows(toolForm.type))}
+                          >
+                            Load Example for {toolForm.type === "HTTP_REQUEST" ? "HTTP Request" : toolForm.type === "TRANSFER_CALL" ? "Transfer Call" : "End Call"}
+                          </Button>
+                        </div>
+                      )}
+                      {paramRows.map((row, idx) => (
+                        <div key={idx} className="grid grid-cols-[1fr_100px_1fr_70px_auto] gap-2 items-start">
+                          <div>
+                            <Input
+                              value={row.key}
+                              onChange={(e) => {
+                                const next = [...paramRows];
+                                next[idx] = { ...next[idx], key: e.target.value };
+                                setParamRows(next);
+                              }}
+                              placeholder="name"
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
+                          <div>
+                            <Select
+                              value={row.type}
+                              onValueChange={(v) => {
+                                const next = [...paramRows];
+                                next[idx] = { ...next[idx], type: v };
+                                setParamRows(next);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="string">string</SelectItem>
+                                <SelectItem value="number">number</SelectItem>
+                                <SelectItem value="boolean">boolean</SelectItem>
+                                <SelectItem value="enum">enum</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Input
+                              value={row.description}
+                              onChange={(e) => {
+                                const next = [...paramRows];
+                                next[idx] = { ...next[idx], description: e.target.value };
+                                setParamRows(next);
+                              }}
+                              placeholder="Description"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="flex items-center justify-center h-8">
+                            <input
+                              type="checkbox"
+                              checked={row.required}
+                              onChange={(e) => {
+                                const next = [...paramRows];
+                                next[idx] = { ...next[idx], required: e.target.checked };
+                                setParamRows(next);
+                              }}
+                              className="h-3.5 w-3.5 rounded border-border"
+                            />
+                            <span className="text-[10px] text-muted-foreground ml-1">Req</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => setParamRows((r) => r.filter((_, i) => i !== idx))}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                          {row.type === "enum" && (
+                            <div className="col-span-5">
+                              <Input
+                                value={row.values}
+                                onChange={(e) => {
+                                  const next = [...paramRows];
+                                  next[idx] = { ...next[idx], values: e.target.value };
+                                  setParamRows(next);
+                                }}
+                                placeholder="Comma-separated values, e.g.: option_a, option_b, option_c"
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full h-7 text-xs"
+                        onClick={() => setParamRows((r) => [...r, getExampleParamRow(toolForm.type)])}
+                      >
+                        <PlusCircle className="mr-1 h-3 w-3" />
+                        Add Parameter
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="rounded-md bg-muted/50 p-2.5 text-xs text-muted-foreground space-y-1.5">
+                    <p className="font-medium">Define the parameters the LLM will extract from the conversation to pass to this tool.</p>
+                    <p>Each key is a parameter name. The value is an object with:</p>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      <li><code className="text-[11px] bg-muted px-1 rounded">type</code> — <code className="text-[11px] bg-muted px-1 rounded">string</code>, <code className="text-[11px] bg-muted px-1 rounded">number</code>, <code className="text-[11px] bg-muted px-1 rounded">boolean</code> or <code className="text-[11px] bg-muted px-1 rounded">enum</code></li>
+                      <li><code className="text-[11px] bg-muted px-1 rounded">description</code> — text that helps the LLM understand what to fill in</li>
+                      <li><code className="text-[11px] bg-muted px-1 rounded">required</code> — <code className="text-[11px] bg-muted px-1 rounded">true</code> or <code className="text-[11px] bg-muted px-1 rounded">false</code></li>
+                      <li><code className="text-[11px] bg-muted px-1 rounded">values</code> — array of options (only for <code className="text-[11px] bg-muted px-1 rounded">enum</code>)</li>
+                    </ul>
+                    {toolForm.type === "HTTP_REQUEST" && (
+                      <p className="mt-1">For <strong>HTTP Request</strong>, these parameters will be sent as the request body.</p>
+                    )}
+                    {toolForm.type === "TRANSFER_CALL" && (
+                      <p className="mt-1">For <strong>Transfer Call</strong>, the agent collects this data from the caller before transferring.</p>
+                    )}
+                    {toolForm.type === "END_CALL" && (
+                      <p className="mt-1">For <strong>End Call</strong>, typically a <code className="text-[11px] bg-muted px-1 rounded">reason</code> (enum) parameter with the possible termination reasons.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Config</Label>
+                    <div className="flex items-center gap-1">
+                      {configMode === "json" && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-muted-foreground"
+                          onClick={() => {
+                            try {
+                              const parsed = JSON.parse(toolForm.config || "{}");
+                              setToolForm((p) => ({ ...p, config: JSON.stringify(parsed, null, 2) }));
+                            } catch {
+                              toast.error("Invalid JSON — cannot format");
+                            }
+                          }}
+                        >
+                          <Braces className="mr-1 h-3 w-3" />
+                          Format
+                        </Button>
+                      )}
+                      <div className="flex items-center rounded-md border bg-muted/30">
+                        <Button
+                          type="button"
+                          variant={configMode === "json" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-6 px-2 text-xs rounded-r-none"
+                          onClick={() => switchConfigMode("json")}
+                        >
+                          <Code className="mr-1 h-3 w-3" />
+                          JSON
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={configMode === "form" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-6 px-2 text-xs rounded-l-none"
+                          onClick={() => switchConfigMode("form")}
+                        >
+                          <List className="mr-1 h-3 w-3" />
+                          Form
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {configMode === "json" ? (
+                    <Textarea
+                      id="tool-config"
+                      value={toolForm.config}
+                      onChange={(e) => setToolForm((p) => ({ ...p, config: e.target.value }))}
+                      rows={5}
+                      className="font-mono text-xs"
+                      placeholder={toolForm.type === "HTTP_REQUEST"
+                        ? '{"url": "https://api.example.com/endpoint", "method": "POST"}'
+                        : toolForm.type === "TRANSFER_CALL"
+                        ? '{"waitMessage": "One moment...", "transferMessage": "Transferring..."}'
+                        : '{}'}
+                    />
+                  ) : (
+                    <div className="space-y-2 rounded-md border p-3">
+                      {configFields.length === 0 && (
+                        <div className="text-center py-2 space-y-1.5">
+                          <p className="text-xs text-muted-foreground">No config fields yet.</p>
+                          {(toolForm.type === "HTTP_REQUEST" || toolForm.type === "TRANSFER_CALL") && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-3 text-xs"
+                              onClick={() => setConfigFields(getExampleConfigFields(toolForm.type))}
+                            >
+                              Load Example for {toolForm.type === "HTTP_REQUEST" ? "HTTP Request" : "Transfer Call"}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      {configFields.map((field, idx) => (
+                        <div key={idx} className="grid grid-cols-[1fr_2fr_auto] gap-2 items-start">
+                          <Input
+                            value={field.key}
+                            onChange={(e) => {
+                              const next = [...configFields];
+                              next[idx] = { ...next[idx], key: e.target.value };
+                              setConfigFields(next);
+                            }}
+                            placeholder="key"
+                            className="h-8 text-xs font-mono"
+                          />
+                          <Input
+                            value={field.value}
+                            onChange={(e) => {
+                              const next = [...configFields];
+                              next[idx] = { ...next[idx], value: e.target.value };
+                              setConfigFields(next);
+                            }}
+                            placeholder="value"
+                            className="h-8 text-xs font-mono"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => setConfigFields((f) => f.filter((_, i) => i !== idx))}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full h-7 text-xs"
+                        onClick={() => setConfigFields((f) => [...f, { key: "", value: "" }])}
+                      >
+                        <PlusCircle className="mr-1 h-3 w-3" />
+                        Add Field
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="rounded-md bg-muted/50 p-2.5 text-xs text-muted-foreground space-y-1.5">
+                    <p className="font-medium">Internal configuration for the tool behavior (not visible to the LLM).</p>
+                    {toolForm.type === "HTTP_REQUEST" && (
+                      <>
+                        <p>Available fields for <strong>HTTP Request</strong>:</p>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          <li><code className="text-[11px] bg-muted px-1 rounded">url</code> — External API URL (required)</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">method</code> — <code className="text-[11px] bg-muted px-1 rounded">GET</code>, <code className="text-[11px] bg-muted px-1 rounded">POST</code>, <code className="text-[11px] bg-muted px-1 rounded">PUT</code>, <code className="text-[11px] bg-muted px-1 rounded">DELETE</code> (default: POST)</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">headers</code> — Object with additional HTTP headers</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">waitMessage</code> — Phrase the agent speaks while waiting for the response</li>
+                        </ul>
+                      </>
+                    )}
+                    {toolForm.type === "TRANSFER_CALL" && (
+                      <>
+                        <p>Available fields for <strong>Transfer Call</strong>:</p>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          <li><code className="text-[11px] bg-muted px-1 rounded">waitMessage</code> — Phrase spoken while processing the transfer</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">transferMessage</code> — Phrase spoken when the transfer begins</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">shutdownReason</code> — Reason sent when ending the session (default: sip-call-transferred)</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">simulatedDelayMs</code> — Simulated processing delay in ms (default: 3000)</li>
+                        </ul>
+                      </>
+                    )}
+                    {toolForm.type === "END_CALL" && (
+                      <p>For <strong>End Call</strong>, usually no extra config is needed. The agent ends the call after the final message.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="tool-enabled"
+                      checked={toolForm.enabled}
+                      onChange={(e) => setToolForm((p) => ({ ...p, enabled: e.target.checked }))}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <Label htmlFor="tool-enabled" className="text-sm cursor-pointer">Enabled</Label>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="tool-order" className="text-sm">Order</Label>
+                      <Input
+                        id="tool-order"
+                        type="number"
+                        min={0}
+                        value={toolForm.sort_order}
+                        onChange={(e) => setToolForm((p) => ({ ...p, sort_order: parseInt(e.target.value) || 0 }))}
+                        className="w-20"
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Display order. Tools with lower numbers appear first in the agent&apos;s tool list.</p>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setToolDialogOpen(false); resetToolForm(); }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveTool} disabled={savingTool || !toolForm.name || !toolForm.description}>
+                  {savingTool ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : editingTool ? (
+                    "Update Tool"
+                  ) : (
+                    "Create Tool"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="deploy" className="space-y-4">
