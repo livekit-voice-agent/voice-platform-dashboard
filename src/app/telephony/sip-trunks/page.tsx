@@ -108,10 +108,10 @@ export default function SipTrunksPage() {
       return;
     }
     const numbers = parseCommaSeparated(formNumbers);
-    if (!editingTrunk && numbers.length === 0) {
-      toast.error("At least one phone number is required");
-      return;
-    }
+    // if (!editingTrunk && numbers.length === 0) {
+    //   toast.error("At least one phone number is required");
+    //   return;
+    // }
 
     setSaving(true);
     try {

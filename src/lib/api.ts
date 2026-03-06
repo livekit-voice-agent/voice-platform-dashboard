@@ -377,7 +377,7 @@ export interface SipInboundTrunk {
 
 export interface CreateSipTrunkRequest {
   name: string;
-  numbers: string[];
+  numbers?: string[];
   allowedNumbers?: string[];
   allowedAddresses?: string[];
   krispEnabled?: boolean;
