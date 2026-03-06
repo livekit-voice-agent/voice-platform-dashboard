@@ -178,8 +178,12 @@ export default function AgentPage() {
     temperature: 0.3,
     maxTokens: 600,
     turnDetection: {
-      type: "server_vad",
+      type: "server_vad" as const,
+      threshold: 0.5,
+      prefix_padding_ms: 300,
       silence_duration_ms: 500,
+      create_response: true,
+      interrupt_response: true,
     },
     noiseCancellation: true,
     humanization: {
@@ -1517,56 +1521,202 @@ export default function AgentPage() {
                     Voice Activity Detection — controls when the agent detects the user has stopped speaking and can respond.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Type selector */}
                     <div className="space-y-1">
                       <Label htmlFor="rt-vad-type" className="text-xs text-muted-foreground">
                         Type
                       </Label>
                       <Select
                         value={runtimeConfig.turnDetection?.type ?? "server_vad"}
-                        onValueChange={(v) =>
+                        onValueChange={(v) => {
+                          const newType = v as "server_vad" | "semantic_vad";
                           setRuntimeConfig((prev) => ({
                             ...prev,
-                            turnDetection: { ...prev.turnDetection, type: v },
-                          }))
-                        }
+                            turnDetection: {
+                              type: newType,
+                              create_response: prev.turnDetection?.create_response ?? true,
+                              interrupt_response: prev.turnDetection?.interrupt_response ?? true,
+                              ...(newType === "server_vad"
+                                ? {
+                                    threshold: 0.5,
+                                    prefix_padding_ms: 300,
+                                    silence_duration_ms: 500,
+                                  }
+                                : {
+                                    eagerness: "auto" as const,
+                                  }),
+                            },
+                          }));
+                        }}
                       >
                         <SelectTrigger id="rt-vad-type">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="server_vad">server_vad</SelectItem>
+                          <SelectItem value="semantic_vad">semantic_vad</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="rt-vad-silence"
-                        className="text-xs text-muted-foreground"
-                      >
-                        Silence (ms)
-                      </Label>
-                      <Input
-                        id="rt-vad-silence"
-                        type="number"
-                        step={50}
-                        min={100}
-                        max={5000}
-                        value={runtimeConfig.turnDetection?.silence_duration_ms ?? 500}
+
+                    {/* === server_vad fields === */}
+                    {(runtimeConfig.turnDetection?.type ?? "server_vad") === "server_vad" && (
+                      <>
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-vad-threshold" className="text-xs text-muted-foreground">
+                            Threshold
+                          </Label>
+                          <Input
+                            id="rt-vad-threshold"
+                            type="number"
+                            step={0.05}
+                            min={0}
+                            max={1}
+                            value={runtimeConfig.turnDetection?.threshold ?? 0.5}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                turnDetection: {
+                                  ...prev.turnDetection,
+                                  threshold: parseFloat(e.target.value) || 0.5,
+                                },
+                              }))
+                            }
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Voice activation threshold (0.0–1.0).
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-vad-prefix" className="text-xs text-muted-foreground">
+                            Prefix Padding (ms)
+                          </Label>
+                          <Input
+                            id="rt-vad-prefix"
+                            type="number"
+                            step={50}
+                            min={0}
+                            max={5000}
+                            value={runtimeConfig.turnDetection?.prefix_padding_ms ?? 300}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                turnDetection: {
+                                  ...prev.turnDetection,
+                                  prefix_padding_ms: parseInt(e.target.value) || 300,
+                                },
+                              }))
+                            }
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Audio before speech detection to include.
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-vad-silence" className="text-xs text-muted-foreground">
+                            Silence (ms)
+                          </Label>
+                          <Input
+                            id="rt-vad-silence"
+                            type="number"
+                            step={50}
+                            min={100}
+                            max={5000}
+                            value={runtimeConfig.turnDetection?.silence_duration_ms ?? 500}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                turnDetection: {
+                                  ...prev.turnDetection,
+                                  silence_duration_ms: parseInt(e.target.value) || 500,
+                                },
+                              }))
+                            }
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Wait time after silence before responding.
+                          </p>
+                        </div>
+                      </>
+                    )}
+
+                    {/* === semantic_vad fields === */}
+                    {runtimeConfig.turnDetection?.type === "semantic_vad" && (
+                      <div className="space-y-1">
+                        <Label htmlFor="rt-vad-eagerness" className="text-xs text-muted-foreground">
+                          Eagerness
+                        </Label>
+                        <Select
+                          value={runtimeConfig.turnDetection?.eagerness ?? "auto"}
+                          onValueChange={(v) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              turnDetection: {
+                                ...prev.turnDetection,
+                                eagerness: v as "auto" | "low" | "medium" | "high",
+                              },
+                            }))
+                          }
+                        >
+                          <SelectTrigger id="rt-vad-eagerness">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">auto</SelectItem>
+                            <SelectItem value="low">low</SelectItem>
+                            <SelectItem value="medium">medium</SelectItem>
+                            <SelectItem value="high">high</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                          How eagerly the model responds to detected speech.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Shared fields: create_response & interrupt_response */}
+                  <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="rt-vad-create-response"
+                        checked={runtimeConfig.turnDetection?.create_response ?? true}
                         onChange={(e) =>
                           setRuntimeConfig((prev) => ({
                             ...prev,
                             turnDetection: {
                               ...prev.turnDetection,
-                              silence_duration_ms: parseInt(e.target.value) || 500,
+                              create_response: e.target.checked,
                             },
                           }))
                         }
+                        className="h-4 w-4 rounded border-gray-300"
                       />
-                      <p className="text-[11px] text-muted-foreground">
-                        Wait time after silence before responding.
-                      </p>
+                      <Label htmlFor="rt-vad-create-response" className="text-xs">
+                        Create Response
+                      </Label>
                     </div>
-
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="rt-vad-interrupt-response"
+                        checked={runtimeConfig.turnDetection?.interrupt_response ?? true}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            turnDetection: {
+                              ...prev.turnDetection,
+                              interrupt_response: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <Label htmlFor="rt-vad-interrupt-response" className="text-xs">
+                        Interrupt Response
+                      </Label>
+                    </div>
                   </div>
                 </div>
 

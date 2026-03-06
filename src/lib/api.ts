@@ -22,8 +22,16 @@ async function request<T>(
 }
 
 export interface TurnDetectionConfig {
-  type?: string;
+  type?: 'server_vad' | 'semantic_vad';
+  // semantic_vad
+  eagerness?: 'auto' | 'low' | 'medium' | 'high';
+  // server_vad
+  threshold?: number;
+  prefix_padding_ms?: number;
   silence_duration_ms?: number;
+  // shared
+  create_response?: boolean;
+  interrupt_response?: boolean;
 }
 
 export interface HumanizationConfig {
