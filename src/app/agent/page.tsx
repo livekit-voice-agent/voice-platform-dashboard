@@ -157,8 +157,6 @@ export default function AgentPage() {
 
   const [instructionsExpanded, setInstructionsExpanded] = useState(false);
 
-  const [restarting, setRestarting] = useState(false);
-
   const ELEVENLABS_VOICES = [
     { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", desc: "Calm, warm female" },
     { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella", desc: "Soft, young female" },
@@ -195,6 +193,7 @@ export default function AgentPage() {
     timeoutSeconds: null,
     maxCallDurationSeconds: null,
     greetingMessage: null,
+    greetingMode: null,
     tts: {
       provider: "elevenlabs",
       model: "eleven_multilingual_v2",
@@ -204,6 +203,7 @@ export default function AgentPage() {
       similarityBoost: 0.75,
       speed: 1.0,
     },
+    injectSessionContext: false,
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [runtimeExpanded, setRuntimeExpanded] = useState(false);
@@ -441,6 +441,8 @@ export default function AgentPage() {
           { key: "method", value: "POST" },
           { key: "headers", value: '{"Authorization":"Bearer token"}' },
           { key: "waitMessage", value: "One moment while I check that for you." },
+          { key: "channel", value: "{{channel}}" },
+          { key: "from_number", value: "{{from_number}}" },
         ];
       case "TRANSFER_CALL":
         return [
@@ -600,20 +602,6 @@ export default function AgentPage() {
       toast.error("Failed to save instructions");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleRestart = async () => {
-    setRestarting(true);
-    try {
-      await agentWorkerApi.restart(selectedAgent);
-      toast.success(`Worker "${selectedAgent}" restarted!`);
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to restart worker"
-      );
-    } finally {
-      setRestarting(false);
     }
   };
 
@@ -1059,16 +1047,6 @@ export default function AgentPage() {
                     <Save className="mr-2 h-4 w-4" />
                     {saving ? "Saving..." : "Save"}
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleRestart}
-                    disabled={restarting}
-                  >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${restarting ? "animate-spin" : ""}`}
-                    />
-                    {restarting ? "Restarting..." : "Restart Worker"}
-                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -1084,7 +1062,7 @@ export default function AgentPage() {
                   </CardTitle>
                   <CardDescription>
                     Model, voice, VAD, humanization, timeouts and greeting. Applied
-                    on the next call or after restarting the worker.
+                    on the next call.
                   </CardDescription>
                 </div>
                 <Button
@@ -1492,6 +1470,30 @@ export default function AgentPage() {
                   </p>
                 </div>
 
+                {/* Inject Session Context */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="rt-inject-session"
+                      checked={runtimeConfig.injectSessionContext ?? false}
+                      onChange={(e) =>
+                        setRuntimeConfig((prev) => ({
+                          ...prev,
+                          injectSessionContext: e.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <Label htmlFor="rt-inject-session" className="text-sm cursor-pointer">
+                      Inject Session Context
+                    </Label>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    When enabled, room metadata (channel, from_number, customer_name, etc.) is automatically appended to the agent&apos;s instructions so the LLM knows who is calling and from which channel.
+                  </p>
+                </div>
+
                 {/* Greeting Message */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold flex items-center gap-2">
@@ -1512,6 +1514,40 @@ export default function AgentPage() {
                     className="font-mono text-sm resize-none"
                     placeholder="Seja bem-vindo à central da Claro. Pra eu te atender direitinho, me diz por favor o seu nome."
                   />
+
+                  {/* Greeting Mode */}
+                  <div className="space-y-1 pt-1">
+                    <Label htmlFor="rt-greeting-mode" className="text-xs text-muted-foreground">
+                      Greeting Mode
+                    </Label>
+                    <Select
+                      value={runtimeConfig.greetingMode ?? "auto"}
+                      onValueChange={(v) =>
+                        setRuntimeConfig((prev) => ({
+                          ...prev,
+                          greetingMode: v === "auto" ? null : (v as "say" | "generateReply"),
+                        }))
+                      }
+                    >
+                      <SelectTrigger id="rt-greeting-mode" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">
+                          Auto (say for ElevenLabs, generateReply for OpenAI)
+                        </SelectItem>
+                        <SelectItem value="say">
+                          Say — TTS reads text literally (low latency)
+                        </SelectItem>
+                        <SelectItem value="generateReply">
+                          Generate Reply — LLM generates natural response
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      <strong>Say</strong> plays the exact greeting text via TTS (fastest). <strong>Generate Reply</strong> sends the text as instructions to the LLM, which generates a natural response (dynamic but slower).
+                    </p>
+                  </div>
                 </div>
 
                 {/* Turn Detection (VAD) */}
@@ -2510,11 +2546,21 @@ export default function AgentPage() {
                       <>
                         <p>Available fields for <strong>HTTP Request</strong>:</p>
                         <ul className="list-disc pl-4 space-y-0.5">
-                          <li><code className="text-[11px] bg-muted px-1 rounded">url</code> — External API URL (required)</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">url</code> — External API URL (required). Supports <code className="text-[11px] bg-muted px-1 rounded">{`{{template}}`}</code> placeholders.</li>
                           <li><code className="text-[11px] bg-muted px-1 rounded">method</code> — <code className="text-[11px] bg-muted px-1 rounded">GET</code>, <code className="text-[11px] bg-muted px-1 rounded">POST</code>, <code className="text-[11px] bg-muted px-1 rounded">PUT</code>, <code className="text-[11px] bg-muted px-1 rounded">DELETE</code> (default: POST)</li>
-                          <li><code className="text-[11px] bg-muted px-1 rounded">headers</code> — Object with additional HTTP headers</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">headers</code> — Object with additional HTTP headers. Values support <code className="text-[11px] bg-muted px-1 rounded">{`{{template}}`}</code> placeholders.</li>
                           <li><code className="text-[11px] bg-muted px-1 rounded">waitMessage</code> — Phrase the agent speaks while waiting for the response</li>
                         </ul>
+                        <div className="mt-2 rounded-md border border-dashed border-muted-foreground/30 p-2 space-y-1">
+                          <p className="font-medium">Session metadata templates</p>
+                          <p>Any extra config field can use <code className="text-[11px] bg-muted px-1 rounded">{`{{fieldName}}`}</code> to inject room metadata into the request body. For example:</p>
+                          <ul className="list-disc pl-4 space-y-0.5">
+                            <li><code className="text-[11px] bg-muted px-1 rounded">channel</code> → <code className="text-[11px] bg-muted px-1 rounded">{`{{channel}}`}</code></li>
+                            <li><code className="text-[11px] bg-muted px-1 rounded">from_number</code> → <code className="text-[11px] bg-muted px-1 rounded">{`{{from_number}}`}</code></li>
+                            <li><code className="text-[11px] bg-muted px-1 rounded">customer_name</code> → <code className="text-[11px] bg-muted px-1 rounded">{`{{customer_name}}`}</code></li>
+                          </ul>
+                          <p>Values are replaced at runtime with the data passed when the room was created. Templates also work inside <code className="text-[11px] bg-muted px-1 rounded">url</code> and <code className="text-[11px] bg-muted px-1 rounded">headers</code>.</p>
+                        </div>
                       </>
                     )}
                     {toolForm.type === "TRANSFER_CALL" && (

@@ -62,7 +62,9 @@ export interface RuntimeConfig {
   timeoutSeconds?: number | null;
   maxCallDurationSeconds?: number | null;
   greetingMessage?: string | null;
+  greetingMode?: 'say' | 'generateReply' | null;
   tts?: TTSConfig;
+  injectSessionContext?: boolean;
 }
 
 export interface AgentConfig {
@@ -514,6 +516,39 @@ export interface CallSession {
   created_at: string;
   updated_at: string;
 }
+
+// ─── Conversation Events ─────────────────────────────────────
+
+export interface SessionEvent {
+  id: string;
+  session_id: string;
+  event_type: string;
+  payload: Record<string, any>;
+  occurred_at: string;
+  created_at: string;
+}
+
+export interface GroupedEvents {
+  total: number;
+  grouped: Record<string, SessionEvent[]>;
+}
+
+export const conversationEventsApi = {
+  byRoom: (roomName: string) =>
+    request<SessionEvent[]>(
+      `/conversation-events/room/${encodeURIComponent(roomName)}`
+    ),
+
+  bySession: (sessionId: string) =>
+    request<SessionEvent[]>(
+      `/conversation-events/session/${encodeURIComponent(sessionId)}`
+    ),
+
+  bySessionGrouped: (sessionId: string) =>
+    request<GroupedEvents>(
+      `/conversation-events/session/${encodeURIComponent(sessionId)}/grouped`
+    ),
+};
 
 export const roomApi = {
   create: (data: CreateRoomRequest) =>

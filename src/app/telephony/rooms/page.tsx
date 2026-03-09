@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   roomApi,
   type LiveKitRoom,
@@ -35,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   DoorOpen,
+  Eye,
   History,
   Radio,
   Trash2,
@@ -70,6 +72,7 @@ export default function RoomsPage() {
   );
   const [activeTab, setActiveTab] = useState("live");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const router = useRouter();
 
   const fetchLiveRooms = useCallback(async () => {
     try {
@@ -295,13 +298,18 @@ export default function RoomsPage() {
                       <TableHead>From</TableHead>
                       <TableHead>To</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {sessions.map((session) => {
                       const meta = parseMetadata(session.metadata);
                       return (
-                        <TableRow key={session.id}>
+                        <TableRow
+                          key={session.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => router.push(`/telephony/rooms/${session.id}`)}
+                        >
                           <TableCell className="font-medium">
                             {session.room_name}
                           </TableCell>
@@ -323,6 +331,18 @@ export default function RoomsPage() {
                           <TableCell>{meta?.to_number || "—"}</TableCell>
                           <TableCell>
                             {formatDate(session.created_at)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/telephony/rooms/${session.id}`);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );

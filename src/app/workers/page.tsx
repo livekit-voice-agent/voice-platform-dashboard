@@ -133,7 +133,7 @@ export default function WorkersPage() {
             Workers
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Manage agent worker processes. Spawn, kill and restart workers.
+            Manage agent worker processes. Spawn and monitor workers.
           </p>
         </div>
         <Button
@@ -263,23 +263,6 @@ export default function WorkersPage() {
                             </Button>
                           )}
                           {status.running && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRestart(name)}
-                                disabled={workerActionLoading === name}
-                                title="Restart"
-                              >
-                                <RefreshCw
-                                  className={`mr-1 h-4 w-4 ${
-                                    workerActionLoading === name
-                                      ? "animate-spin"
-                                      : ""
-                                  }`}
-                                />
-                                Restart
-                              </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -291,7 +274,6 @@ export default function WorkersPage() {
                                 <Square className="mr-1 h-4 w-4" />
                                 Kill
                               </Button>
-                            </>
                           )}
                         </div>
                       </TableCell>
