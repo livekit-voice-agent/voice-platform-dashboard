@@ -202,30 +202,32 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
       if (type === "tts_metrics") {
         return (
           <span className="text-sm text-muted-foreground">
-            TTS — ttfb: {p.ttfb?.toFixed(0) ?? "?"}ms, duration:{" "}
-            {p.duration?.toFixed(0) ?? "?"}ms
+            TTS — ttfb: {p.ttfbMs?.toFixed(0) ?? "?"}ms, duration:{" "}
+            {p.durationMs?.toFixed(0) ?? "?"}ms, áudio:{" "}
+            {p.audioDurationMs?.toFixed(0) ?? "?"}ms
           </span>
         );
       }
-      if (type === "llm_metrics") {
+      if (type === "realtime_model_metrics" || type === "llm_metrics") {
         return (
           <span className="text-sm text-muted-foreground">
-            LLM — ttft: {p.ttft?.toFixed(0) ?? "?"}ms, tokens:{" "}
-            {p.inputTokens ?? "?"}→{p.outputTokens ?? "?"}
+            LLM — ttft: {p.ttftMs?.toFixed(0) ?? "?"}ms, tokens:{" "}
+            {p.inputTokens ?? "?"}→{p.outputTokens ?? "?"},{" "}
+            {p.tokensPerSecond?.toFixed(1) ?? "?"}tok/s
           </span>
         );
       }
       if (type === "stt_metrics") {
         return (
           <span className="text-sm text-muted-foreground">
-            STT — duration: {p.duration?.toFixed(0) ?? "?"}ms
+            STT — duration: {(p.durationMs ?? p.duration)?.toFixed(0) ?? "?"}ms
           </span>
         );
       }
       if (type === "eou_metrics") {
         return (
           <span className="text-sm text-muted-foreground">
-            EOU — delay: {p.endOfUtteranceDelay?.toFixed(0) ?? "?"}ms
+            EOU — delay: {(p.endOfUtteranceDelayMs ?? p.endOfUtteranceDelay)?.toFixed(0) ?? "?"}ms
           </span>
         );
       }
@@ -390,6 +392,7 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
 
   const metricTypeLabels: Record<string, string> = {
     tts_metrics: "TTS (Text-to-Speech)",
+    realtime_model_metrics: "LLM (Modelo de Linguagem)",
     llm_metrics: "LLM (Modelo de Linguagem)",
     stt_metrics: "STT (Speech-to-Text)",
     eou_metrics: "EOU (End of Utterance)",
@@ -410,21 +413,36 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
               <>
                 <MetricCard
                   label="TTFB médio"
-                  value={avg(items, "ttfb")}
+                  value={avg(items, "ttfbMs")}
                   unit="ms"
                 />
                 <MetricCard
                   label="Duração média"
-                  value={avg(items, "duration")}
+                  value={avg(items, "durationMs")}
                   unit="ms"
+                />
+                <MetricCard
+                  label="Áudio médio"
+                  value={avg(items, "audioDurationMs")}
+                  unit="ms"
+                />
+                <MetricCard
+                  label="Caracteres (total)"
+                  value={sum(items, "charactersCount")}
+                  unit=""
                 />
               </>
             )}
-            {type === "llm_metrics" && (
+            {(type === "realtime_model_metrics" || type === "llm_metrics") && (
               <>
                 <MetricCard
                   label="TTFT médio"
-                  value={avg(items, "ttft")}
+                  value={avg(items, "ttftMs")}
+                  unit="ms"
+                />
+                <MetricCard
+                  label="Duração média"
+                  value={avg(items, "durationMs")}
                   unit="ms"
                 />
                 <MetricCard
@@ -437,12 +455,17 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
                   value={sum(items, "outputTokens")}
                   unit=""
                 />
+                <MetricCard
+                  label="Velocidade média"
+                  value={avg(items, "tokensPerSecond")}
+                  unit="tok/s"
+                />
               </>
             )}
             {type === "stt_metrics" && (
               <MetricCard
                 label="Duração média"
-                value={avg(items, "duration")}
+                value={avg(items, "durationMs")}
                 unit="ms"
               />
             )}
@@ -450,12 +473,12 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
               <>
                 <MetricCard
                   label="EOU delay médio"
-                  value={avg(items, "endOfUtteranceDelay")}
+                  value={avg(items, "endOfUtteranceDelayMs")}
                   unit="ms"
                 />
                 <MetricCard
                   label="Transc. delay médio"
-                  value={avg(items, "transcriptionDelay")}
+                  value={avg(items, "transcriptionDelayMs")}
                   unit="ms"
                 />
               </>
