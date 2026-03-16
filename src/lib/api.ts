@@ -50,6 +50,13 @@ export interface TTSConfig {
   speed?: number;
 }
 
+export interface STTConfig {
+  provider?: 'openai_whisper' | 'deepgram';
+  model?: string;
+  language?: string;
+  detectLanguage?: boolean;
+}
+
 export interface RuntimeConfig {
   model?: string;
   voice?: string;
@@ -64,7 +71,9 @@ export interface RuntimeConfig {
   greetingMessage?: string | null;
   greetingMode?: 'say' | 'generateReply' | null;
   tts?: TTSConfig;
+  stt?: STTConfig | null;
   injectSessionContext?: boolean;
+  sessionTurnDetection?: 'stt' | 'vad' | 'realtime_llm' | 'manual' | null;
 }
 
 export interface AgentConfig {
@@ -95,6 +104,11 @@ export const agentConfigApi = {
     }),
 
   listAgents: () => request<string[]>("/agent-config/agents"),
+
+  delete: (agentName: string) =>
+    request<AgentConfig>(`/agent-config?agentName=${encodeURIComponent(agentName)}`, {
+      method: "DELETE",
+    }),
 };
 
 export interface AgentKnowledgeItem {

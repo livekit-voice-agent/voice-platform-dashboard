@@ -42,7 +42,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -170,6 +172,40 @@ export default function AgentPage() {
     { id: "pNInz6obpgDQGcFmaJgB", name: "Adam", desc: "Deep male" },
   ];
 
+  const DEEPGRAM_STT_MODELS = [
+    { value: "nova-3-general", label: "Nova 3 General (Recomendado)" },
+    { value: "nova-2-conversationalai", label: "Nova 2 ConversationalAI" },
+    { value: "nova-2-phonecall", label: "Nova 2 Phonecall" },
+    { value: "nova-2-general", label: "Nova 2 General" },
+    { value: "nova-3-medical", label: "Nova 3 Medical" },
+  ];
+
+  const OPENAI_WHISPER_MODELS = [
+    { value: "whisper-1", label: "Whisper-1" },
+  ];
+
+  const CARTESIA_MODELS = [
+    { value: "sonic-2", label: "Sonic 2 (Recomendado)" },
+    { value: "sonic-3", label: "Sonic 3 (Alta qualidade)" },
+    { value: "sonic-lite", label: "Sonic Lite (Rápido)" },
+    { value: "sonic-turbo", label: "Sonic Turbo (Mais rápido)" },
+  ];
+
+  const TTS_DEFAULTS: Record<string, NonNullable<RuntimeConfig["tts"]>> = {
+    elevenlabs: {
+      provider: "elevenlabs",
+      model: "eleven_multilingual_v2",
+      voiceId: "ODq5zmih8GrVes37Dizd",
+      language: "pt",
+      stability: 0.5,
+      similarityBoost: 0.75,
+      speed: 1.0,
+    },
+    openai_tts: { provider: "openai_tts", model: "tts-1", voiceId: "coral", language: "en" },
+    cartesia: { provider: "cartesia", model: "sonic-2", voiceId: "", language: "pt" },
+    openai_realtime: { provider: "openai_realtime" },
+  };
+
   const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
     model: "gpt-4o-mini-realtime-preview",
     voice: "coral",
@@ -203,15 +239,25 @@ export default function AgentPage() {
       similarityBoost: 0.75,
       speed: 1.0,
     },
+    stt: null,
     injectSessionContext: false,
+    sessionTurnDetection: null,
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [runtimeExpanded, setRuntimeExpanded] = useState(false);
-  const [customVoiceId, setCustomVoiceId] = useState("");
+  // Tracks when user explicitly chose "Custom Voice ID" in ElevenLabs voice selector
+  const [isCustomVoiceMode, setIsCustomVoiceMode] = useState(false);
+
+  // True if the model is a non-realtime pipeline model
+  const isPipelineMode = !((runtimeConfig.model ?? "").includes("realtime"));
 
   const isCustomElevenLabsVoice =
     runtimeConfig.tts?.voiceId != null &&
+    runtimeConfig.tts.voiceId !== "" &&
     !ELEVENLABS_VOICES.some((v) => v.id === runtimeConfig.tts?.voiceId);
+
+  // Combined flag: show custom input when user chose custom mode OR when a non-preset voiceId is saved
+  const showCustomVoiceInput = isCustomVoiceMode || isCustomElevenLabsVoice;
 
   const [knowledgeItems, setKnowledgeItems] = useState<AgentKnowledgeItem[]>(
     []
@@ -219,6 +265,10 @@ export default function AgentPage() {
   const [uploading, setUploading] = useState(false);
   const [summarize, setSummarize] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteKnowledgeId, setPendingDeleteKnowledgeId] = useState<string | null>(null);
+  const [pendingDeleteToolId, setPendingDeleteToolId] = useState<string | null>(null);
+  const [deleteAgentConfirm, setDeleteAgentConfirm] = useState(false);
+  const [deletingAgent, setDeletingAgent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [roomDialogOpen, setRoomDialogOpen] = useState(false);
@@ -251,8 +301,7 @@ export default function AgentPage() {
   const [editingTool, setEditingTool] = useState<AgentTool | null>(null);
   const [savingTool, setSavingTool] = useState(false);
   const [deletingToolId, setDeletingToolId] = useState<string | null>(null);
-  const [seedingTools, setSeedingTools] = useState(false);
-  const TOOL_TYPES: { value: ToolType; label: string; desc: string }[] = [
+  const [seedingTools, setSeedingTools] = useState(false);  const TOOL_TYPES: { value: ToolType; label: string; desc: string }[] = [
     { value: "TRANSFER_CALL", label: "Transfer Call", desc: "Transfers the call to another department" },
     { value: "END_CALL", label: "End Call", desc: "Ends the current call" },
     { value: "HTTP_REQUEST", label: "HTTP Request", desc: "Makes an HTTP request to an external API" },
@@ -589,6 +638,26 @@ export default function AgentPage() {
     }
   };
 
+  const handleDeleteAgent = async () => {
+    setDeletingAgent(true);
+    try {
+      await agentConfigApi.delete(selectedAgent);
+      toast.success(`Agent "${selectedAgent}" deleted`);
+      const updatedAgents = agents.filter((a) => a !== selectedAgent);
+      setAgents(updatedAgents);
+      setDeleteAgentConfirm(false);
+      if (updatedAgents.length > 0) {
+        setSelectedAgent(updatedAgents[0]);
+      } else {
+        setSelectedAgent(DEFAULT_AGENT);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete agent");
+    } finally {
+      setDeletingAgent(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -634,6 +703,7 @@ export default function AgentPage() {
 
   const handleDeleteKnowledge = async (id: string) => {
     setDeletingId(id);
+    setPendingDeleteKnowledgeId(null);
     try {
       await agentKnowledgeApi.delete(id);
       toast.success("Knowledge item removed");
@@ -755,6 +825,7 @@ export default function AgentPage() {
 
   const handleDeleteTool = async (id: string) => {
     setDeletingToolId(id);
+    setPendingDeleteToolId(null);
     try {
       await agentToolsApi.delete(id);
       toast.success("Tool removed");
@@ -950,6 +1021,18 @@ export default function AgentPage() {
                 </Button>
               </div>
             )}
+
+            {!showNewAgentInput && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive"
+                onClick={() => setDeleteAgentConfirm(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete Agent
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -1083,43 +1166,113 @@ export default function AgentPage() {
                     <Mic className="h-4 w-4" /> Model &amp; Voice
                   </Label>
                   <p className="text-xs text-muted-foreground -mt-1">
-                    Choose the LLM model and TTS engine. OpenAI Voice uses the built-in Realtime voice.
-                    ElevenLabs uses OpenAI for reasoning (text-only) and ElevenLabs for speech output.
+                    Escolha o modelo LLM e o motor de síntese de voz (TTS).
+                    Modelos Realtime têm STT integrado. Pipeline mode usa STT externo (Deepgram, Whisper).
                   </p>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="rt-model-provider" className="text-xs text-muted-foreground">
-                      Model &amp; TTS Engine
-                    </Label>
-                    <Select
-                      value={`${runtimeConfig.model ?? "gpt-4o-mini-realtime-preview"}::${runtimeConfig.tts?.provider ?? "openai_realtime"}`}
-                      onValueChange={(v) => {
-                        const [model, provider] = v.split("::");
-                        setRuntimeConfig((prev) => ({
-                          ...prev,
-                          model,
-                          tts: { ...prev.tts, provider },
-                        }));
-                      }}
-                    >
-                      <SelectTrigger id="rt-model-provider">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gpt-4o-mini-realtime-preview::openai_realtime">
-                          gpt-4o-mini-realtime — OpenAI Voice
-                        </SelectItem>
-                        <SelectItem value="gpt-4o-realtime-preview::openai_realtime">
-                          gpt-4o-realtime — OpenAI Voice
-                        </SelectItem>
-                        <SelectItem value="gpt-4o-mini-realtime-preview::elevenlabs">
-                          gpt-4o-mini-realtime — ElevenLabs Voice
-                        </SelectItem>
-                        <SelectItem value="gpt-4o-realtime-preview::elevenlabs">
-                          gpt-4o-realtime — ElevenLabs Voice
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Selector 1 — LLM Model */}
+                    <div className="space-y-1">
+                      <Label htmlFor="rt-model" className="text-xs text-muted-foreground">
+                        LLM Model
+                      </Label>
+                      <Select
+                        value={runtimeConfig.model ?? "gpt-4o-mini-realtime-preview"}
+                        onValueChange={(newModel) => {
+                          const newIsPipeline = !newModel.includes("realtime");
+                          const wasRealtime = (runtimeConfig.model ?? "").includes("realtime");
+                          const currentProvider = runtimeConfig.tts?.provider ?? "openai_realtime";
+                          let newProvider = currentProvider;
+                          if (wasRealtime && !newIsPipeline) {
+                            if (currentProvider === "openai_realtime") newProvider = "elevenlabs";
+                          } else if (!wasRealtime && !newIsPipeline === false) {
+                            if (currentProvider === "openai_tts" || currentProvider === "cartesia") newProvider = "openai_realtime";
+                          }
+                          if (newProvider !== currentProvider) setIsCustomVoiceMode(false);
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            model: newModel,
+                            tts: newProvider !== currentProvider
+                              ? (TTS_DEFAULTS[newProvider] ?? { provider: newProvider })
+                              : prev.tts,
+                            stt: newIsPipeline && !prev.stt
+                              ? { provider: "deepgram" as const, model: "nova-3-general", language: "pt", detectLanguage: false }
+                              : newIsPipeline ? prev.stt : null,
+                            sessionTurnDetection: newIsPipeline
+                              ? (prev.sessionTurnDetection ?? "stt")
+                              : null,
+                          }));
+                        }}
+                      >
+                        <SelectTrigger id="rt-model">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel>OpenAI Realtime</SelectLabel>
+                            <SelectItem value="gpt-4o-mini-realtime-preview">gpt-4o-mini-realtime-preview</SelectItem>
+                            <SelectItem value="gpt-4o-realtime-preview">gpt-4o-realtime-preview</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Pipeline — GPT-5</SelectLabel>
+                            <SelectItem value="gpt-5.4">gpt-5.4</SelectItem>
+                            <SelectItem value="gpt-5.2">gpt-5.2</SelectItem>
+                            <SelectItem value="gpt-5.1">gpt-5.1</SelectItem>
+                            <SelectItem value="gpt-5">gpt-5</SelectItem>
+                            <SelectItem value="gpt-5-mini">gpt-5-mini</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Pipeline — GPT-4.1</SelectLabel>
+                            <SelectItem value="gpt-4.1">gpt-4.1</SelectItem>
+                            <SelectItem value="gpt-4.1-mini">gpt-4.1-mini</SelectItem>
+                            <SelectItem value="gpt-4.1-nano">gpt-4.1-nano</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Pipeline — GPT-4o</SelectLabel>
+                            <SelectItem value="gpt-4o">gpt-4o</SelectItem>
+                            <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Selector 2 — TTS Engine */}
+                    <div className="space-y-1">
+                      <Label htmlFor="rt-tts-engine" className="text-xs text-muted-foreground">
+                        TTS Engine
+                      </Label>
+                      <Select
+                        value={runtimeConfig.tts?.provider ?? (isPipelineMode ? "elevenlabs" : "openai_realtime")}
+                        onValueChange={(v) => {
+                          setIsCustomVoiceMode(false);
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            tts: TTS_DEFAULTS[v] ?? { provider: v },
+                          }));
+                        }}
+                      >
+                        <SelectTrigger id="rt-tts-engine">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {!isPipelineMode && (
+                            <SelectItem value="openai_realtime">OpenAI Voice (Realtime)</SelectItem>
+                          )}
+                          <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                          {isPipelineMode && (
+                            <>
+                              <SelectItem value="openai_tts">OpenAI TTS</SelectItem>
+                              <SelectItem value="cartesia">Cartesia</SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        {isPipelineMode
+                          ? "Provedor de síntese de voz para pipeline mode."
+                          : "Realtime: voz nativa OpenAI ou ElevenLabs via text-mode."}
+                      </p>
+                    </div>
                   </div>
 
                   {runtimeConfig.tts?.provider === "elevenlabs" ? (
@@ -1129,7 +1282,9 @@ export default function AgentPage() {
                           ElevenLabs TTS Settings
                         </Label>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Configure voice synthesis. The agent uses OpenAI Realtime for STT &amp; reasoning and ElevenLabs for speech output.
+                          {isPipelineMode
+                            ? "Pipeline mode: agent uses the selected STT for transcription and ElevenLabs for speech output."
+                            : "The agent uses OpenAI Realtime for STT & reasoning and ElevenLabs for speech output."}
                         </p>
                       </div>
 
@@ -1140,19 +1295,23 @@ export default function AgentPage() {
                           </Label>
                           <Select
                             value={
-                              isCustomElevenLabsVoice
+                              showCustomVoiceInput
                                 ? "__custom__"
-                                : (runtimeConfig.tts?.voiceId ?? "ODq5zmih8GrVes37Dizd")
+                                : (runtimeConfig.tts?.voiceId || "ODq5zmih8GrVes37Dizd")
                             }
                             onValueChange={(v) => {
                               if (v === "__custom__") {
-                                setCustomVoiceId(runtimeConfig.tts?.voiceId ?? "");
+                                setIsCustomVoiceMode(true);
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  tts: { ...prev.tts, voiceId: "" },
+                                }));
                               } else {
+                                setIsCustomVoiceMode(false);
                                 setRuntimeConfig((prev) => ({
                                   ...prev,
                                   tts: { ...prev.tts, voiceId: v },
                                 }));
-                                setCustomVoiceId("");
                               }
                             }}
                           >
@@ -1202,8 +1361,7 @@ export default function AgentPage() {
                         </div>
                       </div>
 
-                      {(isCustomElevenLabsVoice || customVoiceId !== "" ||
-                        (!ELEVENLABS_VOICES.some((v) => v.id === runtimeConfig.tts?.voiceId) && runtimeConfig.tts?.voiceId)) && (
+                      {showCustomVoiceInput && (
                         <div className="space-y-1">
                           <Label htmlFor="rt-11l-custom-voice" className="text-xs text-muted-foreground">
                             Custom Voice ID
@@ -1211,11 +1369,10 @@ export default function AgentPage() {
                           <Input
                             id="rt-11l-custom-voice"
                             type="text"
-                            placeholder="Enter ElevenLabs voice ID..."
-                            value={runtimeConfig.tts?.voiceId ?? customVoiceId}
+                            placeholder="Cole o Voice ID da sua biblioteca ElevenLabs..."
+                            value={runtimeConfig.tts?.voiceId ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setCustomVoiceId(val);
                               setRuntimeConfig((prev) => ({
                                 ...prev,
                                 tts: { ...prev.tts, voiceId: val },
@@ -1334,11 +1491,154 @@ export default function AgentPage() {
                         </div>
                       </div>
                     </div>
+                  ) : runtimeConfig.tts?.provider === "openai_tts" ? (
+                    /* OpenAI TTS settings for pipeline mode */
+                    <div className="space-y-4 rounded-lg border p-4 bg-muted/30">
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          OpenAI TTS Settings
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Pipeline mode using OpenAI TTS for speech synthesis.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-oai-tts-voice" className="text-xs text-muted-foreground">
+                            Voice
+                          </Label>
+                          <Select
+                            value={runtimeConfig.tts?.voiceId ?? "coral"}
+                            onValueChange={(v) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, voiceId: v },
+                              }))
+                            }
+                          >
+                            <SelectTrigger id="rt-oai-tts-voice">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"].map((v) => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-oai-tts-model" className="text-xs text-muted-foreground">
+                            TTS Model
+                          </Label>
+                          <Select
+                            value={runtimeConfig.tts?.model ?? "tts-1"}
+                            onValueChange={(v) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, model: v },
+                              }))
+                            }
+                          >
+                            <SelectTrigger id="rt-oai-tts-model">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="tts-1">tts-1 (rápido)</SelectItem>
+                              <SelectItem value="tts-1-hd">tts-1-hd (alta qualidade)</SelectItem>
+                              <SelectItem value="gpt-4o-mini-tts">gpt-4o-mini-tts</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  ) : runtimeConfig.tts?.provider === "cartesia" ? (
+                    /* Cartesia TTS settings for pipeline mode */
+                    <div className="space-y-4 rounded-lg border p-4 bg-muted/30">
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Cartesia TTS Settings
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Pipeline mode usando Cartesia para síntese de voz. Requer <code>CARTESIA_API_KEY</code>.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-cartesia-model" className="text-xs text-muted-foreground">
+                            Modelo
+                          </Label>
+                          <Select
+                            value={runtimeConfig.tts?.model ?? "sonic-2"}
+                            onValueChange={(v) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, model: v },
+                              }))
+                            }
+                          >
+                            <SelectTrigger id="rt-cartesia-model">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CARTESIA_MODELS.map((m) => (
+                                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-cartesia-lang" className="text-xs text-muted-foreground">
+                            Idioma
+                          </Label>
+                          <Select
+                            value={runtimeConfig.tts?.language ?? "pt"}
+                            onValueChange={(v) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, language: v },
+                              }))
+                            }
+                          >
+                            <SelectTrigger id="rt-cartesia-lang">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pt">Português</SelectItem>
+                              <SelectItem value="en">English</SelectItem>
+                              <SelectItem value="es">Español</SelectItem>
+                              <SelectItem value="fr">Français</SelectItem>
+                              <SelectItem value="de">Deutsch</SelectItem>
+                              <SelectItem value="zh">中文</SelectItem>
+                              <SelectItem value="ja">日本語</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <Label htmlFor="rt-cartesia-voice" className="text-xs text-muted-foreground">
+                            Voice ID
+                          </Label>
+                          <Input
+                            id="rt-cartesia-voice"
+                            placeholder="ex: f786b574-daa5-4673-aa0c-cbe3e8534c02"
+                            value={runtimeConfig.tts?.voiceId ?? ""}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                tts: { ...prev.tts, voiceId: e.target.value },
+                              }))
+                            }
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            ID da voz no Cartesia Voice Library. Deixe vazio para usar a voz padrão.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   ) : (
                     /* OpenAI Realtime voice selector */
                     <div className="space-y-1">
                       <Label htmlFor="rt-voice" className="text-xs text-muted-foreground">
-                        Voice (OpenAI)
+                        Voice (OpenAI Realtime)
                       </Label>
                       <Select
                         value={runtimeConfig.voice ?? "coral"}
@@ -1372,6 +1672,132 @@ export default function AgentPage() {
                     </div>
                   )}
                 </div>
+
+                {/* STT Configuration - Pipeline Mode Only */}
+                {isPipelineMode && (
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                      STT — Speech-to-Text
+                    </Label>
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      Em pipeline mode, o agente usa um STT externo para transcrição. Configure o provedor e modelo.
+                    </p>
+                    <div className="space-y-4 rounded-lg border p-4 bg-muted/30">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-stt-provider" className="text-xs text-muted-foreground">
+                            STT Provider
+                          </Label>
+                          <Select
+                            value={runtimeConfig.stt?.provider ?? "deepgram"}
+                            onValueChange={(v) => {
+                              const provider = v as "openai_whisper" | "deepgram";
+                              const defaultModel =
+                                provider === "deepgram" ? "nova-3-general" : "whisper-1";
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                stt: { ...prev.stt, provider, model: defaultModel },
+                              }));
+                            }}
+                          >
+                            <SelectTrigger id="rt-stt-provider">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="deepgram">Deepgram (Recomendado)</SelectItem>
+                              <SelectItem value="openai_whisper">OpenAI Whisper</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[11px] text-muted-foreground">
+                            Deepgram = melhor para tempo real. OpenAI = mais preciso.
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-stt-model" className="text-xs text-muted-foreground">
+                            STT Model
+                          </Label>
+                          <Select
+                            value={runtimeConfig.stt?.model ?? "nova-3-general"}
+                            onValueChange={(v) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                stt: { ...prev.stt, model: v },
+                              }))
+                            }
+                          >
+                            <SelectTrigger id="rt-stt-model">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(runtimeConfig.stt?.provider === "deepgram"
+                                ? DEEPGRAM_STT_MODELS
+                                : OPENAI_WHISPER_MODELS
+                              ).map((m) => (
+                                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-stt-lang" className="text-xs text-muted-foreground">
+                            Idioma STT
+                          </Label>
+                          <Select
+                            value={runtimeConfig.stt?.language ?? "pt"}
+                            onValueChange={(v) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                stt: { ...prev.stt, language: v },
+                              }))
+                            }
+                          >
+                            <SelectTrigger id="rt-stt-lang">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pt">Português (pt)</SelectItem>
+                              <SelectItem value="pt-BR">Português BR (pt-BR)</SelectItem>
+                              <SelectItem value="en">English (en)</SelectItem>
+                              <SelectItem value="en-US">English US (en-US)</SelectItem>
+                              <SelectItem value="es">Español (es)</SelectItem>
+                              <SelectItem value="fr">Français (fr)</SelectItem>
+                              <SelectItem value="de">Deutsch (de)</SelectItem>
+                              <SelectItem value="it">Italiano (it)</SelectItem>
+                              <SelectItem value="ja">日本語 (ja)</SelectItem>
+                              <SelectItem value="ko">한국어 (ko)</SelectItem>
+                              <SelectItem value="zh">中文 (zh)</SelectItem>
+                              <SelectItem value="multi">Multi-idioma (auto)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1 flex flex-col justify-end">
+                          <div className="flex items-center gap-2 pt-5">
+                            <input
+                              type="checkbox"
+                              id="rt-stt-detect-lang"
+                              checked={runtimeConfig.stt?.detectLanguage ?? false}
+                              onChange={(e) =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  stt: { ...prev.stt, detectLanguage: e.target.checked },
+                                }))
+                              }
+                              className="rounded border-input accent-primary"
+                            />
+                            <Label htmlFor="rt-stt-detect-lang" className="text-xs text-muted-foreground cursor-pointer">
+                              Auto-detectar idioma
+                            </Label>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            Ignora o idioma selecionado e detecta automaticamente.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Temperature & Max Tokens */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1552,10 +1978,46 @@ export default function AgentPage() {
 
                 {/* Turn Detection (VAD) */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Turn Detection (VAD)</Label>
+                  <Label className="text-sm font-semibold">Turn Detection</Label>
                   <p className="text-xs text-muted-foreground -mt-1">
-                    Voice Activity Detection — controls when the agent detects the user has stopped speaking and can respond.
+                    {isPipelineMode
+                      ? "Pipeline mode: controla como o agente detecta que o usuário terminou de falar."
+                      : "Voice Activity Detection — controls when the agent detects the user has stopped speaking and can respond."}
                   </p>
+
+                  {/* Pipeline mode: session-level turn detection */}
+                  {isPipelineMode && (
+                    <div className="space-y-1">
+                      <Label htmlFor="rt-session-td" className="text-xs text-muted-foreground">
+                        Modo de Turn Detection
+                      </Label>
+                      <Select
+                        value={runtimeConfig.sessionTurnDetection ?? "stt"}
+                        onValueChange={(v) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            sessionTurnDetection: v as "stt" | "vad" | "realtime_llm" | "manual",
+                          }))
+                        }
+                      >
+                        <SelectTrigger id="rt-session-td">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="stt">stt — Baseado em transcrição (Recomendado)</SelectItem>
+                          <SelectItem value="vad">vad — Voice Activity Detection</SelectItem>
+                          <SelectItem value="manual">manual — Controle manual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        <strong>stt</strong>: detecta o fim do turno quando o STT finaliza. <strong>vad</strong>: usa análise de áudio. <strong>manual</strong>: sem detecção automática.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Realtime mode: server_vad / semantic_vad */}
+                  {!isPipelineMode && (
+                  <>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {/* Type selector */}
                     <div className="space-y-1">
@@ -1754,11 +2216,11 @@ export default function AgentPage() {
                       </Label>
                     </div>
                   </div>
+                  </> )} {/* end !isPipelineMode */}
                 </div>
 
                 {/* Humanization */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Humanization</Label>
                   <p className="text-xs text-muted-foreground -mt-1">
                     Add human-like behaviors to make the agent sound more natural.
                   </p>
@@ -2009,7 +2471,7 @@ export default function AgentPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteKnowledge(item.id)}
+                              onClick={() => setPendingDeleteKnowledgeId(item.id)}
                               disabled={deletingId === item.id}
                               className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                             >
@@ -2138,7 +2600,7 @@ export default function AgentPage() {
                               variant="ghost"
                               size="sm"
                               className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteTool(tool.id)}
+                              onClick={() => setPendingDeleteToolId(tool.id)}
                               disabled={deletingToolId === tool.id}
                             >
                               {deletingToolId === tool.id ? (
@@ -2998,6 +3460,77 @@ export default function AgentPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ─── Delete Agent Confirmation ─────────────────────────────── */}
+      <Dialog open={deleteAgentConfirm} onOpenChange={setDeleteAgentConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Agent</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the agent <strong>&quot;{selectedAgent}&quot;</strong>?
+              This will permanently remove the agent configuration, all knowledge items, tools, and deployment history.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteAgentConfirm(false)} disabled={deletingAgent}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteAgent} disabled={deletingAgent}>
+              {deletingAgent ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete Agent
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Delete Knowledge Confirmation ─────────────────────────── */}
+      <Dialog open={!!pendingDeleteKnowledgeId} onOpenChange={() => setPendingDeleteKnowledgeId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Knowledge Item</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this knowledge item? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDeleteKnowledgeId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => pendingDeleteKnowledgeId && handleDeleteKnowledge(pendingDeleteKnowledgeId)}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Delete Tool Confirmation ───────────────────────────────── */}
+      <Dialog open={!!pendingDeleteToolId} onOpenChange={() => setPendingDeleteToolId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Tool</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this tool? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDeleteToolId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => pendingDeleteToolId && handleDeleteTool(pendingDeleteToolId)}
+              disabled={!!deletingToolId}
+            >
+              {deletingToolId ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

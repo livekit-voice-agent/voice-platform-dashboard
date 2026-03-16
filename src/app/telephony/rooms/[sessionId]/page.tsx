@@ -9,6 +9,8 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { AutoRefreshSelector } from "@/components/auto-refresh-selector";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import {
   Card,
   CardContent,
@@ -266,18 +268,9 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
 // ─── Conversation Timeline (chat bubbles) ───────────────────
 
 function ConversationTimeline({ events }: { events: SessionEvent[] }) {
-  const conversationEvents = events.filter(
-    (e) =>
-      e.event_type === "CONVERSATION_ITEM" ||
-      e.event_type === "USER_TRANSCRIPTION"
+  const filtered = events.filter(
+    (e) => e.event_type === "CONVERSATION_ITEM"
   );
-
-  // Keep only final USER_TRANSCRIPTION and all CONVERSATION_ITEM
-  const filtered: SessionEvent[] = [];
-  for (const ev of conversationEvents) {
-    if (ev.event_type === "USER_TRANSCRIPTION" && !ev.payload.isFinal) continue;
-    filtered.push(ev);
-  }
 
   if (filtered.length === 0) {
     return (
@@ -291,13 +284,8 @@ function ConversationTimeline({ events }: { events: SessionEvent[] }) {
   return (
     <div className="space-y-3">
       {filtered.map((ev) => {
-        const isUser =
-          ev.event_type === "USER_TRANSCRIPTION" ||
-          ev.payload.role === "user";
-        const text =
-          ev.event_type === "USER_TRANSCRIPTION"
-            ? ev.payload.transcript
-            : ev.payload.textContent;
+        const isUser = ev.payload.role === "user";
+        const text = ev.payload.textContent;
 
         if (!text) return null;
 
@@ -533,6 +521,13 @@ export default function SessionDetailPage({
     fetchEvents();
   }, [fetchSession, fetchEvents]);
 
+  const handleRefresh = useCallback(() => {
+    fetchSession();
+    fetchEvents();
+  }, [fetchSession, fetchEvents]);
+
+  const { autoRefreshInterval, setAutoRefreshInterval } = useAutoRefresh(handleRefresh);
+
   const meta = session ? parseMetadata(session.metadata) : null;
 
   // Count by type
@@ -595,6 +590,10 @@ export default function SessionDetailPage({
           <RefreshCw className="mr-2 h-4 w-4" />
           Atualizar
         </Button>
+        <AutoRefreshSelector
+          value={autoRefreshInterval}
+          onChange={setAutoRefreshInterval}
+        />
       </div>
 
       {/* Session Info Cards */}

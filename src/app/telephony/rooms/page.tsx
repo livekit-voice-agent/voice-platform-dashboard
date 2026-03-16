@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   roomApi,
@@ -9,6 +9,8 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { AutoRefreshSelector } from "@/components/auto-refresh-selector";
+import { useAutoRefresh, type AutoRefreshInterval } from "@/hooks/useAutoRefresh";
 import {
   Card,
   CardContent,
@@ -71,7 +73,6 @@ export default function RoomsPage() {
     null
   );
   const [activeTab, setActiveTab] = useState("live");
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
 
   const fetchLiveRooms = useCallback(async () => {
@@ -96,20 +97,17 @@ export default function RoomsPage() {
     }
   }, []);
 
+  const handleRefresh = useCallback(() => {
+    if (activeTab === "live") fetchLiveRooms();
+    else fetchSessions();
+  }, [activeTab, fetchLiveRooms, fetchSessions]);
+
+  const { autoRefreshInterval, setAutoRefreshInterval } = useAutoRefresh(handleRefresh);
+
   useEffect(() => {
     fetchLiveRooms();
     fetchSessions();
   }, [fetchLiveRooms, fetchSessions]);
-
-  // Auto-refresh live rooms every 10s when on the Live tab
-  useEffect(() => {
-    if (activeTab === "live") {
-      intervalRef.current = setInterval(fetchLiveRooms, 10000);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [activeTab, fetchLiveRooms]);
 
   const handleDeleteRoom = async (roomName: string) => {
     try {
@@ -131,6 +129,10 @@ export default function RoomsPage() {
             View live LiveKit rooms and call session history.
           </p>
         </div>
+        <AutoRefreshSelector
+          value={autoRefreshInterval}
+          onChange={(v) => setAutoRefreshInterval(v as AutoRefreshInterval)}
+        />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -156,8 +158,7 @@ export default function RoomsPage() {
                     Active Rooms
                   </CardTitle>
                   <CardDescription>
-                    Rooms currently active on LiveKit. Auto-refreshes every 10
-                    seconds.
+                    Rooms currently active on LiveKit.
                   </CardDescription>
                 </div>
                 <Button
