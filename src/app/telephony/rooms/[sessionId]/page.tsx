@@ -47,6 +47,7 @@ import {
   Clock,
   User,
   Bot,
+  Hash,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -106,6 +107,11 @@ const EVENT_TYPE_CONFIG: Record<
     label: "Encerramento",
     icon: XCircle,
     color: "bg-gray-500/10 text-gray-600",
+  },
+  DTMF: {
+    label: "DTMF",
+    icon: Hash,
+    color: "bg-orange-500/10 text-orange-600",
   },
 };
 
@@ -256,6 +262,20 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
         </span>
       );
 
+    case "DTMF":
+      return (
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-sm font-mono font-bold px-2">
+            {p.digit}
+          </Badge>
+          {p.participant_identity && (
+            <span className="text-xs text-muted-foreground">
+              de {p.participant_identity}
+            </span>
+          )}
+        </div>
+      );
+
     default:
       return (
         <span className="text-sm text-muted-foreground font-mono truncate">
@@ -360,8 +380,9 @@ function MetricCard({
 
 function MetricsView({ events }: { events: SessionEvent[] }) {
   const metricsEvents = events.filter((e) => e.event_type === "METRICS");
+  const dtmfEvents = events.filter((e) => e.event_type === "DTMF");
 
-  if (metricsEvents.length === 0) {
+  if (metricsEvents.length === 0 && dtmfEvents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <Activity className="h-10 w-10 text-muted-foreground mb-3" />
@@ -386,8 +407,39 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
     eou_metrics: "EOU (End of Utterance)",
   };
 
+  const dtmfSequence = dtmfEvents.map((e) => e.payload.digit).join(" → ");
+
   return (
     <div className="space-y-6">
+      {dtmfEvents.length > 0 && (
+        <div>
+          <h4 className="text-sm font-semibold mb-3">
+            DTMF (Dígitos){" "}
+            <span className="text-muted-foreground font-normal">
+              ({dtmfEvents.length} eventos)
+            </span>
+          </h4>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <MetricCard
+              label="Total de dígitos"
+              value={dtmfEvents.length}
+              unit=""
+            />
+            <MetricCard
+              label="Dígitos únicos"
+              value={new Set(dtmfEvents.map((e) => e.payload.digit)).size}
+              unit=""
+            />
+          </div>
+          <div className="mt-3 rounded-md border bg-muted/50 p-3">
+            <p className="text-xs text-muted-foreground mb-1">Sequência</p>
+            <p className="text-sm font-mono font-bold tracking-wider">
+              {dtmfSequence}
+            </p>
+          </div>
+        </div>
+      )}
+
       {Object.entries(byType).map(([type, items]) => (
         <div key={type}>
           <h4 className="text-sm font-semibold mb-3">
