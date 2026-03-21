@@ -168,10 +168,24 @@ export default function DispatchRulesPage() {
     setSaving(true);
     try {
       if (editingRule) {
-        await dispatchRuleApi.update(editingRule.sipDispatchRuleId, {
+        const payload: CreateDispatchRuleRequest = {
           name: formName,
+          ruleType: formRuleType,
           metadata: formMetadata || undefined,
-        });
+          hidePhoneNumber: formHidePhoneNumber,
+          trunkIds: parseCommaSeparated(formTrunkIds),
+          agentName: formAgentName || undefined,
+        };
+
+        if (formRuleType === "direct") {
+          payload.roomName = formRoomName;
+          payload.pin = formPin || undefined;
+        } else {
+          payload.roomPrefix = formRoomPrefix || "call-";
+          payload.pin = formPin || undefined;
+        }
+
+        await dispatchRuleApi.update(editingRule.sipDispatchRuleId, payload);
         toast.success("Dispatch rule updated");
       } else {
         const payload: CreateDispatchRuleRequest = {
@@ -350,8 +364,6 @@ export default function DispatchRulesPage() {
               />
             </div>
 
-            {!editingRule && (
-              <>
                 <div className="grid gap-2">
                   <Label>Rule Type</Label>
                   <Select
@@ -456,8 +468,6 @@ export default function DispatchRulesPage() {
                     Hide caller phone number
                   </Label>
                 </div>
-              </>
-            )}
 
             <div className="grid gap-2">
               <Label htmlFor="metadata">

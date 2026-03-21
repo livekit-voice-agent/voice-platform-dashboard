@@ -94,7 +94,7 @@ import {
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const DEFAULT_AGENT = "captador-agent";
+const LAST_AGENT_KEY = "voice-platform:lastAgent";
 
 function DeployStatusBadge({ status }: { status: DeploymentStatus }) {
   const config: Record<
@@ -144,7 +144,7 @@ function DeployStatusBadge({ status }: { status: DeploymentStatus }) {
 
 export default function AgentPage() {
   const [agents, setAgents] = useState<string[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState(DEFAULT_AGENT);
+  const [selectedAgent, setSelectedAgent] = useState("");
   const [newAgentName, setNewAgentName] = useState("");
   const [showNewAgentInput, setShowNewAgentInput] = useState(false);
 
@@ -244,7 +244,7 @@ export default function AgentPage() {
     sessionTurnDetection: null,
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
-  const [runtimeExpanded, setRuntimeExpanded] = useState(false);
+  const [runtimeExpanded, setRuntimeExpanded] = useState(true);
   // Tracks when user explicitly chose "Custom Voice ID" in ElevenLabs voice selector
   const [isCustomVoiceMode, setIsCustomVoiceMode] = useState(false);
 
@@ -278,7 +278,7 @@ export default function AgentPage() {
   );
   const [copiedToken, setCopiedToken] = useState(false);
   const [roomForm, setRoomForm] = useState<CreateRoomRequest>({
-    agent_name: DEFAULT_AGENT,
+    agent_name: "",
     from_number: "5562981724199",
     to_number: "5562981724198",
     channel: "whatsapp",
@@ -302,9 +302,9 @@ export default function AgentPage() {
   const [savingTool, setSavingTool] = useState(false);
   const [deletingToolId, setDeletingToolId] = useState<string | null>(null);
   const [seedingTools, setSeedingTools] = useState(false);  const TOOL_TYPES: { value: ToolType; label: string; desc: string }[] = [
-    { value: "TRANSFER_CALL", label: "Transfer Call", desc: "Transfers the call to another department" },
-    { value: "END_CALL", label: "End Call", desc: "Ends the current call" },
     { value: "HTTP_REQUEST", label: "HTTP Request", desc: "Makes an HTTP request to an external API" },
+    { value: "PRE_CALL", label: "Pre-Call Hook", desc: "HTTP webhook executed before the call starts" },
+    { value: "POST_CALL", label: "Post-Call Hook", desc: "HTTP webhook executed after the call ends" },
   ];
   const [toolForm, setToolForm] = useState<{
     name: string;
@@ -316,7 +316,7 @@ export default function AgentPage() {
     sort_order: number;
   }>({
     name: "",
-    type: "TRANSFER_CALL",
+    type: "HTTP_REQUEST",
     description: "",
     parameters: "{}",
     config: "{}",
@@ -450,10 +450,9 @@ export default function AgentPage() {
     switch (type) {
       case "HTTP_REQUEST":
         return { key: "param_name", type: "string", description: "Describe what this parameter is for", required: true, values: "" };
-      case "TRANSFER_CALL":
-        return { key: "department", type: "enum", description: "Department to transfer to", required: true, values: "sales, support, billing" };
-      case "END_CALL":
-        return { key: "reason", type: "enum", description: "Reason for ending the call", required: true, values: "completed, no_interest, callback_requested" };
+      case "PRE_CALL":
+      case "POST_CALL":
+        return { key: "", type: "string", description: "", required: false, values: "" };
       default:
         return { key: "", type: "string", description: "", required: false, values: "" };
     }
@@ -467,16 +466,9 @@ export default function AgentPage() {
           { key: "email", type: "string", description: "Customer email address", required: true, values: "" },
           { key: "message", type: "string", description: "Additional notes or message", required: false, values: "" },
         ];
-      case "TRANSFER_CALL":
-        return [
-          { key: "department", type: "enum", description: "Department to transfer to", required: true, values: "sales, support, billing" },
-          { key: "customer_name", type: "string", description: "Name of the caller", required: true, values: "" },
-          { key: "urgency", type: "enum", description: "Priority level", required: false, values: "low, medium, high" },
-        ];
-      case "END_CALL":
-        return [
-          { key: "reason", type: "enum", description: "Reason for ending the call", required: true, values: "completed, no_interest, callback_requested" },
-        ];
+      case "PRE_CALL":
+      case "POST_CALL":
+        return [];
       default:
         return [{ key: "", type: "string", description: "", required: false, values: "" }];
     }
@@ -493,15 +485,25 @@ export default function AgentPage() {
           { key: "channel", value: "{{channel}}" },
           { key: "from_number", value: "{{from_number}}" },
         ];
-      case "TRANSFER_CALL":
+      case "PRE_CALL":
         return [
-          { key: "waitMessage", value: "One moment while I process the transfer." },
-          { key: "transferMessage", value: "Transferring you now to the responsible department." },
-          { key: "shutdownReason", value: "sip-call-transferred" },
-          { key: "simulatedDelayMs", value: "3000" },
+          { key: "url", value: "https://api.example.com/pre-call" },
+          { key: "method", value: "POST" },
+          { key: "headers", value: '{"Authorization":"Bearer token","Content-Type":"application/json"}' },
+          { key: "from_number", value: "{{from_number}}" },
+          { key: "agent_name", value: "{{agent_name}}" },
+          { key: "room_name", value: "{{room_name}}" },
         ];
-      case "END_CALL":
-        return [];
+      case "POST_CALL":
+        return [
+          { key: "url", value: "https://api.example.com/post-call" },
+          { key: "method", value: "POST" },
+          { key: "headers", value: '{"Authorization":"Bearer token","Content-Type":"application/json"}' },
+          { key: "from_number", value: "{{from_number}}" },
+          { key: "phone_number", value: "{{phone_number}}" },
+          { key: "summary", value: "{{summary}}" },
+          { key: "room_name", value: "{{room_name}}" },
+        ];
       default:
         return [{ key: "", value: "" }];
     }
@@ -513,9 +515,19 @@ export default function AgentPage() {
   const loadAgents = useCallback(async () => {
     try {
       const list = await agentConfigApi.listAgents();
-      setAgents(list.length > 0 ? list : [DEFAULT_AGENT]);
+      if (list.length > 0) {
+        setAgents(list);
+        setSelectedAgent((prev) => {
+          if (prev) return prev;
+          const stored = localStorage.getItem(LAST_AGENT_KEY);
+          if (stored && list.includes(stored)) return stored;
+          return list[0];
+        });
+      } else {
+        setAgents([]);
+      }
     } catch {
-      setAgents([DEFAULT_AGENT]);
+      setAgents([]);
     }
   }, []);
 
@@ -605,6 +617,7 @@ export default function AgentPage() {
   }, [loadAgents, loadWorkerStatus, loadAvailableWorkers]);
 
   useEffect(() => {
+    if (!selectedAgent) return;
     loadConfig(selectedAgent);
     loadKnowledge(selectedAgent);
     loadTools(selectedAgent);
@@ -619,6 +632,7 @@ export default function AgentPage() {
     }
     setShowNewAgentInput(false);
     setSelectedAgent(value);
+    localStorage.setItem(LAST_AGENT_KEY, value);
   };
 
   const handleCreateAgent = async () => {
@@ -630,12 +644,7 @@ export default function AgentPage() {
       setAgents((prev) => [...prev, name]);
     }
     setSelectedAgent(name);
-    // Auto-seed default tools for new agents
-    try {
-      await agentToolsApi.seed(name);
-    } catch {
-      // Ignore — tools will be seeded on first save
-    }
+    localStorage.setItem(LAST_AGENT_KEY, name);
   };
 
   const handleDeleteAgent = async () => {
@@ -648,8 +657,10 @@ export default function AgentPage() {
       setDeleteAgentConfirm(false);
       if (updatedAgents.length > 0) {
         setSelectedAgent(updatedAgents[0]);
+        localStorage.setItem(LAST_AGENT_KEY, updatedAgents[0]);
       } else {
-        setSelectedAgent(DEFAULT_AGENT);
+        setSelectedAgent("");
+        localStorage.removeItem(LAST_AGENT_KEY);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete agent");
@@ -732,7 +743,7 @@ export default function AgentPage() {
   const resetToolForm = () => {
     setToolForm({
       name: "",
-      type: "TRANSFER_CALL",
+      type: "HTTP_REQUEST",
       description: "",
       parameters: "{}",
       config: "{}",
@@ -2538,8 +2549,7 @@ export default function AgentPage() {
                   <Wrench className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No tools configured for this agent.</p>
                   <p className="text-xs mt-1">
-                    Click &quot;Seed Defaults&quot; to add the standard transfer &amp; end call tools,
-                    or &quot;Add Tool&quot; to create a custom one.
+                    Click &quot;Add Tool&quot; to create an HTTP Request, Pre-Call Hook, or Post-Call Hook.
                   </p>
                 </div>
               ) : (
@@ -2566,6 +2576,16 @@ export default function AgentPage() {
                             {tool.type === "HTTP_REQUEST" && (
                               <span className="flex items-center gap-1">
                                 <Globe className="h-3 w-3" /> HTTP
+                              </span>
+                            )}
+                            {tool.type === "PRE_CALL" && (
+                              <span className="flex items-center gap-1">
+                                <Globe className="h-3 w-3" /> Pre-Call
+                              </span>
+                            )}
+                            {tool.type === "POST_CALL" && (
+                              <span className="flex items-center gap-1">
+                                <Globe className="h-3 w-3" /> Post-Call
                               </span>
                             )}
                           </Badge>
@@ -2686,6 +2706,7 @@ export default function AgentPage() {
                   />
                 </div>
 
+                {toolForm.type !== "PRE_CALL" && toolForm.type !== "POST_CALL" && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm">Parameters</Label>
@@ -2868,14 +2889,9 @@ export default function AgentPage() {
                     {toolForm.type === "HTTP_REQUEST" && (
                       <p className="mt-1">For <strong>HTTP Request</strong>, these parameters will be sent as the request body.</p>
                     )}
-                    {toolForm.type === "TRANSFER_CALL" && (
-                      <p className="mt-1">For <strong>Transfer Call</strong>, the agent collects this data from the caller before transferring.</p>
-                    )}
-                    {toolForm.type === "END_CALL" && (
-                      <p className="mt-1">For <strong>End Call</strong>, typically a <code className="text-[11px] bg-muted px-1 rounded">reason</code> (enum) parameter with the possible termination reasons.</p>
-                    )}
                   </div>
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -2932,7 +2948,7 @@ export default function AgentPage() {
                       onChange={(e) => setToolForm((p) => ({ ...p, config: e.target.value }))}
                       rows={5}
                       className="font-mono text-xs"
-                      placeholder={toolForm.type === "HTTP_REQUEST"
+                      placeholder={toolForm.type === "HTTP_REQUEST" || toolForm.type === "PRE_CALL" || toolForm.type === "POST_CALL"
                         ? '{"url": "https://api.example.com/endpoint", "method": "POST"}'
                         : toolForm.type === "TRANSFER_CALL"
                         ? '{"waitMessage": "One moment...", "transferMessage": "Transferring..."}'
@@ -2943,7 +2959,7 @@ export default function AgentPage() {
                       {configFields.length === 0 && (
                         <div className="text-center py-2 space-y-1.5">
                           <p className="text-xs text-muted-foreground">No config fields yet.</p>
-                          {(toolForm.type === "HTTP_REQUEST" || toolForm.type === "TRANSFER_CALL") && (
+                          {(toolForm.type === "HTTP_REQUEST" || toolForm.type === "TRANSFER_CALL" || toolForm.type === "PRE_CALL" || toolForm.type === "POST_CALL") && (
                             <Button
                               type="button"
                               variant="outline"
@@ -2951,7 +2967,7 @@ export default function AgentPage() {
                               className="h-6 px-3 text-xs"
                               onClick={() => setConfigFields(getExampleConfigFields(toolForm.type))}
                             >
-                              Load Example for {toolForm.type === "HTTP_REQUEST" ? "HTTP Request" : "Transfer Call"}
+                              Load Example for {toolForm.type === "HTTP_REQUEST" ? "HTTP Request" : toolForm.type === "TRANSFER_CALL" ? "Transfer Call" : toolForm.type === "PRE_CALL" ? "Pre-Call Hook" : "Post-Call Hook"}
                             </Button>
                           )}
                         </div>
@@ -3035,9 +3051,6 @@ export default function AgentPage() {
                           <li><code className="text-[11px] bg-muted px-1 rounded">simulatedDelayMs</code> — Simulated processing delay in ms (default: 3000)</li>
                         </ul>
                       </>
-                    )}
-                    {toolForm.type === "END_CALL" && (
-                      <p>For <strong>End Call</strong>, usually no extra config is needed. The agent ends the call after the final message.</p>
                     )}
                   </div>
                 </div>

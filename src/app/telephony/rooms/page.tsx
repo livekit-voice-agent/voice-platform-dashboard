@@ -328,7 +328,7 @@ export default function RoomsPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>{meta?.agent_name || "—"}</TableCell>
-                          <TableCell>{meta?.from_number || "—"}</TableCell>
+                          <TableCell>{session.phone_number || meta?.from_number || "—"}</TableCell>
                           <TableCell>{meta?.to_number || "—"}</TableCell>
                           <TableCell>
                             {formatDate(session.created_at)}

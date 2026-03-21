@@ -87,15 +87,13 @@ export interface AgentConfig {
   updated_at: string;
 }
 
-const DEFAULT_AGENT_NAME = "captador-agent";
-
 export const agentConfigApi = {
-  get: (agentName: string = DEFAULT_AGENT_NAME) =>
+  get: (agentName: string) =>
     request<AgentConfig>(`/agent-config?agentName=${encodeURIComponent(agentName)}`),
 
   update: (
     instructions: string,
-    agentName: string = DEFAULT_AGENT_NAME,
+    agentName: string,
     options?: { auto_start?: boolean; tools?: any; runtime_config?: RuntimeConfig }
   ) =>
     request<AgentConfig>(`/agent-config?agentName=${encodeURIComponent(agentName)}`, {
@@ -146,7 +144,7 @@ export const agentKnowledgeApi = {
     return res.json() as Promise<AgentKnowledgeDetail>;
   },
 
-  list: (agentName: string = DEFAULT_AGENT_NAME) =>
+  list: (agentName: string) =>
     request<AgentKnowledgeItem[]>(
       `/agent-knowledge?agentName=${encodeURIComponent(agentName)}`
     ),
@@ -321,7 +319,7 @@ export const deployApi = {
 
 // ─── Agent Tools ─────────────────────────────────────────────
 
-export type ToolType = "TRANSFER_CALL" | "END_CALL" | "HTTP_REQUEST";
+export type ToolType = "TRANSFER_CALL" | "END_CALL" | "HTTP_REQUEST" | "PRE_CALL" | "POST_CALL";
 
 export interface AgentTool {
   id: string;
@@ -527,6 +525,8 @@ export interface CallSession {
   room_name: string;
   status: string;
   metadata: string;
+  phone_number: string | null;
+  summary: { text: string } | null;
   created_at: string;
   updated_at: string;
 }

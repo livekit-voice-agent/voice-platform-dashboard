@@ -677,7 +677,7 @@ export default function SessionDetailPage({
           <CardContent className="pt-4 pb-4">
             <p className="text-xs text-muted-foreground">De</p>
             <p className="text-sm font-medium mt-1">
-              {meta?.from_number || "—"}
+              {session.phone_number || meta?.from_number || "—"}
             </p>
           </CardContent>
         </Card>
@@ -690,6 +690,20 @@ export default function SessionDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Call Summary */}
+      {session.summary && (
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground mb-2">Resumo da Chamada</p>
+            <p className="text-sm whitespace-pre-wrap">
+              {typeof session.summary === 'object' && 'text' in session.summary
+                ? (session.summary as { text: string }).text
+                : JSON.stringify(session.summary)}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Event Type Summary */}
       {events.length > 0 && (
