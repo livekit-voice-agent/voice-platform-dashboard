@@ -84,6 +84,10 @@ export interface RuntimeConfig {
   injectSessionContext?: boolean;
   sessionTurnDetection?: 'stt' | 'vad' | 'realtime_llm' | 'manual' | null;
   extractionFields?: ExtractionField[];
+  inputAudioTranscription?: {
+    model?: string;
+    language?: string;
+  };
 }
 
 export interface AgentConfig {

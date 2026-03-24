@@ -244,6 +244,10 @@ export default function AgentPage() {
     injectSessionContext: false,
     sessionTurnDetection: null,
     extractionFields: [],
+    inputAudioTranscription: {
+      model: "gpt-4o-mini-transcribe",
+      language: "pt",
+    },
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [runtimeExpanded, setRuntimeExpanded] = useState(true);
@@ -2247,6 +2251,80 @@ export default function AgentPage() {
                       <Label htmlFor="rt-vad-interrupt-response" className="text-xs">
                         Interrupt Response
                       </Label>
+                    </div>
+                  </div>
+                  {/* Input Audio Transcription — Realtime Mode Only */}
+                  <div className="space-y-3 pt-2">
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                      Input Audio Transcription
+                    </Label>
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      Modelo usado para transcrição do áudio de entrada em sessões realtime.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="rt-iat-model" className="text-xs text-muted-foreground">
+                          Transcription Model
+                        </Label>
+                        <Select
+                          value={runtimeConfig.inputAudioTranscription?.model ?? "gpt-4o-mini-transcribe"}
+                          onValueChange={(v) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              inputAudioTranscription: {
+                                ...prev.inputAudioTranscription,
+                                model: v,
+                              },
+                            }))
+                          }
+                        >
+                          <SelectTrigger id="rt-iat-model">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe (Recomendado)</SelectItem>
+                            <SelectItem value="gpt-4o-transcribe">gpt-4o-transcribe</SelectItem>
+                            <SelectItem value="whisper-1">whisper-1</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                          gpt-4o-mini = rápido e barato. gpt-4o = mais preciso. whisper-1 = legacy.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="rt-iat-lang" className="text-xs text-muted-foreground">
+                          Idioma Transcrição
+                        </Label>
+                        <Select
+                          value={runtimeConfig.inputAudioTranscription?.language ?? "pt"}
+                          onValueChange={(v) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              inputAudioTranscription: {
+                                ...prev.inputAudioTranscription,
+                                language: v,
+                              },
+                            }))
+                          }
+                        >
+                          <SelectTrigger id="rt-iat-lang">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pt">Português (pt)</SelectItem>
+                            <SelectItem value="en">English (en)</SelectItem>
+                            <SelectItem value="en-US">English US (en-US)</SelectItem>
+                            <SelectItem value="es">Español (es)</SelectItem>
+                            <SelectItem value="fr">Français (fr)</SelectItem>
+                            <SelectItem value="de">Deutsch (de)</SelectItem>
+                            <SelectItem value="it">Italiano (it)</SelectItem>
+                            <SelectItem value="ja">日本語 (ja)</SelectItem>
+                            <SelectItem value="ko">한국어 (ko)</SelectItem>
+                            <SelectItem value="zh">中文 (zh)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
                   </> )} {/* end !isPipelineMode */}
