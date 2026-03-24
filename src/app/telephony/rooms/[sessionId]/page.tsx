@@ -705,6 +705,31 @@ export default function SessionDetailPage({
         </Card>
       )}
 
+      {/* Ticket - Extracted Fields */}
+      {session.ticket && typeof session.ticket === 'object' && Object.keys(session.ticket).length > 0 && (
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground mb-3">Ticket — Campos Extraídos</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {Object.entries(session.ticket as Record<string, any>).map(([key, value]) => (
+                <div key={key} className="rounded-md border bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {key.replace(/_/g, ' ')}
+                  </p>
+                  <p className="text-sm font-medium mt-0.5">
+                    {value === null || value === undefined
+                      ? '—'
+                      : typeof value === 'boolean'
+                        ? (value ? 'Sim' : 'Não')
+                        : String(value)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Event Type Summary */}
       {events.length > 0 && (
         <div className="flex flex-wrap gap-2">

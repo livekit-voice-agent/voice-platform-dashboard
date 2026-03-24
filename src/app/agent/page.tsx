@@ -14,6 +14,7 @@ import {
   type AgentTool,
   type ToolType,
   type RuntimeConfig,
+  type ExtractionField,
   type AgentDeployment,
   type DeploymentStatus,
   type DeployHealthResponse,
@@ -242,6 +243,7 @@ export default function AgentPage() {
     stt: null,
     injectSessionContext: false,
     sessionTurnDetection: null,
+    extractionFields: [],
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [runtimeExpanded, setRuntimeExpanded] = useState(true);
@@ -415,6 +417,9 @@ export default function AgentPage() {
     }
   };
 
+  // Internal HTTP_REQUEST config keys managed by dedicated UI controls
+  const HTTP_INTERNAL_KEYS = new Set(["awaitResponse", "holdPhrases", "holdPhraseIntervalMs"]);
+
   const configFieldsToJson = (fields: ConfigField[]): string => {
     const obj: Record<string, any> = {};
     for (const f of fields) {
@@ -441,7 +446,11 @@ export default function AgentPage() {
     if (mode === "form") {
       setConfigFields(jsonToConfigFields(toolForm.config));
     } else {
-      setToolForm((p) => ({ ...p, config: configFieldsToJson(configFields) }));
+      // Filter out internal HTTP_REQUEST keys from JSON view
+      const visibleFields = toolForm.type === "HTTP_REQUEST"
+        ? configFields.filter((f) => !HTTP_INTERNAL_KEYS.has(f.key))
+        : configFields;
+      setToolForm((p) => ({ ...p, config: configFieldsToJson(visibleFields) }));
     }
     setConfigMode(mode);
   };
@@ -798,6 +807,19 @@ export default function AgentPage() {
         toast.error("Invalid JSON in Config field");
         setSavingTool(false);
         return;
+      }
+
+      // Merge internal HTTP_REQUEST fields from dedicated controls when in JSON mode
+      if (toolForm.type === "HTTP_REQUEST" && configMode === "json") {
+        for (const f of configFields) {
+          if (HTTP_INTERNAL_KEYS.has(f.key) && f.value !== undefined) {
+            try {
+              parsedConfig[f.key] = JSON.parse(f.value);
+            } catch {
+              parsedConfig[f.key] = f.value;
+            }
+          }
+        }
       }
 
       if (editingTool) {
@@ -2363,6 +2385,181 @@ export default function AgentPage() {
                   </p>
                 </div>
 
+                {/* ── Extraction Fields (Ticket) ── */}
+                <div className="space-y-3 border-t pt-4 mt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium">Campos de Extração (Ticket)</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Campos extraídos automaticamente da conversa ao final da chamada.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setRuntimeConfig((prev) => ({
+                          ...prev,
+                          extractionFields: [
+                            ...(prev.extractionFields ?? []),
+                            {
+                              key: "",
+                              label: "",
+                              type: "string" as const,
+                              description: "",
+                            },
+                          ],
+                        }))
+                      }
+                    >
+                      + Adicionar Campo
+                    </Button>
+                  </div>
+
+                  {(runtimeConfig.extractionFields ?? []).length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">
+                      Nenhum campo de extração configurado. Adicione campos para gerar tickets automaticamente.
+                    </p>
+                  )}
+
+                  {(runtimeConfig.extractionFields ?? []).map((field, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-md border p-3 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Campo {idx + 1}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-destructive"
+                          onClick={() =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              extractionFields: (prev.extractionFields ?? []).filter(
+                                (_, i) => i !== idx
+                              ),
+                            }))
+                          }
+                        >
+                          ×
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Key</Label>
+                          <Input
+                            value={field.key}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => {
+                                const fields = [...(prev.extractionFields ?? [])];
+                                fields[idx] = { ...fields[idx], key: e.target.value };
+                                return { ...prev, extractionFields: fields };
+                              })
+                            }
+                            placeholder="ex: customer_name"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Label</Label>
+                          <Input
+                            value={field.label}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => {
+                                const fields = [...(prev.extractionFields ?? [])];
+                                fields[idx] = { ...fields[idx], label: e.target.value };
+                                return { ...prev, extractionFields: fields };
+                              })
+                            }
+                            placeholder="ex: Nome do Cliente"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Tipo</Label>
+                          <select
+                            value={field.type}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => {
+                                const fields = [...(prev.extractionFields ?? [])];
+                                fields[idx] = {
+                                  ...fields[idx],
+                                  type: e.target.value as ExtractionField["type"],
+                                  options: e.target.value === "enum" ? (fields[idx].options ?? []) : undefined,
+                                };
+                                return { ...prev, extractionFields: fields };
+                              })
+                            }
+                            className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm"
+                          >
+                            <option value="string">Texto</option>
+                            <option value="enum">Enum (Opções)</option>
+                            <option value="number">Número</option>
+                            <option value="boolean">Sim/Não</option>
+                          </select>
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={field.required ?? false}
+                              onChange={(e) =>
+                                setRuntimeConfig((prev) => {
+                                  const fields = [...(prev.extractionFields ?? [])];
+                                  fields[idx] = { ...fields[idx], required: e.target.checked };
+                                  return { ...prev, extractionFields: fields };
+                                })
+                              }
+                              className="rounded"
+                            />
+                            Obrigatório
+                          </label>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Descrição (usada no prompt)</Label>
+                        <Input
+                          value={field.description}
+                          onChange={(e) =>
+                            setRuntimeConfig((prev) => {
+                              const fields = [...(prev.extractionFields ?? [])];
+                              fields[idx] = { ...fields[idx], description: e.target.value };
+                              return { ...prev, extractionFields: fields };
+                            })
+                          }
+                          placeholder="ex: Nome completo do cliente que está ligando"
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      {field.type === "enum" && (
+                        <div>
+                          <Label className="text-xs">Opções (separadas por vírgula)</Label>
+                          <Input
+                            value={(field.options ?? []).join(", ")}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => {
+                                const fields = [...(prev.extractionFields ?? [])];
+                                fields[idx] = {
+                                  ...fields[idx],
+                                  options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+                                };
+                                return { ...prev, extractionFields: fields };
+                              })
+                            }
+                            placeholder="ex: satisfeito, neutro, insatisfeito"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
                 <div className="flex justify-end pt-2 border-t">
                   <Button onClick={handleSave} disabled={saving}>
                     <Save className="mr-2 h-4 w-4" />
@@ -2956,7 +3153,95 @@ export default function AgentPage() {
                     />
                   ) : (
                     <div className="space-y-2 rounded-md border p-3">
-                      {configFields.length === 0 && (
+                      {/* HTTP_REQUEST dedicated controls */}
+                      {toolForm.type === "HTTP_REQUEST" && (
+                        <div className="space-y-3 pb-3 mb-2 border-b border-dashed">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="awaitResponse"
+                              checked={configFields.find((f) => f.key === "awaitResponse")?.value !== "false"}
+                              onChange={(e) => {
+                                setConfigFields((prev) => {
+                                  const idx = prev.findIndex((f) => f.key === "awaitResponse");
+                                  const val = { key: "awaitResponse", value: String(e.target.checked) };
+                                  if (idx >= 0) {
+                                    const next = [...prev];
+                                    next[idx] = val;
+                                    return next;
+                                  }
+                                  return [...prev, val];
+                                });
+                              }}
+                              className="h-4 w-4 rounded border-border"
+                            />
+                            <label htmlFor="awaitResponse" className="text-xs font-medium cursor-pointer">
+                              Aguardar resposta HTTP antes de continuar
+                            </label>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground -mt-1 ml-6">
+                            {configFields.find((f) => f.key === "awaitResponse")?.value === "false"
+                              ? "O agente continua a conversa e recebe o resultado em background."
+                              : "O agente aguarda a resposta antes de continuar. Configure frases de espera abaixo para manter o usuário engajado."}
+                          </p>
+
+                          {configFields.find((f) => f.key === "awaitResponse")?.value !== "false" && (
+                            <>
+                              <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground font-medium">
+                                  Frases de espera (uma por linha)
+                                </label>
+                                <Textarea
+                                  rows={3}
+                                  className="text-xs"
+                                  placeholder={"Hmm, estou verificando...\nUm instante...\nJá estou consultando..."}
+                                  value={configFields.find((f) => f.key === "holdPhrases")?.value ?? ""}
+                                  onChange={(e) => {
+                                    setConfigFields((prev) => {
+                                      const idx = prev.findIndex((f) => f.key === "holdPhrases");
+                                      const val = { key: "holdPhrases", value: e.target.value };
+                                      if (idx >= 0) {
+                                        const next = [...prev];
+                                        next[idx] = val;
+                                        return next;
+                                      }
+                                      return [...prev, val];
+                                    });
+                                  }}
+                                />
+                                <p className="text-[11px] text-muted-foreground">
+                                  O agente fala frases aleatórias desta lista enquanto aguarda. Sons de typing/ambience são controlados pelo runtime config (humanização).
+                                </p>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground font-medium">
+                                  Intervalo entre frases (ms)
+                                </label>
+                                <Input
+                                  type="number"
+                                  className="h-8 text-xs w-36"
+                                  placeholder="6000"
+                                  min={2000}
+                                  value={configFields.find((f) => f.key === "holdPhraseIntervalMs")?.value ?? ""}
+                                  onChange={(e) => {
+                                    setConfigFields((prev) => {
+                                      const idx = prev.findIndex((f) => f.key === "holdPhraseIntervalMs");
+                                      const val = { key: "holdPhraseIntervalMs", value: e.target.value };
+                                      if (idx >= 0) {
+                                        const next = [...prev];
+                                        next[idx] = val;
+                                        return next;
+                                      }
+                                      return [...prev, val];
+                                    });
+                                  }}
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {configFields.filter((f) => !HTTP_INTERNAL_KEYS.has(f.key)).length === 0 && (
                         <div className="text-center py-2 space-y-1.5">
                           <p className="text-xs text-muted-foreground">No config fields yet.</p>
                           {(toolForm.type === "HTTP_REQUEST" || toolForm.type === "TRANSFER_CALL" || toolForm.type === "PRE_CALL" || toolForm.type === "POST_CALL") && (
@@ -2973,6 +3258,7 @@ export default function AgentPage() {
                         </div>
                       )}
                       {configFields.map((field, idx) => (
+                        HTTP_INTERNAL_KEYS.has(field.key) ? null : (
                         <div key={idx} className="grid grid-cols-[1fr_2fr_auto] gap-2 items-start">
                           <Input
                             value={field.key}
@@ -3004,6 +3290,7 @@ export default function AgentPage() {
                             <X className="h-3.5 w-3.5" />
                           </Button>
                         </div>
+                        )
                       ))}
                       <Button
                         type="button"
@@ -3030,14 +3317,56 @@ export default function AgentPage() {
                           <li><code className="text-[11px] bg-muted px-1 rounded">waitMessage</code> — Phrase the agent speaks while waiting for the response</li>
                         </ul>
                         <div className="mt-2 rounded-md border border-dashed border-muted-foreground/30 p-2 space-y-1">
-                          <p className="font-medium">Session metadata templates</p>
-                          <p>Any extra config field can use <code className="text-[11px] bg-muted px-1 rounded">{`{{fieldName}}`}</code> to inject room metadata into the request body. For example:</p>
-                          <ul className="list-disc pl-4 space-y-0.5">
-                            <li><code className="text-[11px] bg-muted px-1 rounded">channel</code> → <code className="text-[11px] bg-muted px-1 rounded">{`{{channel}}`}</code></li>
-                            <li><code className="text-[11px] bg-muted px-1 rounded">from_number</code> → <code className="text-[11px] bg-muted px-1 rounded">{`{{from_number}}`}</code></li>
-                            <li><code className="text-[11px] bg-muted px-1 rounded">customer_name</code> → <code className="text-[11px] bg-muted px-1 rounded">{`{{customer_name}}`}</code></li>
-                          </ul>
-                          <p>Values are replaced at runtime with the data passed when the room was created. Templates also work inside <code className="text-[11px] bg-muted px-1 rounded">url</code> and <code className="text-[11px] bg-muted px-1 rounded">headers</code>.</p>
+                          <p className="font-medium">📎 Variáveis de template disponíveis</p>
+                          <p>Use <code className="text-[11px] bg-muted px-1 rounded">{`{{variavel}}`}</code> na URL, headers ou body para injetar dados da sessão em tempo de execução:</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{phone_number}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{from_number}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{customer_name}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{agent_name}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{to_number}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{channel}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{direction}}`}</code>
+                          </div>
+                          <p className="mt-1 text-[10px]">Além dos campos acima, qualquer campo extra passado no metadata da room também fica disponível como template.</p>
+                          <p className="mt-1 text-[10px]">Exemplo de URL: <code className="text-[10px] bg-muted px-1 rounded">{`https://api.example.com/customers/{{phone_number}}`}</code></p>
+                        </div>
+                      </>
+                    )}
+                    {(toolForm.type === "PRE_CALL" || toolForm.type === "POST_CALL") && (
+                      <>
+                        <p>Available fields for <strong>{toolForm.type === "PRE_CALL" ? "Pre-Call Hook" : "Post-Call Hook"}</strong>:</p>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          <li><code className="text-[11px] bg-muted px-1 rounded">url</code> — Webhook URL (required). Supports <code className="text-[11px] bg-muted px-1 rounded">{`{{template}}`}</code> placeholders.</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">method</code> — <code className="text-[11px] bg-muted px-1 rounded">GET</code>, <code className="text-[11px] bg-muted px-1 rounded">POST</code>, <code className="text-[11px] bg-muted px-1 rounded">PUT</code>, <code className="text-[11px] bg-muted px-1 rounded">DELETE</code> (default: POST)</li>
+                          <li><code className="text-[11px] bg-muted px-1 rounded">headers</code> — Object with HTTP headers. Values support <code className="text-[11px] bg-muted px-1 rounded">{`{{template}}`}</code> placeholders.</li>
+                        </ul>
+                        <div className="mt-2 rounded-md border border-dashed border-muted-foreground/30 p-2 space-y-1">
+                          <p className="font-medium">📎 Variáveis de template disponíveis</p>
+                          <p>Use <code className="text-[11px] bg-muted px-1 rounded">{`{{variavel}}`}</code> na URL, headers ou body:</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{phone_number}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{from_number}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{room_name}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{customer_name}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{agent_name}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{to_number}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{channel}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{direction}}`}</code>
+                            {toolForm.type === "POST_CALL" && (
+                              <>
+                                <code className="text-[11px] bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded">{`{{summary}}`}</code>
+                                <code className="text-[11px] bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded">{`{{ticket}}`}</code>
+                              </>
+                            )}
+                          </div>
+                          {toolForm.type === "PRE_CALL" && (
+                            <p className="mt-1 text-[10px]">Pre-Call hooks executam antes da sessão iniciar. A resposta é injetada nas instruções do agente como contexto.</p>
+                          )}
+                          {toolForm.type === "POST_CALL" && (
+                            <p className="mt-1 text-[10px]">Post-Call hooks executam após a sessão encerrar. As variáveis <code className="text-[10px] bg-muted px-1 rounded">{`{{summary}}`}</code> e <code className="text-[10px] bg-muted px-1 rounded">{`{{ticket}}`}</code> contêm o resumo e ticket gerados.</p>
+                          )}
+                          <p className="mt-1 text-[10px]">Qualquer campo extra do metadata da room também fica disponível como template.</p>
                         </div>
                       </>
                     )}

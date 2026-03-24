@@ -57,6 +57,15 @@ export interface STTConfig {
   detectLanguage?: boolean;
 }
 
+export interface ExtractionField {
+  key: string;
+  label: string;
+  type: 'string' | 'enum' | 'number' | 'boolean';
+  description: string;
+  options?: string[];
+  required?: boolean;
+}
+
 export interface RuntimeConfig {
   model?: string;
   voice?: string;
@@ -74,6 +83,7 @@ export interface RuntimeConfig {
   stt?: STTConfig | null;
   injectSessionContext?: boolean;
   sessionTurnDetection?: 'stt' | 'vad' | 'realtime_llm' | 'manual' | null;
+  extractionFields?: ExtractionField[];
 }
 
 export interface AgentConfig {
@@ -527,6 +537,7 @@ export interface CallSession {
   metadata: string;
   phone_number: string | null;
   summary: { text: string } | null;
+  ticket: Record<string, any> | null;
   created_at: string;
   updated_at: string;
 }
