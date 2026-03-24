@@ -564,7 +564,7 @@ export default function AgentPage() {
         const config = await agentConfigApi.get(agentName);
         setInstructions(config.raw_instructions ?? config.instructions);
         setAutoStart(config.auto_start ?? false);
-        setRuntimeConfig(config.runtime_config ?? DEFAULT_RUNTIME_CONFIG);
+        setRuntimeConfig({ ...DEFAULT_RUNTIME_CONFIG, ...config.runtime_config });
         setLastUpdated(config.updated_at);
       } catch {
         setInstructions("");
