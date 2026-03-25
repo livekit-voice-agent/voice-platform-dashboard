@@ -249,6 +249,9 @@ export default function AgentPage() {
       language: "pt",
     },
     sttFinalTimeoutMs: null,
+    followUpTimeoutSeconds: null,
+    followUpMessage: null,
+    maxFollowUps: null,
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [runtimeExpanded, setRuntimeExpanded] = useState(true);
@@ -2514,10 +2517,82 @@ export default function AgentPage() {
                       />
                     </div>
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3">
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="rt-followup-timeout"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Follow-up timeout (seconds)
+                      </Label>
+                      <Input
+                        id="rt-followup-timeout"
+                        type="number"
+                        min={5}
+                        max={300}
+                        value={runtimeConfig.followUpTimeoutSeconds ?? ""}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            followUpTimeoutSeconds: e.target.value
+                              ? parseInt(e.target.value)
+                              : null,
+                          }))
+                        }
+                        placeholder="Disabled"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="rt-followup-message"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Follow-up message
+                      </Label>
+                      <Input
+                        id="rt-followup-message"
+                        type="text"
+                        value={runtimeConfig.followUpMessage ?? ""}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            followUpMessage: e.target.value || null,
+                          }))
+                        }
+                        placeholder="Default (asks if still there)"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="rt-max-followups"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Max follow-ups
+                      </Label>
+                      <Input
+                        id="rt-max-followups"
+                        type="number"
+                        min={0}
+                        max={10}
+                        value={runtimeConfig.maxFollowUps ?? ""}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            maxFollowUps: e.target.value
+                              ? parseInt(e.target.value)
+                              : null,
+                          }))
+                        }
+                        placeholder="Unlimited (default)"
+                      />
+                    </div>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Leave empty to disable. Inactivity timeout ends the call after
-                    silence; max duration is a hard limit; STT final timeout injects
-                    the last partial transcription if no final arrives in time.
+                    Leave empty to disable. Follow-up sends a message after silence
+                    asking if the user is still there; Inactivity timeout ends the
+                    call after silence; max duration is a hard limit; STT final
+                    timeout injects the last partial transcription if no final
+                    arrives in time.
                   </p>
                 </div>
 

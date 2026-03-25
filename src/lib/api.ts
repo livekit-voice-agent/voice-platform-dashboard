@@ -90,6 +90,9 @@ export interface RuntimeConfig {
     language?: string;
   };
   sttFinalTimeoutMs?: number | null;
+  followUpTimeoutSeconds?: number | null;
+  followUpMessage?: string | null;
+  maxFollowUps?: number | null;
 }
 
 export interface AgentConfig {
