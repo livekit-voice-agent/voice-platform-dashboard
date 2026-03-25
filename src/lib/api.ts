@@ -89,6 +89,7 @@ export interface RuntimeConfig {
     model?: string;
     language?: string;
   };
+  sttFinalTimeoutMs?: number | null;
 }
 
 export interface AgentConfig {

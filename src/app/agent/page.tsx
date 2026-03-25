@@ -248,6 +248,7 @@ export default function AgentPage() {
       model: "gpt-4o-mini-transcribe",
       language: "pt",
     },
+    sttFinalTimeoutMs: null,
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [runtimeExpanded, setRuntimeExpanded] = useState(true);
@@ -2438,7 +2439,7 @@ export default function AgentPage() {
                   <p className="text-xs text-muted-foreground -mt-1">
                     Automatic call termination rules. Leave empty to disable.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <Label
                         htmlFor="rt-timeout"
@@ -2487,10 +2488,36 @@ export default function AgentPage() {
                         placeholder="Disabled"
                       />
                     </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="rt-stt-final-timeout"
+                        className="text-xs text-muted-foreground"
+                      >
+                        STT final timeout (ms)
+                      </Label>
+                      <Input
+                        id="rt-stt-final-timeout"
+                        type="number"
+                        min={100}
+                        max={30000}
+                        step={100}
+                        value={runtimeConfig.sttFinalTimeoutMs ?? ""}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            sttFinalTimeoutMs: e.target.value
+                              ? parseInt(e.target.value)
+                              : null,
+                          }))
+                        }
+                        placeholder="Disabled"
+                      />
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Leave empty to disable. Inactivity timeout ends the call after
-                    silence; max duration is a hard limit.
+                    silence; max duration is a hard limit; STT final timeout injects
+                    the last partial transcription if no final arrives in time.
                   </p>
                 </div>
 
