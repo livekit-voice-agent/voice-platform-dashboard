@@ -666,11 +666,13 @@ export default function SessionDetailPage({
             <p className="text-xs text-muted-foreground">Status</p>
             <Badge
               variant={
-                session.status === "created"
+                session.status === "active"
                   ? "default"
                   : session.status === "completed"
                     ? "secondary"
-                    : "outline"
+                    : session.status === "created"
+                      ? "outline"
+                      : "outline"
               }
               className="mt-1"
             >
