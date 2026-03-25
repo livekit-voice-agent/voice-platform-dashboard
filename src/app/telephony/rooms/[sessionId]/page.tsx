@@ -559,6 +559,14 @@ function ConfigField({ label, value }: { label: string; value: React.ReactNode }
 function AgentConfigPanel({ snapshot }: { snapshot: AgentConfigSnapshot }) {
   const [open, setOpen] = useState(false);
 
+  const isElevenLabs = snapshot.tts?.provider === "elevenlabs";
+  const effectiveVoice = isElevenLabs
+    ? snapshot.tts?.voiceId ?? snapshot.voice
+    : snapshot.voice;
+  const voiceLabel = isElevenLabs
+    ? `${snapshot.tts?.voiceId ?? "—"} (ElevenLabs)`
+    : snapshot.voice ?? "—";
+
   return (
     <Card>
       <CardContent className="pt-4 pb-4">
@@ -577,7 +585,7 @@ function AgentConfigPanel({ snapshot }: { snapshot: AgentConfigSnapshot }) {
           </span>
           {!open && snapshot.model && (
             <span className="text-xs text-muted-foreground ml-auto">
-              {snapshot.model} · {snapshot.voice ?? "—"}
+              {snapshot.model} · {isElevenLabs ? "ElevenLabs" : (snapshot.voice ?? "—")}
             </span>
           )}
         </button>
@@ -587,7 +595,7 @@ function AgentConfigPanel({ snapshot }: { snapshot: AgentConfigSnapshot }) {
             {/* Core Settings */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <ConfigField label="Model" value={snapshot.model} />
-              <ConfigField label="Voice" value={snapshot.voice} />
+              <ConfigField label="Voice" value={voiceLabel} />
               <ConfigField label="Temperature" value={snapshot.temperature?.toString()} />
               <ConfigField label="Max Tokens" value={snapshot.maxTokens?.toString()} />
             </div>
