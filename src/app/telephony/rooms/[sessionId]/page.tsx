@@ -128,6 +128,11 @@ const EVENT_TYPE_CONFIG: Record<
     icon: Hash,
     color: "bg-orange-500/10 text-orange-600",
   },
+  FOLLOW_UP: {
+    label: "Follow-up",
+    icon: Phone,
+    color: "bg-cyan-500/10 text-cyan-600",
+  },
 };
 
 function EventBadge({ eventType }: { eventType: string }) {
@@ -288,6 +293,26 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
               de {p.participant_identity}
             </span>
           )}
+        </div>
+      );
+
+    case "FOLLOW_UP":
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-sm">
+            {p.action === "end_call"
+              ? "Encerrado por falta de resposta"
+              : `Tentativa ${p.count}${p.max > 0 ? "/" + p.max : ""}`}
+          </span>
+          <Badge
+            variant={p.action === "end_call" ? "destructive" : "secondary"}
+            className="text-[10px] px-1.5 py-0"
+          >
+            {p.action === "end_call" ? "encerrado" : "perguntou"}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            após {p.timeoutSeconds}s de silêncio
+          </span>
         </div>
       );
 

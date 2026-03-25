@@ -92,6 +92,7 @@ export interface RuntimeConfig {
   sttFinalTimeoutMs?: number | null;
   followUpTimeoutSeconds?: number | null;
   followUpMessage?: string | null;
+  followUpMode?: 'say' | 'generateReply' | null;
   maxFollowUps?: number | null;
 }
 

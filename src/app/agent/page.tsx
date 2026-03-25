@@ -251,6 +251,7 @@ export default function AgentPage() {
     sttFinalTimeoutMs: null,
     followUpTimeoutSeconds: null,
     followUpMessage: null,
+    followUpMode: null,
     maxFollowUps: null,
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
@@ -2517,7 +2518,7 @@ export default function AgentPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-3">
                     <div className="space-y-1">
                       <Label
                         htmlFor="rt-followup-timeout"
@@ -2561,6 +2562,35 @@ export default function AgentPage() {
                         }
                         placeholder="Default (asks if still there)"
                       />
+                    </div>
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="rt-followup-mode"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Follow-up mode
+                      </Label>
+                      <Select
+                        value={runtimeConfig.followUpMode ?? "generateReply"}
+                        onValueChange={(v) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            followUpMode: v as "say" | "generateReply",
+                          }))
+                        }
+                      >
+                        <SelectTrigger id="rt-followup-mode" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="say">
+                            Say — TTS reads text literally
+                          </SelectItem>
+                          <SelectItem value="generateReply">
+                            Generate Reply — LLM generates natural response
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1">
                       <Label
