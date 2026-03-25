@@ -11,8 +11,10 @@ import {
   Route,
   DoorOpen,
   ChevronDown,
+  Activity,
 } from "lucide-react";
 import { useState } from "react";
+import { ProviderStatusWidget } from "./provider-status-widget";
 import {
   Sheet,
   SheetContent,
@@ -24,6 +26,7 @@ const navItems = [
   { href: "/agent", label: "Agent", icon: Bot },
   { href: "/agent/deployments", label: "Deployments", icon: Rocket },
   { href: "/workers", label: "Workers", icon: Cpu },
+  { href: "/providers", label: "Providers", icon: Activity },
 ];
 
 const telephonyItems = [
@@ -122,6 +125,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           )}
         </div>
       </nav>
+      <ProviderStatusWidget />
     </>
   );
 }
