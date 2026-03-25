@@ -1832,6 +1832,37 @@ export default function AgentPage() {
                           </p>
                         </div>
                       </div>
+
+                      {/* Endpointing (Deepgram only) */}
+                      {runtimeConfig.stt?.provider === 'deepgram' && (
+                        <div className="space-y-1">
+                          <Label htmlFor="rt-stt-endpointing" className="text-xs text-muted-foreground">
+                            Endpointing (ms)
+                          </Label>
+                          <Input
+                            id="rt-stt-endpointing"
+                            type="number"
+                            min={10}
+                            max={5000}
+                            step={10}
+                            placeholder="200"
+                            value={runtimeConfig.stt?.endpointing ?? ''}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                stt: {
+                                  ...prev.stt,
+                                  endpointing: e.target.value ? Number(e.target.value) : undefined,
+                                },
+                              }))
+                            }
+                            className="h-8 text-xs"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Tempo de silêncio para considerar fim de fala. Menor = mais rápido, maior = mais paciência para pausas. Padrão: 200ms.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

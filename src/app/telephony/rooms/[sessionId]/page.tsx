@@ -6,6 +6,7 @@ import {
   roomApi,
   type SessionEvent,
   type CallSession,
+  type AgentConfigSnapshot,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -38,10 +39,13 @@ import {
   ArrowDownLeft,
   ArrowLeft,
   ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
   Loader2,
   RefreshCw,
   MessageSquare,
   Mic,
+  Settings,
   Wrench,
   Activity,
   AlertTriangle,
@@ -541,6 +545,169 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
   );
 }
 
+// ─── Agent Config Panel (expandable) ────────────────────────
+
+function ConfigField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-md border bg-muted/50 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm font-medium mt-0.5">{value ?? "—"}</p>
+    </div>
+  );
+}
+
+function AgentConfigPanel({ snapshot }: { snapshot: AgentConfigSnapshot }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-4">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-2 w-full text-left"
+        >
+          {open ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
+          <Settings className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground font-medium">
+            Configuração do Agent na Chamada
+          </span>
+          {!open && snapshot.model && (
+            <span className="text-xs text-muted-foreground ml-auto">
+              {snapshot.model} · {snapshot.voice ?? "—"}
+            </span>
+          )}
+        </button>
+
+        {open && (
+          <div className="mt-4 space-y-4">
+            {/* Core Settings */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <ConfigField label="Model" value={snapshot.model} />
+              <ConfigField label="Voice" value={snapshot.voice} />
+              <ConfigField label="Temperature" value={snapshot.temperature?.toString()} />
+              <ConfigField label="Max Tokens" value={snapshot.maxTokens?.toString()} />
+            </div>
+
+            {/* TTS / STT */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <ConfigField
+                label="TTS Provider"
+                value={snapshot.tts?.provider ?? "OpenAI Realtime"}
+              />
+              <ConfigField
+                label="TTS Model"
+                value={snapshot.tts?.model ?? "—"}
+              />
+              <ConfigField
+                label="TTS Voice ID"
+                value={
+                  snapshot.tts?.voiceId
+                    ? `${String(snapshot.tts.voiceId).substring(0, 12)}…`
+                    : "—"
+                }
+              />
+              <ConfigField
+                label="STT Provider"
+                value={snapshot.stt?.provider ?? "built-in"}
+              />
+            </div>
+
+            {/* Turn Detection & Session */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <ConfigField
+                label="Turn Detection"
+                value={snapshot.turnDetection?.type ?? "—"}
+              />
+              <ConfigField
+                label="Session Turn Detection"
+                value={snapshot.sessionTurnDetection ?? "auto"}
+              />
+              <ConfigField
+                label="Noise Cancellation"
+                value={snapshot.noiseCancellation ? "Sim" : "Não"}
+              />
+              <ConfigField label="Persona" value={snapshot.persona} />
+            </div>
+
+            {/* Timeouts & Greeting */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <ConfigField
+                label="Timeout"
+                value={snapshot.timeoutSeconds != null ? `${snapshot.timeoutSeconds}s` : "Sem limite"}
+              />
+              <ConfigField
+                label="Duração Máx."
+                value={snapshot.maxCallDurationSeconds != null ? `${snapshot.maxCallDurationSeconds}s` : "Sem limite"}
+              />
+              <ConfigField
+                label="Greeting Mode"
+                value={snapshot.greetingMode ?? "—"}
+              />
+              <ConfigField
+                label="Greeting"
+                value={
+                  snapshot.greetingMessage
+                    ? snapshot.greetingMessage.length > 50
+                      ? `${snapshot.greetingMessage.substring(0, 50)}…`
+                      : snapshot.greetingMessage
+                    : "—"
+                }
+              />
+            </div>
+
+            {/* Humanization */}
+            {snapshot.humanization && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <ConfigField
+                  label="Fillers"
+                  value={snapshot.humanization.fillersEnabled ? "Sim" : "Não"}
+                />
+                <ConfigField
+                  label="Typing Sounds"
+                  value={snapshot.humanization.typingSounds ? "Sim" : "Não"}
+                />
+                <ConfigField
+                  label="Ambience"
+                  value={snapshot.humanization.ambience ? "Sim" : "Não"}
+                />
+              </div>
+            )}
+
+            {/* Tools */}
+            {snapshot.tools && snapshot.tools.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Tools ({snapshot.tools.length})
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {snapshot.tools.map((tool) => (
+                    <div
+                      key={tool.name}
+                      className="rounded-md border bg-muted/50 p-2 flex items-center gap-2"
+                    >
+                      <Wrench className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{tool.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {tool.type} — {tool.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────
 
 export default function SessionDetailPage({
@@ -793,6 +960,11 @@ export default function SessionDetailPage({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Agent Config Snapshot */}
+      {session.agent_config_snapshot && (
+        <AgentConfigPanel snapshot={session.agent_config_snapshot} />
       )}
 
       {/* Event Type Summary */}

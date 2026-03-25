@@ -55,6 +55,7 @@ export interface STTConfig {
   model?: string;
   language?: string;
   detectLanguage?: boolean;
+  endpointing?: number;
 }
 
 export interface ExtractionField {
@@ -543,11 +544,31 @@ export interface CallSession {
   agent_name: string | null;
   direction: string | null;
   channel: string | null;
+  agent_config_snapshot: AgentConfigSnapshot | null;
   summary: { text: string } | null;
   ticket: Record<string, any> | null;
   duration_seconds: number | null;
   created_at: string;
   ended_at: string | null;
+}
+
+export interface AgentConfigSnapshot {
+  model?: string;
+  voice?: string;
+  temperature?: number;
+  maxTokens?: number;
+  turnDetection?: Record<string, any>;
+  noiseCancellation?: boolean;
+  humanization?: Record<string, any>;
+  persona?: string;
+  timeoutSeconds?: number | null;
+  maxCallDurationSeconds?: number | null;
+  greetingMessage?: string | null;
+  greetingMode?: string | null;
+  tts?: Record<string, any> | null;
+  stt?: Record<string, any> | null;
+  sessionTurnDetection?: string | null;
+  tools?: Array<{ name: string; type: string; description: string }>;
 }
 
 // ─── Conversation Events ─────────────────────────────────────
