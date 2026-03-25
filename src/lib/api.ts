@@ -540,10 +540,14 @@ export interface CallSession {
   status: string;
   metadata: string;
   phone_number: string | null;
+  agent_name: string | null;
+  direction: string | null;
+  channel: string | null;
   summary: { text: string } | null;
   ticket: Record<string, any> | null;
+  duration_seconds: number | null;
   created_at: string;
-  updated_at: string;
+  ended_at: string | null;
 }
 
 // ─── Conversation Events ─────────────────────────────────────

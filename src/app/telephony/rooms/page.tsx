@@ -37,6 +37,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
+  ArrowDownLeft,
+  ArrowUpRight,
   DoorOpen,
   Eye,
   History,
@@ -62,6 +64,28 @@ function parseMetadata(raw: string): Record<string, any> | null {
   } catch {
     return null;
   }
+}
+
+function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function DirectionBadge({ direction }: { direction: string | null | undefined }) {
+  if (!direction) return <span className="text-muted-foreground">—</span>;
+  const isInbound = direction === "inbound";
+  return (
+    <Badge variant={isInbound ? "default" : "secondary"} className="gap-1">
+      {isInbound ? (
+        <ArrowDownLeft className="h-3 w-3" />
+      ) : (
+        <ArrowUpRight className="h-3 w-3" />
+      )}
+      {direction}
+    </Badge>
+  );
 }
 
 export default function RoomsPage() {
@@ -296,8 +320,11 @@ export default function RoomsPage() {
                       <TableHead>Room Name</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Agent</TableHead>
+                      <TableHead>Direction</TableHead>
+                      <TableHead>Channel</TableHead>
                       <TableHead>From</TableHead>
                       <TableHead>To</TableHead>
+                      <TableHead>Duration</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -327,9 +354,14 @@ export default function RoomsPage() {
                               {session.status}
                             </Badge>
                           </TableCell>
-                          <TableCell>{meta?.agent_name || "—"}</TableCell>
+                          <TableCell>{session.agent_name || meta?.agent_name || "—"}</TableCell>
+                          <TableCell>
+                            <DirectionBadge direction={session.direction || meta?.direction} />
+                          </TableCell>
+                          <TableCell>{session.channel || meta?.channel || "—"}</TableCell>
                           <TableCell>{session.phone_number || meta?.from_number || "—"}</TableCell>
                           <TableCell>{meta?.to_number || "—"}</TableCell>
+                          <TableCell>{formatDuration(session.duration_seconds)}</TableCell>
                           <TableCell>
                             {formatDate(session.created_at)}
                           </TableCell>

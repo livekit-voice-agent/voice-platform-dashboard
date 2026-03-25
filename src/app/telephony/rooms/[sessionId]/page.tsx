@@ -35,7 +35,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  ArrowDownLeft,
   ArrowLeft,
+  ArrowUpRight,
   Loader2,
   RefreshCw,
   MessageSquare,
@@ -48,6 +50,8 @@ import {
   User,
   Bot,
   Hash,
+  Phone,
+  Timer,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -70,6 +74,13 @@ function parseMetadata(raw: string | null): Record<string, any> | null {
   } catch {
     return null;
   }
+}
+
+function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 // ─── Event type config ──────────────────────────────────────
@@ -627,7 +638,7 @@ export default function SessionDetailPage({
             Sessão: {session.room_name}
           </h1>
           <p className="text-muted-foreground text-sm">
-            {meta?.agent_name && `Agente: ${meta.agent_name} · `}
+            {(session.agent_name || meta?.agent_name) && `Agente: ${session.agent_name || meta?.agent_name} · `}
             {formatDate(session.created_at)}
           </p>
         </div>
@@ -649,7 +660,7 @@ export default function SessionDetailPage({
       </div>
 
       {/* Session Info Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
         <Card>
           <CardContent className="pt-4 pb-4">
             <p className="text-xs text-muted-foreground">Status</p>
@@ -669,13 +680,63 @@ export default function SessionDetailPage({
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground">Agente</p>
+            <p className="text-sm font-medium mt-1">
+              {session.agent_name || meta?.agent_name || "—"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground">Direção</p>
+            <div className="mt-1">
+              {(() => {
+                const dir = session.direction || meta?.direction;
+                if (!dir) return <span className="text-sm text-muted-foreground">—</span>;
+                const isInbound = dir === "inbound";
+                return (
+                  <Badge variant={isInbound ? "default" : "secondary"} className="gap-1">
+                    {isInbound ? (
+                      <ArrowDownLeft className="h-3 w-3" />
+                    ) : (
+                      <ArrowUpRight className="h-3 w-3" />
+                    )}
+                    {dir}
+                  </Badge>
+                );
+              })()}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground">Canal</p>
+            <p className="text-sm font-medium mt-1">
+              {session.channel || meta?.channel || "—"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Timer className="h-3 w-3" /> Duração
+            </p>
+            <p className="text-sm font-medium mt-1">
+              {formatDuration(session.duration_seconds)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
             <p className="text-xs text-muted-foreground">Total Eventos</p>
             <p className="text-2xl font-bold">{events.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">De</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Phone className="h-3 w-3" /> De
+            </p>
             <p className="text-sm font-medium mt-1">
               {session.phone_number || meta?.from_number || "—"}
             </p>
@@ -683,7 +744,9 @@ export default function SessionDetailPage({
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Para</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Phone className="h-3 w-3" /> Para
+            </p>
             <p className="text-sm font-medium mt-1">
               {meta?.to_number || "—"}
             </p>
