@@ -213,10 +213,8 @@ export default function AgentPage() {
     temperature: 0.3,
     maxTokens: 600,
     turnDetection: {
-      type: "server_vad" as const,
-      threshold: 0.5,
-      prefix_padding_ms: 300,
-      silence_duration_ms: 500,
+      type: "semantic_vad" as const,
+      eagerness: "medium",
       create_response: true,
       interrupt_response: true,
     },
@@ -243,6 +241,20 @@ export default function AgentPage() {
     stt: null,
     injectSessionContext: false,
     sessionTurnDetection: null,
+    pipelineTurnDetector: "turn_detector_model",
+    useSileroVad: true,
+    endpointing: {
+      minDelay: 500,
+      maxDelay: 3000,
+    },
+    interruption: {
+      enabled: true,
+      mode: "adaptive",
+      minDuration: 500,
+      minWords: 1,
+      falseInterruptionTimeout: 2000,
+      resumeFalseInterruption: true,
+    },
     extractionFields: [],
     inputAudioTranscription: {
       model: "gpt-4o-mini-transcribe",
@@ -2058,33 +2070,56 @@ export default function AgentPage() {
                       : "Voice Activity Detection — controls when the agent detects the user has stopped speaking and can respond."}
                   </p>
 
-                  {/* Pipeline mode: session-level turn detection */}
+                  {/* Pipeline mode: turn detection strategy */}
                   {isPipelineMode && (
-                    <div className="space-y-1">
-                      <Label htmlFor="rt-session-td" className="text-xs text-muted-foreground">
-                        Modo de Turn Detection
-                      </Label>
-                      <Select
-                        value={runtimeConfig.sessionTurnDetection ?? "stt"}
-                        onValueChange={(v) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            sessionTurnDetection: v as "stt" | "vad" | "realtime_llm" | "manual",
-                          }))
-                        }
-                      >
-                        <SelectTrigger id="rt-session-td">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="stt">stt — Baseado em transcrição (Recomendado)</SelectItem>
-                          <SelectItem value="vad">vad — Voice Activity Detection</SelectItem>
-                          <SelectItem value="manual">manual — Controle manual</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[11px] text-muted-foreground">
-                        <strong>stt</strong>: detecta o fim do turno quando o STT finaliza. <strong>vad</strong>: usa análise de áudio. <strong>manual</strong>: sem detecção automática.
-                      </p>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="rt-pipeline-td" className="text-xs text-muted-foreground">
+                          Turn Detector
+                        </Label>
+                        <Select
+                          value={runtimeConfig.pipelineTurnDetector ?? "turn_detector_model"}
+                          onValueChange={(v) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              pipelineTurnDetector: v as "turn_detector_model" | "vad" | "stt" | "manual",
+                            }))
+                          }
+                        >
+                          <SelectTrigger id="rt-pipeline-td">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="turn_detector_model">Turn Detector Model — Contextual (Recomendado)</SelectItem>
+                            <SelectItem value="stt">STT — Baseado em transcrição</SelectItem>
+                            <SelectItem value="vad">VAD — Voice Activity Detection</SelectItem>
+                            <SelectItem value="manual">Manual — Controle manual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                          <strong>Turn Detector Model</strong>: modelo que usa contexto da conversa para decidir se o usuário terminou (evita interrupções em pausas naturais).{" "}
+                          <strong>STT</strong>: detecta fim pelo endpointing do STT.{" "}
+                          <strong>VAD</strong>: usa apenas detecção de voz/silêncio.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="rt-silero-vad"
+                          checked={runtimeConfig.useSileroVad ?? true}
+                          onChange={(e) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              useSileroVad: e.target.checked,
+                            }))
+                          }
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <Label htmlFor="rt-silero-vad" className="text-xs">
+                          Silero VAD — Detecção de atividade vocal (recomendado para interrupções responsivas)
+                        </Label>
+                      </div>
                     </div>
                   )}
 
@@ -2364,6 +2399,225 @@ export default function AgentPage() {
                     </div>
                   </div>
                   </> )} {/* end !isPipelineMode */}
+                </div>
+
+                {/* Endpointing */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Endpointing</Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Controla quanto tempo o agente espera após o silêncio antes de considerar que o turno do usuário acabou.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="rt-ep-min" className="text-xs text-muted-foreground">
+                        Min Delay (ms)
+                      </Label>
+                      <Input
+                        id="rt-ep-min"
+                        type="number"
+                        step={100}
+                        min={100}
+                        max={5000}
+                        value={runtimeConfig.endpointing?.minDelay ?? 500}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            endpointing: {
+                              ...prev.endpointing,
+                              minDelay: Number(e.target.value),
+                            },
+                          }))
+                        }
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Tempo mínimo de silêncio para encerrar o turno. (default: 500ms)
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="rt-ep-max" className="text-xs text-muted-foreground">
+                        Max Delay (ms)
+                      </Label>
+                      <Input
+                        id="rt-ep-max"
+                        type="number"
+                        step={100}
+                        min={500}
+                        max={10000}
+                        value={runtimeConfig.endpointing?.maxDelay ?? 3000}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            endpointing: {
+                              ...prev.endpointing,
+                              maxDelay: Number(e.target.value),
+                            },
+                          }))
+                        }
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Tempo máximo antes de encerrar o turno automaticamente. (default: 3000ms)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Interruption Handling */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Interruption Handling</Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Configura como o agente reage quando o usuário fala enquanto o agente está respondendo.
+                  </p>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="rt-int-enabled"
+                        checked={runtimeConfig.interruption?.enabled ?? true}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            interruption: {
+                              ...prev.interruption,
+                              enabled: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <Label htmlFor="rt-int-enabled" className="text-xs">
+                        Permitir interrupções pelo usuário
+                      </Label>
+                    </div>
+
+                    {(runtimeConfig.interruption?.enabled ?? true) && (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label htmlFor="rt-int-mode" className="text-xs text-muted-foreground">
+                              Modo de Detecção
+                            </Label>
+                            <Select
+                              value={runtimeConfig.interruption?.mode ?? "adaptive"}
+                              onValueChange={(v) =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  interruption: {
+                                    ...prev.interruption,
+                                    mode: v as "adaptive" | "vad",
+                                  },
+                                }))
+                              }
+                            >
+                              <SelectTrigger id="rt-int-mode">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="adaptive">Adaptive — Distingue interrupção real de &quot;uhum&quot; (Recomendado)</SelectItem>
+                                <SelectItem value="vad">VAD — Qualquer fala interrompe</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="rt-int-min-dur" className="text-xs text-muted-foreground">
+                              Min Duration (ms)
+                            </Label>
+                            <Input
+                              id="rt-int-min-dur"
+                              type="number"
+                              step={100}
+                              min={0}
+                              max={5000}
+                              value={runtimeConfig.interruption?.minDuration ?? 500}
+                              onChange={(e) =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  interruption: {
+                                    ...prev.interruption,
+                                    minDuration: Number(e.target.value),
+                                  },
+                                }))
+                              }
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                              Duração mínima de fala para ser considerada interrupção.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label htmlFor="rt-int-min-words" className="text-xs text-muted-foreground">
+                              Min Words
+                            </Label>
+                            <Input
+                              id="rt-int-min-words"
+                              type="number"
+                              step={1}
+                              min={0}
+                              max={10}
+                              value={runtimeConfig.interruption?.minWords ?? 1}
+                              onChange={(e) =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  interruption: {
+                                    ...prev.interruption,
+                                    minWords: Number(e.target.value),
+                                  },
+                                }))
+                              }
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                              Mínimo de palavras transcritas para considerar interrupção. (0 = qualquer som)
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="rt-int-false-timeout" className="text-xs text-muted-foreground">
+                              False Interruption Timeout (ms)
+                            </Label>
+                            <Input
+                              id="rt-int-false-timeout"
+                              type="number"
+                              step={500}
+                              min={500}
+                              max={10000}
+                              value={runtimeConfig.interruption?.falseInterruptionTimeout ?? 2000}
+                              onChange={(e) =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  interruption: {
+                                    ...prev.interruption,
+                                    falseInterruptionTimeout: Number(e.target.value),
+                                  },
+                                }))
+                              }
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                              Tempo de silêncio após interrupção para considerar falso positivo.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="rt-int-resume"
+                            checked={runtimeConfig.interruption?.resumeFalseInterruption ?? true}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                interruption: {
+                                  ...prev.interruption,
+                                  resumeFalseInterruption: e.target.checked,
+                                },
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <Label htmlFor="rt-int-resume" className="text-xs">
+                            Retomar fala após falsa interrupção
+                          </Label>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Humanization */}

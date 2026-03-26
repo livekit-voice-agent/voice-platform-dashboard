@@ -67,6 +67,20 @@ export interface ExtractionField {
   required?: boolean;
 }
 
+export interface EndpointingConfig {
+  minDelay?: number;  // ms (default 500)
+  maxDelay?: number;  // ms (default 3000)
+}
+
+export interface InterruptionConfig {
+  enabled?: boolean;
+  mode?: 'adaptive' | 'vad';
+  minDuration?: number;  // ms (default 500)
+  minWords?: number;     // default 1
+  falseInterruptionTimeout?: number;  // ms (default 2000)
+  resumeFalseInterruption?: boolean;  // default true
+}
+
 export interface RuntimeConfig {
   model?: string;
   voice?: string;
@@ -84,6 +98,10 @@ export interface RuntimeConfig {
   stt?: STTConfig | null;
   injectSessionContext?: boolean;
   sessionTurnDetection?: 'stt' | 'vad' | 'realtime_llm' | 'manual' | null;
+  pipelineTurnDetector?: 'turn_detector_model' | 'vad' | 'stt' | 'manual' | null;
+  useSileroVad?: boolean;
+  endpointing?: EndpointingConfig;
+  interruption?: InterruptionConfig;
   extractionFields?: ExtractionField[];
   inputAudioTranscription?: {
     model?: string;
