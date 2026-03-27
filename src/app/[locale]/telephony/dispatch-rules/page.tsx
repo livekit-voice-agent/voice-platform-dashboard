@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   dispatchRuleApi,
   sipTrunkApi,
@@ -69,6 +70,8 @@ function getAgentName(rule: DispatchRuleInfo): string {
 }
 
 export default function DispatchRulesPage() {
+  const t = useTranslations("telephony.dispatchRules");
+  const tc = useTranslations("common");
   const [rules, setRules] = useState<DispatchRuleInfo[]>([]);
   const [trunks, setTrunks] = useState<SipInboundTrunk[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +103,7 @@ export default function DispatchRulesPage() {
       setRules(rulesData);
       setTrunks(trunksData);
     } catch (err: any) {
-      toast.error(err.message || "Failed to load dispatch rules");
+      toast.error(err.message || t("toastSaveError"));
     } finally {
       setLoading(false);
     }
@@ -161,7 +164,7 @@ export default function DispatchRulesPage() {
 
   const handleSave = async () => {
     if (!formName.trim()) {
-      toast.error("Name is required");
+      toast.error(t("toastNameRequired"));
       return;
     }
 
@@ -186,7 +189,7 @@ export default function DispatchRulesPage() {
         }
 
         await dispatchRuleApi.update(editingRule.sipDispatchRuleId, payload);
-        toast.success("Dispatch rule updated");
+        toast.success(t("toastUpdated"));
       } else {
         const payload: CreateDispatchRuleRequest = {
           name: formName,
@@ -206,14 +209,14 @@ export default function DispatchRulesPage() {
         }
 
         await dispatchRuleApi.create(payload);
-        toast.success("Dispatch rule created");
+        toast.success(t("toastCreated"));
       }
 
       setDialogOpen(false);
       resetForm();
       fetchData();
     } catch (err: any) {
-      toast.error(err.message || "Failed to save dispatch rule");
+      toast.error(err.message || t("toastSaveError"));
     } finally {
       setSaving(false);
     }
@@ -222,11 +225,11 @@ export default function DispatchRulesPage() {
   const handleDelete = async (id: string) => {
     try {
       await dispatchRuleApi.delete(id);
-      toast.success("Dispatch rule deleted");
+      toast.success(t("toastDeleted"));
       setDeleteConfirmId(null);
       fetchData();
     } catch (err: any) {
-      toast.error(err.message || "Failed to delete dispatch rule");
+      toast.error(err.message || t("toastDeleteError"));
     }
   };
 
@@ -239,14 +242,14 @@ export default function DispatchRulesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dispatch Rules</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">
-            Control how inbound SIP calls are routed to LiveKit rooms.
+            {t("description")}
           </p>
         </div>
         <Button onClick={openCreateDialog}>
           <Plus className="mr-2 h-4 w-4" />
-          Create Rule
+          {t("createRule")}
         </Button>
       </div>
 
@@ -254,10 +257,10 @@ export default function DispatchRulesPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Route className="h-5 w-5" />
-            Dispatch Rules
+            {t("cardTitle")}
           </CardTitle>
           <CardDescription>
-            Dispatch rules determine how callers are placed into rooms.
+            {t("cardDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -268,22 +271,22 @@ export default function DispatchRulesPage() {
           ) : rules.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Route className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">No dispatch rules found</p>
+              <p className="text-muted-foreground">{t("noRulesFound")}</p>
               <p className="text-sm text-muted-foreground">
-                Create a dispatch rule to start routing inbound calls.
+                {t("createFirstRule")}
               </p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Rule Type</TableHead>
-                  <TableHead>Target</TableHead>
-                  <TableHead>Agent</TableHead>
-                  <TableHead>Trunks</TableHead>
-                  <TableHead>Rule ID</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("tableName")}</TableHead>
+                  <TableHead>{t("tableRuleType")}</TableHead>
+                  <TableHead>{t("tableTarget")}</TableHead>
+                  <TableHead>{t("tableAgent")}</TableHead>
+                  <TableHead>{t("tableTrunks")}</TableHead>
+                  <TableHead>{t("tableRuleId")}</TableHead>
+                  <TableHead className="text-right">{t("tableActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -305,7 +308,7 @@ export default function DispatchRulesPage() {
                                 {trunkNameById(id)}
                               </Badge>
                             ))
-                          : "All trunks"}
+                          : t("allTrunks")}
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
@@ -344,28 +347,28 @@ export default function DispatchRulesPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingRule ? "Edit Dispatch Rule" : "Create Dispatch Rule"}
+              {editingRule ? t("editTitle") : t("createTitle")}
             </DialogTitle>
             <DialogDescription>
               {editingRule
-                ? "Update the dispatch rule configuration."
-                : "Configure how inbound calls are routed to rooms."}
+                ? t("editDescription")
+                : t("createDescription")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t("tableName")}</Label>
               <Input
                 id="name"
-                placeholder="My dispatch rule"
+                placeholder={t("namePlaceholder")}
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
               />
             </div>
 
                 <div className="grid gap-2">
-                  <Label>Rule Type</Label>
+                  <Label>{t("ruleType")}</Label>
                   <Select
                     value={formRuleType}
                     onValueChange={(v) =>
@@ -377,13 +380,13 @@ export default function DispatchRulesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="individual">
-                        Individual — One room per caller
+                        {t("ruleTypeIndividual")}
                       </SelectItem>
                       <SelectItem value="direct">
-                        Direct — All callers to one room
+                        {t("ruleTypeDirect")}
                       </SelectItem>
                       <SelectItem value="callee">
-                        Callee — Room based on called number
+                        {t("ruleTypeCallee")}
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -391,7 +394,7 @@ export default function DispatchRulesPage() {
 
                 {formRuleType === "direct" ? (
                   <div className="grid gap-2">
-                    <Label htmlFor="roomName">Room Name</Label>
+                    <Label htmlFor="roomName">{t("roomName")}</Label>
                     <Input
                       id="roomName"
                       placeholder="open-room"
@@ -401,7 +404,7 @@ export default function DispatchRulesPage() {
                   </div>
                 ) : (
                   <div className="grid gap-2">
-                    <Label htmlFor="roomPrefix">Room Prefix</Label>
+                    <Label htmlFor="roomPrefix">{t("roomPrefix")}</Label>
                     <Input
                       id="roomPrefix"
                       placeholder="call-"
@@ -413,9 +416,9 @@ export default function DispatchRulesPage() {
 
                 <div className="grid gap-2">
                   <Label htmlFor="pin">
-                    PIN{" "}
+                    {t("pinLabel")}{" "}
                     <span className="text-xs text-muted-foreground">
-                      (optional)
+                      {t("pinHint")}
                     </span>
                   </Label>
                   <Input
@@ -428,9 +431,9 @@ export default function DispatchRulesPage() {
 
                 <div className="grid gap-2">
                   <Label htmlFor="agentName">
-                    Agent Name{" "}
+                    {t("agentNameLabel")}{" "}
                     <span className="text-xs text-muted-foreground">
-                      (for agent dispatch, optional)
+                      {t("agentNameHint")}
                     </span>
                   </Label>
                   <Input
@@ -443,9 +446,9 @@ export default function DispatchRulesPage() {
 
                 <div className="grid gap-2">
                   <Label htmlFor="trunkIds">
-                    Trunk IDs{" "}
+                    {t("trunkIdsLabel")}{" "}
                     <span className="text-xs text-muted-foreground">
-                      (comma-separated, empty = all trunks)
+                      {t("trunkIdsHint")}
                     </span>
                   </Label>
                   <Input
@@ -465,16 +468,13 @@ export default function DispatchRulesPage() {
                     className="h-4 w-4 rounded border-gray-300"
                   />
                   <Label htmlFor="hidePhoneNumber">
-                    Hide caller phone number
+                    {t("hidePhoneNumber")}
                   </Label>
                 </div>
 
             <div className="grid gap-2">
               <Label htmlFor="metadata">
-                Metadata{" "}
-                <span className="text-xs text-muted-foreground">
-                  (optional)
-                </span>
+                {tc("metadataOptional")}
               </Label>
               <Input
                 id="metadata"
@@ -491,11 +491,11 @@ export default function DispatchRulesPage() {
               onClick={() => setDialogOpen(false)}
               disabled={saving}
             >
-              Cancel
+              {tc("cancel")}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {editingRule ? "Update" : "Create"}
+              {editingRule ? tc("update") : tc("create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -508,10 +508,9 @@ export default function DispatchRulesPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Dispatch Rule</DialogTitle>
+            <DialogTitle>{t("deleteTitle")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this dispatch rule? Calls matching
-              this rule will no longer be routed.
+              {t("deleteConfirmation")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -519,13 +518,13 @@ export default function DispatchRulesPage() {
               variant="outline"
               onClick={() => setDeleteConfirmId(null)}
             >
-              Cancel
+              {tc("cancel")}
             </Button>
             <Button
               variant="destructive"
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
             >
-              Delete
+              {tc("delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

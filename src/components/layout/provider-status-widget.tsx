@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { Power } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PROVIDERS, INDICATOR_MAP } from "@/lib/provider-status";
@@ -9,6 +10,7 @@ import { useProviderStatus } from "@/hooks/useProviderStatus";
 export function ProviderStatusWidget() {
   const { statuses, loading, enabled, toggle, hasIssues } =
     useProviderStatus();
+  const t = useTranslations("providers");
 
   const hasData = statuses.length > 0;
 
@@ -23,10 +25,10 @@ export function ProviderStatusWidget() {
           href="/providers"
           className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
-          Provider Status
+          {t("title")}
           {!enabled && hasData && (
             <span className="ml-1 text-[10px] italic text-muted-foreground/60">
-              (paused)
+              {t("paused")}
             </span>
           )}
         </Link>
@@ -38,7 +40,7 @@ export function ProviderStatusWidget() {
               ? "text-emerald-500 hover:bg-emerald-500/10"
               : "text-muted-foreground hover:bg-muted"
           )}
-          title={enabled ? "Pause monitoring" : "Resume monitoring"}
+          title={enabled ? t("pauseMonitoring") : t("resumeMonitoring")}
         >
           <Power className="h-3 w-3" />
         </button>
@@ -47,7 +49,7 @@ export function ProviderStatusWidget() {
       {/* Status content */}
       {!hasData && !enabled ? (
         <p className="text-[11px] text-muted-foreground italic">
-          Monitoring paused
+          {t("monitoringPaused")}
         </p>
       ) : loading && !hasData ? (
         <div className="flex items-center gap-1.5">
@@ -70,7 +72,7 @@ export function ProviderStatusWidget() {
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
           <span className="text-[11px] text-emerald-600 dark:text-emerald-400 group-hover:underline">
-            All Providers Operational
+            {t("allOperational")}
           </span>
         </Link>
       ) : (

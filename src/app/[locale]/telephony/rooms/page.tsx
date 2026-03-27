@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
+import { useTranslations } from "next-intl";
 import {
   roomApi,
   agentConfigApi,
@@ -94,6 +95,8 @@ export default function RoomsPage() {
   );
   const [activeTab, setActiveTab] = useState("live");
   const router = useRouter();
+  const t = useTranslations("telephony.rooms");
+  const tc = useTranslations("common");
 
   // Filter state
   const [agents, setAgents] = useState<string[]>([]);
@@ -124,7 +127,7 @@ export default function RoomsPage() {
       const data = await roomApi.listLive();
       setLiveRooms(data);
     } catch (err: any) {
-      toast.error(err.message || "Failed to load live rooms");
+      toast.error(err.message || t("toastLiveRoomsError"));
     } finally {
       setLoadingLive(false);
     }
@@ -137,7 +140,7 @@ export default function RoomsPage() {
       setSessions(data);
       setFiltersApplied(!!params);
     } catch (err: any) {
-      toast.error(err.message || "Failed to load call sessions");
+      toast.error(err.message || t("toastSessionsError"));
     } finally {
       setLoadingSessions(false);
     }
@@ -158,11 +161,11 @@ export default function RoomsPage() {
   const handleDeleteRoom = async (roomName: string) => {
     try {
       await roomApi.deleteLive(roomName);
-      toast.success(`Room "${roomName}" deleted`);
+      toast.success(t("toastRoomDeleted", { roomName }));
       setDeleteConfirmRoom(null);
       fetchLiveRooms();
     } catch (err: any) {
-      toast.error(err.message || "Failed to delete room");
+      toast.error(err.message || t("toastRoomDeleteError"));
     }
   };
 
@@ -170,9 +173,9 @@ export default function RoomsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Rooms</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">
-            View live LiveKit rooms and call session history.
+            {t("description")}
           </p>
         </div>
         <AutoRefreshSelector
@@ -185,11 +188,11 @@ export default function RoomsPage() {
         <TabsList>
           <TabsTrigger value="live" className="gap-2">
             <Radio className="h-4 w-4" />
-            Live Rooms
+            {t("liveRooms")}
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <History className="h-4 w-4" />
-            Call History
+            {t("callHistory")}
           </TabsTrigger>
         </TabsList>
 
@@ -201,10 +204,10 @@ export default function RoomsPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <DoorOpen className="h-5 w-5" />
-                    Active Rooms
+                    {t("activeRooms")}
                   </CardTitle>
                   <CardDescription>
-                    Rooms currently active on LiveKit.
+                    {t("activeRoomsDescription")}
                   </CardDescription>
                 </div>
                 <Button
@@ -216,7 +219,7 @@ export default function RoomsPage() {
                   }}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
+                  {tc("refresh")}
                 </Button>
               </div>
             </CardHeader>
@@ -228,22 +231,22 @@ export default function RoomsPage() {
               ) : liveRooms.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <DoorOpen className="h-10 w-10 text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground">No active rooms</p>
+                  <p className="text-muted-foreground">{t("noActiveRooms")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Rooms appear here when participants join.
+                    {t("roomsAppearHere")}
                   </p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Room Name</TableHead>
-                      <TableHead>SID</TableHead>
-                      <TableHead>Participants</TableHead>
-                      <TableHead>Publishers</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Recording</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>{t("tableRoomName")}</TableHead>
+                      <TableHead>{t("tableSid")}</TableHead>
+                      <TableHead>{t("tableParticipants")}</TableHead>
+                      <TableHead>{t("tablePublishers")}</TableHead>
+                      <TableHead>{t("tableCreated")}</TableHead>
+                      <TableHead>{t("tableRecording")}</TableHead>
+                      <TableHead className="text-right">{t("tableActions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -274,7 +277,7 @@ export default function RoomsPage() {
                               room.activeRecording ? "default" : "secondary"
                             }
                           >
-                            {room.activeRecording ? "Recording" : "No"}
+                            {room.activeRecording ? t("recording") : t("notRecording")}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -302,25 +305,25 @@ export default function RoomsPage() {
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-2 mb-3">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Filtros</span>
+                <span className="text-sm font-medium">{t("filters")}</span>
                 {filtersApplied && (
-                  <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                  <Badge variant="secondary" className="text-xs">{t("filterActive")}</Badge>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Campo do Ticket</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">{t("ticketField")}</label>
                   <Input
-                    placeholder="ex: ideia"
+                    placeholder={t("ticketFieldPlaceholder")}
                     value={filterTicketField}
                     onChange={(e) => setFilterTicketField(e.target.value)}
                     className="h-8 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Valor</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">{t("value")}</label>
                   <Input
-                    placeholder="buscar no campo..."
+                    placeholder={t("valuePlaceholder")}
                     value={filterTicketValue}
                     onChange={(e) => setFilterTicketValue(e.target.value)}
                     className="h-8 text-sm"
@@ -328,13 +331,13 @@ export default function RoomsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Agente</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">{t("agentFilter")}</label>
                   <Select value={filterAgent} onValueChange={(v) => setFilterAgent(v === "_all" ? "" : v)}>
                     <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Todos" />
+                      <SelectValue placeholder={tc("all")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="_all">Todos</SelectItem>
+                      <SelectItem value="_all">{tc("all")}</SelectItem>
                       {agents.map((a) => (
                         <SelectItem key={a} value={a}>{a}</SelectItem>
                       ))}
@@ -342,13 +345,13 @@ export default function RoomsPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Status</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">{t("statusFilter")}</label>
                   <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v === "_all" ? "" : v)}>
                     <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Todos" />
+                      <SelectValue placeholder={tc("all")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="_all">Todos</SelectItem>
+                      <SelectItem value="_all">{tc("all")}</SelectItem>
                       <SelectItem value="active">active</SelectItem>
                       <SelectItem value="created">created</SelectItem>
                       <SelectItem value="completed">completed</SelectItem>
@@ -365,7 +368,7 @@ export default function RoomsPage() {
                     }}
                   >
                     <Search className="mr-1 h-3.5 w-3.5" />
-                    Buscar
+                    {t("search")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -383,7 +386,7 @@ export default function RoomsPage() {
                     }}
                   >
                     <X className="mr-1 h-3.5 w-3.5" />
-                    Limpar
+                    {t("clear")}
                   </Button>
                 </div>
               </div>
@@ -396,15 +399,15 @@ export default function RoomsPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <History className="h-5 w-5" />
-                    Call Sessions
+                    {t("callSessions")}
                     {filtersApplied && (
                       <Badge variant="outline" className="text-xs font-normal">
-                        {sessions.length} resultado{sessions.length !== 1 ? "s" : ""}
+                        {t("results", { count: sessions.length })}
                       </Badge>
                     )}
                   </CardTitle>
                   <CardDescription>
-                    Recent call sessions stored in the database.
+                    {t("callSessionsDescription")}
                   </CardDescription>
                 </div>
                 <Button
@@ -416,7 +419,7 @@ export default function RoomsPage() {
                   }}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
+                  {tc("refresh")}
                 </Button>
               </div>
             </CardHeader>
@@ -429,26 +432,26 @@ export default function RoomsPage() {
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <History className="h-10 w-10 text-muted-foreground mb-3" />
                   <p className="text-muted-foreground">
-                    {filtersApplied ? "Nenhuma session encontrada com esses filtros" : "No call sessions"}
+                    {filtersApplied ? t("noSessionsFiltered") : t("noCallSessions")}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {filtersApplied
-                      ? "Tente ajustar os filtros ou limpar a busca."
-                      : "Sessions appear here when rooms are created via the API."}
+                      ? t("adjustFilters")
+                      : t("sessionsAppearHere")}
                   </p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Room Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Agent</TableHead>
-                      <TableHead>From</TableHead>
-                      <TableHead>Ticket</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead>{t("tableRoomName")}</TableHead>
+                      <TableHead>{t("tableStatus")}</TableHead>
+                      <TableHead>{t("tableAgent")}</TableHead>
+                      <TableHead>{t("tableFrom")}</TableHead>
+                      <TableHead>{t("tableTicket")}</TableHead>
+                      <TableHead>{t("tableDuration")}</TableHead>
+                      <TableHead>{t("tableCreated")}</TableHead>
+                      <TableHead className="text-right">{t("tableActions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -551,10 +554,9 @@ export default function RoomsPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Room</DialogTitle>
+            <DialogTitle>{t("deleteRoomTitle")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete room &quot;{deleteConfirmRoom}
-              &quot;? All participants will be disconnected immediately.
+              {t("deleteRoomConfirmation", { roomName: deleteConfirmRoom ?? "" })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -562,7 +564,7 @@ export default function RoomsPage() {
               variant="outline"
               onClick={() => setDeleteConfirmRoom(null)}
             >
-              Cancel
+              {tc("cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -570,7 +572,7 @@ export default function RoomsPage() {
                 deleteConfirmRoom && handleDeleteRoom(deleteConfirmRoom)
               }
             >
-              Delete Room
+              {t("deleteRoom")}
             </Button>
           </DialogFooter>
         </DialogContent>

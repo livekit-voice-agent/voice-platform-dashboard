@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import {
   agentConfigApi,
   deployApi,
@@ -58,6 +59,7 @@ import {
 import { toast } from "sonner";
 
 function StatusBadge({ status }: { status: DeploymentStatus }) {
+  const t = useTranslations("deployments");
   const config: Record<
     DeploymentStatus,
     {
@@ -67,32 +69,32 @@ function StatusBadge({ status }: { status: DeploymentStatus }) {
     }
   > = {
     BUILDING: {
-      label: "Building",
+      label: t("statusBuilding"),
       variant: "secondary",
       icon: <Loader2 className="mr-1 h-3 w-3 animate-spin" />,
     },
     PUSHING: {
-      label: "Pushing",
+      label: t("statusPushing"),
       variant: "secondary",
       icon: <Loader2 className="mr-1 h-3 w-3 animate-spin" />,
     },
     DEPLOYING: {
-      label: "Deploying",
+      label: t("statusDeploying"),
       variant: "secondary",
       icon: <Loader2 className="mr-1 h-3 w-3 animate-spin" />,
     },
     RUNNING: {
-      label: "Running",
+      label: t("statusRunning"),
       variant: "default",
       icon: <Activity className="mr-1 h-3 w-3" />,
     },
     FAILED: {
-      label: "Failed",
+      label: t("statusFailed"),
       variant: "destructive",
       icon: <AlertTriangle className="mr-1 h-3 w-3" />,
     },
     STOPPED: {
-      label: "Stopped",
+      label: t("statusStopped"),
       variant: "outline",
       icon: <Square className="mr-1 h-3 w-3" />,
     },
@@ -108,6 +110,8 @@ function StatusBadge({ status }: { status: DeploymentStatus }) {
 }
 
 export default function DeploymentsPage() {
+  const t = useTranslations("deployments");
+  const tc = useTranslations("common");
   const [agents, setAgents] = useState<string[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>("");
   const [deployments, setDeployments] = useState<AgentDeployment[]>([]);
@@ -131,7 +135,7 @@ export default function DeploymentsPage() {
         setSelectedAgent(list[0]);
       }
     } catch {
-      toast.error("Failed to load agents");
+      toast.error(t("toastLoadAgentsError"));
     }
   }, [selectedAgent]);
 
@@ -144,7 +148,7 @@ export default function DeploymentsPage() {
         setDeployments(result);
       } catch {
         setDeployments([]);
-        toast.error("Failed to load deployments");
+        toast.error(t("toastLoadDeploymentsError"));
       } finally {
         setLoading(false);
       }
@@ -182,10 +186,10 @@ export default function DeploymentsPage() {
     try {
       const updated = await deployApi.updateConfig(configForm);
       setDeployConfig(updated);
-      toast.success("Deploy configuration saved!");
+      toast.success(t("toastConfigSaved"));
       setConfigDialogOpen(false);
     } catch {
-      toast.error("Failed to save configuration");
+      toast.error(t("toastConfigSaveError"));
     } finally {
       setSavingConfig(false);
     }
@@ -194,11 +198,11 @@ export default function DeploymentsPage() {
   const handleStopDeployment = async (agentName: string) => {
     try {
       await deployApi.stopDeployment(agentName);
-      toast.success("Deployment stopped");
+      toast.success(t("toastDeploymentStopped"));
       await loadDeployments(agentName);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to stop deployment"
+        err instanceof Error ? err.message : t("toastStopError")
       );
     }
   };
@@ -223,30 +227,30 @@ export default function DeploymentsPage() {
             </Link>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3 sm:text-3xl">
               <Rocket className="h-7 w-7 sm:h-8 sm:w-8" />
-              Deployment History
+              {t("title")}
             </h1>
           </div>
           <p className="text-muted-foreground ml-11 text-sm">
-            View all deployments, versions, and build logs.
+            {t("description")}
           </p>
         </div>
         <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
               <Settings2 className="mr-2 h-4 w-4" />
-              Deploy Config
+              {t("deployConfig")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Deploy Configuration</DialogTitle>
+              <DialogTitle>{t("deployConfigTitle")}</DialogTitle>
               <DialogDescription>
-                Configure Docker registry and backend-deploy-controller URL.
+                {t("deployConfigDescription")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="registryUrl">Registry URL</Label>
+                <Label htmlFor="registryUrl">{t("registryUrl")}</Label>
                 <Input
                   id="registryUrl"
                   value={configForm.registry_url}
@@ -260,7 +264,7 @@ export default function DeploymentsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="registryNamespace">Registry Namespace</Label>
+                <Label htmlFor="registryNamespace">{t("registryNamespace")}</Label>
                 <Input
                   id="registryNamespace"
                   value={configForm.registry_namespace}
@@ -275,7 +279,7 @@ export default function DeploymentsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="deployControllerUrl">
-                  Backend Deploy Controller URL
+                  {t("backendUrl")}
                 </Label>
                 <Input
                   id="deployControllerUrl"
@@ -292,7 +296,7 @@ export default function DeploymentsPage() {
             </div>
             <DialogFooter>
               <Button onClick={handleSaveConfig} disabled={savingConfig}>
-                {savingConfig ? "Saving..." : "Save Configuration"}
+                {savingConfig ? tc("saving") : t("saveConfig")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -303,7 +307,7 @@ export default function DeploymentsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <Select value={selectedAgent} onValueChange={setSelectedAgent}>
           <SelectTrigger className="w-[280px]">
-            <SelectValue placeholder="Select an agent" />
+            <SelectValue placeholder={t("selectAnAgent")} />
           </SelectTrigger>
           <SelectContent>
             {agents.map((name) => (
@@ -320,18 +324,18 @@ export default function DeploymentsPage() {
           onClick={() => loadDeployments(selectedAgent)}
         >
           <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
+          {tc("refresh")}
         </Button>
 
         <div className="flex items-center gap-4 ml-auto text-sm">
           <span className="text-muted-foreground">
-            Total: <strong>{totalDeploys}</strong>
+            {t("totalLabel")} <strong>{totalDeploys}</strong>
           </span>
           <span className="text-green-600">
-            Running: <strong>{runningDeploys}</strong>
+            {t("runningLabel")} <strong>{runningDeploys}</strong>
           </span>
           <span className="text-red-600">
-            Failed: <strong>{failedDeploys}</strong>
+            {t("failedLabel")} <strong>{failedDeploys}</strong>
           </span>
         </div>
       </div>
@@ -339,7 +343,7 @@ export default function DeploymentsPage() {
       {/* Deployments Table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Deployments</CardTitle>
+          <CardTitle className="text-base">{t("deploymentsTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -351,12 +355,12 @@ export default function DeploymentsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[80px]">Version</TableHead>
-                    <TableHead>Image Tag</TableHead>
-                    <TableHead className="w-[120px]">Status</TableHead>
-                    <TableHead className="w-[120px]">Pod</TableHead>
-                    <TableHead className="w-[160px]">Created</TableHead>
-                    <TableHead className="w-[120px]">Actions</TableHead>
+                    <TableHead className="w-[80px]">{t("tableVersion")}</TableHead>
+                    <TableHead>{t("tableImageTag")}</TableHead>
+                    <TableHead className="w-[120px]">{t("tableStatus")}</TableHead>
+                    <TableHead className="w-[120px]">{t("tablePod")}</TableHead>
+                    <TableHead className="w-[160px]">{t("tableCreated")}</TableHead>
+                    <TableHead className="w-[120px]">{t("tableActions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -421,8 +425,8 @@ export default function DeploymentsPage() {
           ) : (
             <div className="text-center py-8 text-sm text-muted-foreground">
               {selectedAgent
-                ? `No deployments found for "${selectedAgent}".`
-                : "Select an agent to view deployments."}
+                ? t("noDeploymentsForAgent", { agent: selectedAgent })
+                : t("selectAgentPrompt")}
             </div>
           )}
         </CardContent>
@@ -436,19 +440,19 @@ export default function DeploymentsPage() {
         <DialogContent className="max-w-2xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>
-              Build Logs — {logsDialog?.agent_name} v{logsDialog?.version}
+              {t("buildLogsTitle", { name: logsDialog?.agent_name ?? "", version: logsDialog?.version ?? 0 })}
             </DialogTitle>
             <DialogDescription>
               {logsDialog?.error_message && (
                 <span className="text-destructive">
-                  Error: {logsDialog.error_message}
+                  {t("errorPrefix", { message: logsDialog.error_message })}
                 </span>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="overflow-auto max-h-[60vh]">
             <pre className="text-xs font-mono bg-muted p-4 rounded-md whitespace-pre-wrap">
-              {logsDialog?.build_logs || "No build logs available."}
+              {logsDialog?.build_logs || t("noBuildLogs")}
             </pre>
           </div>
         </DialogContent>

@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   Bot,
   Cpu,
-  Rocket,
   Phone,
   Route,
   DoorOpen,
@@ -23,20 +22,20 @@ import {
 } from "@/components/ui/sheet";
 
 const navItems = [
-  { href: "/agent", label: "Agent", icon: Bot },
-  { href: "/agent/deployments", label: "Deployments", icon: Rocket },
-  { href: "/workers", label: "Workers", icon: Cpu },
-  { href: "/providers", label: "Providers", icon: Activity },
+  { href: "/agent" as const, labelKey: "agent" as const, icon: Bot },
+  { href: "/workers" as const, labelKey: "workers" as const, icon: Cpu },
+  { href: "/providers" as const, labelKey: "providers" as const, icon: Activity },
 ];
 
 const telephonyItems = [
-  { href: "/telephony/sip-trunks", label: "SIP Trunks", icon: Phone },
-  { href: "/telephony/dispatch-rules", label: "Dispatch Rules", icon: Route },
-  { href: "/telephony/rooms", label: "Rooms", icon: DoorOpen },
+  { href: "/telephony/sip-trunks" as const, labelKey: "sipTrunks" as const, icon: Phone },
+  { href: "/telephony/dispatch-rules" as const, labelKey: "dispatchRules" as const, icon: Route },
+  { href: "/telephony/rooms" as const, labelKey: "rooms" as const, icon: DoorOpen },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const t = useTranslations("sidebar");
   const [telephonyOpen, setTelephonyOpen] = useState(
     pathname.startsWith("/telephony")
   );
@@ -50,7 +49,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           onClick={onNavigate}
         >
           <Bot className="h-6 w-6" />
-          <span>Voice Platform</span>
+          <span>{t("brand")}</span>
         </Link>
       </div>
       <nav className="flex-1 space-y-1 p-4">
@@ -64,7 +63,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           const isActive =
             !hasMoreSpecificMatch &&
             (pathname === item.href ||
-              (item.href !== "/" && pathname.startsWith(item.href + "/")));
+              ((item.href as string) !== "/" && pathname.startsWith(item.href + "/")));
           return (
             <Link
               key={item.href}
@@ -78,7 +77,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               )}
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           );
         })}
@@ -90,7 +89,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <Phone className="h-4 w-4" />
-            Telephony
+            {t("telephony")}
             <ChevronDown
               className={cn(
                 "ml-auto h-4 w-4 transition-transform",
@@ -117,7 +116,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     )}
                   >
                     <item.icon className="h-4 w-4" />
-                    {item.label}
+                    {t(item.labelKey)}
                   </Link>
                 );
               })}
@@ -145,11 +144,12 @@ export function MobileSidebar({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useTranslations("sidebar");
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-64 p-0">
         <SheetHeader className="sr-only">
-          <SheetTitle>Navigation</SheetTitle>
+          <SheetTitle>{t("navigation")}</SheetTitle>
         </SheetHeader>
         <SidebarContent onNavigate={() => onOpenChange(false)} />
       </SheetContent>

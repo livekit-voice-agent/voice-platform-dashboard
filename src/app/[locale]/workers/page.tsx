@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import {
   agentWorkerApi,
+  agentVersionApi,
   type WorkerStatusEntry,
+  type AgentVersionSummary,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +26,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import {
   RefreshCw,
   Play,
   Square,
@@ -33,6 +52,8 @@ import {
 import { toast } from "sonner";
 
 export default function WorkersPage() {
+  const t = useTranslations("workers");
+  const tc = useTranslations("common");
   const [workerStatuses, setWorkerStatuses] = useState<
     Record<string, WorkerStatusEntry>
   >({});
@@ -41,6 +62,13 @@ export default function WorkersPage() {
     null
   );
   const [loading, setLoading] = useState(true);
+
+  // Spawn dialog state
+  const [spawnDialogOpen, setSpawnDialogOpen] = useState(false);
+  const [spawnAgent, setSpawnAgent] = useState<string>("");
+  const [spawnVersion, setSpawnVersion] = useState<string>("draft");
+  const [spawnVersions, setSpawnVersions] = useState<AgentVersionSummary[]>([]);
+  const [loadingSpawnVersions, setLoadingSpawnVersions] = useState(false);
 
   const loadWorkerStatus = useCallback(async () => {
     try {
@@ -66,15 +94,32 @@ export default function WorkersPage() {
     );
   }, [loadWorkerStatus, loadAvailableWorkers]);
 
-  const handleSpawn = async (agentName: string) => {
-    setWorkerActionLoading(agentName);
+  const openSpawnDialog = async (agentName: string) => {
+    setSpawnAgent(agentName);
+    setSpawnVersion("draft");
+    setSpawnDialogOpen(true);
+    setLoadingSpawnVersions(true);
     try {
-      await agentWorkerApi.spawn(agentName);
-      toast.success(`Worker "${agentName}" spawned!`);
+      const versions = await agentVersionApi.list(agentName);
+      setSpawnVersions(versions);
+    } catch {
+      setSpawnVersions([]);
+    } finally {
+      setLoadingSpawnVersions(false);
+    }
+  };
+
+  const handleSpawn = async () => {
+    setSpawnDialogOpen(false);
+    setWorkerActionLoading(spawnAgent);
+    try {
+      const version = spawnVersion === "draft" ? undefined : spawnVersion;
+      await agentWorkerApi.spawn(spawnAgent, version);
+      toast.success(t("toastSpawned", { name: spawnAgent, version: spawnVersion === "draft" ? "draft" : `v${spawnVersion}` }));
       setTimeout(() => loadWorkerStatus(), 1000);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to spawn worker"
+        err instanceof Error ? err.message : t("toastSpawnError")
       );
     } finally {
       setWorkerActionLoading(null);
@@ -85,11 +130,11 @@ export default function WorkersPage() {
     setWorkerActionLoading(agentName);
     try {
       await agentWorkerApi.kill(agentName);
-      toast.success(`Worker "${agentName}" killed!`);
+      toast.success(t("toastKilled", { name: agentName }));
       setTimeout(() => loadWorkerStatus(), 1000);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to kill worker"
+        err instanceof Error ? err.message : t("toastKillError")
       );
     } finally {
       setWorkerActionLoading(null);
@@ -100,11 +145,11 @@ export default function WorkersPage() {
     setWorkerActionLoading(agentName);
     try {
       await agentWorkerApi.restart(agentName);
-      toast.success(`Worker "${agentName}" restarted!`);
+      toast.success(t("toastRestarted", { name: agentName }));
       setTimeout(() => loadWorkerStatus(), 1000);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to restart worker"
+        err instanceof Error ? err.message : t("toastRestartError")
       );
     } finally {
       setWorkerActionLoading(null);
@@ -119,7 +164,7 @@ export default function WorkersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">Loading workers...</p>
+        <p className="text-muted-foreground">{t("loadingWorkers")}</p>
       </div>
     );
   }
@@ -130,10 +175,10 @@ export default function WorkersPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3 sm:text-3xl">
             <Cpu className="h-7 w-7 sm:h-8 sm:w-8" />
-            Workers
+            {t("title")}
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Manage agent worker processes. Spawn and monitor workers.
+            {t("description")}
           </p>
         </div>
         <Button
@@ -144,25 +189,25 @@ export default function WorkersPage() {
           }}
         >
           <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
+          {tc("refresh")}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Total Workers</CardDescription>
+            <CardDescription>{t("totalWorkers")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalCount}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {availableWorkers.length} file{availableWorkers.length !== 1 ? "s" : ""} discovered
+              {t("filesDiscovered", { count: availableWorkers.length })}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Running</CardDescription>
+            <CardDescription>{t("running")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -173,7 +218,7 @@ export default function WorkersPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Stopped</CardDescription>
+            <CardDescription>{t("stopped")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -188,11 +233,9 @@ export default function WorkersPage() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>Worker Processes</CardTitle>
+          <CardTitle>{t("workerProcesses")}</CardTitle>
           <CardDescription>
-            Workers with auto-start enabled will spawn on API boot and
-            auto-restart on crash. Toggle auto-start in the Agent configuration
-            page.
+            {t("workerProcessesDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -201,12 +244,13 @@ export default function WorkersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Agent</TableHead>
-                    <TableHead className="w-[100px]">Status</TableHead>
-                    <TableHead className="w-[110px]">Auto-start</TableHead>
-                    <TableHead className="w-[90px]">File</TableHead>
+                    <TableHead>{t("tableAgent")}</TableHead>
+                    <TableHead className="w-[100px]">{t("tableStatus")}</TableHead>
+                    <TableHead className="w-[90px]">{t("tableVersion")}</TableHead>
+                    <TableHead className="w-[110px]">{t("tableAutoStart")}</TableHead>
+                    <TableHead className="w-[90px]">{t("tableFile")}</TableHead>
                     <TableHead className="w-[180px] text-right">
-                      Actions
+                      {t("tableActions")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -229,14 +273,23 @@ export default function WorkersPage() {
                             status.running ? "default" : "destructive"
                           }
                         >
-                          {status.running ? "Running" : "Stopped"}
+                          {status.running ? t("statusRunning") : t("statusStopped")}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {status.running && status.version ? (
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {status.version === "draft" ? t("draft") : `v${status.version}`}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant={status.auto_start ? "default" : "outline"}
                         >
-                          {status.auto_start ? "On" : "Off"}
+                          {status.auto_start ? t("autoStartOn") : t("autoStartOff")}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -245,7 +298,7 @@ export default function WorkersPage() {
                             status.hasFile ? "secondary" : "destructive"
                           }
                         >
-                          {status.hasFile ? "Yes" : "No"}
+                          {status.hasFile ? t("fileYes") : t("fileNo")}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -254,12 +307,12 @@ export default function WorkersPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleSpawn(name)}
+                              onClick={() => openSpawnDialog(name)}
                               disabled={workerActionLoading === name}
-                              title="Spawn"
+                              title={t("spawn")}
                             >
                               <Play className="mr-1 h-4 w-4" />
-                              Spawn
+                              {t("spawn")}
                             </Button>
                           )}
                           {status.running && (
@@ -269,10 +322,10 @@ export default function WorkersPage() {
                                 onClick={() => handleKill(name)}
                                 disabled={workerActionLoading === name}
                                 className="text-destructive hover:text-destructive"
-                                title="Kill"
+                                title={t("kill")}
                               >
                                 <Square className="mr-1 h-4 w-4" />
-                                Kill
+                                {t("kill")}
                               </Button>
                           )}
                         </div>
@@ -284,15 +337,57 @@ export default function WorkersPage() {
             </div>
           ) : (
             <div className="text-center py-8 text-sm text-muted-foreground">
-              No workers discovered. Create a worker file in the{" "}
-              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                src/agent-worker/workers/
-              </code>{" "}
-              directory and configure an agent with auto-start.
+              {t("noWorkersDiscovered")}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Spawn dialog with version selector */}
+      <Dialog open={spawnDialogOpen} onOpenChange={setSpawnDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("spawnWorkerTitle", { name: spawnAgent })}</DialogTitle>
+            <DialogDescription>
+              {t("spawnWorkerDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>{t("configVersion")}</Label>
+            <Select value={spawnVersion} onValueChange={setSpawnVersion}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("selectVersion")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">
+                  {t("currentDraft")}
+                </SelectItem>
+                {loadingSpawnVersions ? (
+                  <SelectItem value="_loading" disabled>
+                    {t("loadingVersions")}
+                  </SelectItem>
+                ) : (
+                  spawnVersions.map((v) => (
+                    <SelectItem key={v.version} value={String(v.version)}>
+                      v{v.version}{v.description ? ` — ${v.description}` : ""}{" "}
+                      ({new Date(v.created_at).toLocaleDateString()})
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSpawnDialogOpen(false)}>
+              {tc("cancel")}
+            </Button>
+            <Button onClick={handleSpawn}>
+              <Play className="h-4 w-4 mr-1" />
+              {spawnVersion === "draft" ? t("spawnDraft") : t("spawnVersion", { version: spawnVersion })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

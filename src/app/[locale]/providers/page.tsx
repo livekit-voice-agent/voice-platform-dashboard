@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ExternalLink, Power, Activity, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -148,6 +149,8 @@ async function fetchAllSummaries(signal?: AbortSignal) {
 // ---------------------------------------------------------------------------
 
 export default function ProvidersPage() {
+  const t = useTranslations("providers");
+  const tc = useTranslations("common");
   const [summaries, setSummaries] = useState<ProviderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(() => getMonitoringEnabled());
@@ -202,10 +205,10 @@ export default function ProvidersPage() {
           </div>
           <div>
             <h1 className="text-xl font-semibold sm:text-2xl">
-              Provider Status
+              {t("title")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Real-time status of external providers
+              {t("description")}
             </p>
           </div>
         </div>
@@ -227,7 +230,7 @@ export default function ProvidersPage() {
             onClick={toggleMonitoring}
           >
             <Power className="h-3.5 w-3.5" />
-            {enabled ? "On" : "Off"}
+            {enabled ? tc("on") : tc("off")}
           </Button>
         </div>
       </div>
@@ -236,10 +239,10 @@ export default function ProvidersPage() {
       {!enabled && summaries.length > 0 && (
         <div className="flex items-center justify-between rounded-lg border border-dashed px-4 py-2">
           <p className="text-xs text-muted-foreground">
-            Monitoring paused — showing last known status
+            {t("monitoringPausedStale")}
           </p>
           <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={toggleMonitoring}>
-            Resume
+            {t("resume")}
           </Button>
         </div>
       )}
@@ -249,10 +252,10 @@ export default function ProvidersPage() {
         <Card className="border-dashed">
           <CardContent className="flex items-center justify-between py-4">
             <p className="text-sm text-muted-foreground">
-              Monitoring is paused. Enable it to see live provider status.
+              {t("monitoringPausedEmpty")}
             </p>
             <Button variant="outline" size="sm" onClick={toggleMonitoring}>
-              Enable
+              {t("enable")}
             </Button>
           </CardContent>
         </Card>
@@ -305,7 +308,7 @@ export default function ProvidersPage() {
                       {providerConfig.name}
                       {isSelfHosted && (
                         <span className="text-[10px] font-normal text-muted-foreground">
-                          (self-hosted)
+                          {t("selfHosted")}
                         </span>
                       )}
                     </CardTitle>
@@ -344,13 +347,13 @@ export default function ProvidersPage() {
                   {isSelfHosted && summary?.latencyMs != null && (
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Gauge className="h-3 w-3" />
-                      <span>{summary.latencyMs}ms latency</span>
+                      <span>{t("latency", { ms: summary.latencyMs })}</span>
                     </div>
                   )}
 
                   {/* Updated at */}
                   <p className="text-xs text-muted-foreground">
-                    Updated {timeAgo(summary?.updatedAt ?? null)}
+                    {t("updated", { time: timeAgo(summary?.updatedAt ?? null) })}
                   </p>
 
                   {/* Components toggle — statuspage providers only */}
@@ -361,8 +364,8 @@ export default function ProvidersPage() {
                         className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {isExpanded
-                          ? "Hide components"
-                          : `Show ${summary.components.length} components`}
+                          ? t("hideComponents")
+                          : t("showComponents", { count: summary.components.length })}
                       </button>
 
                       {isExpanded && (
@@ -400,12 +403,12 @@ export default function ProvidersPage() {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      View Status Page
+                      {t("viewStatusPage")}
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   ) : (
                     <span className="text-xs text-muted-foreground">
-                      Checked via backend health endpoint
+                      {t("checkedViaBackend")}
                     </span>
                   )}
                 </CardFooter>

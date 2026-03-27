@@ -510,7 +510,7 @@ export default function AgentPage() {
         setInstructionFields({ ...EMPTY_FIELDS, qualification: [] });
         setAutoStart(false);
         setLastUpdated(null);
-        toast.error("Failed to load agent configuration");
+        toast.error(t("loadConfigError"));
       } finally {
         setLoading(false);
       }
@@ -589,7 +589,7 @@ export default function AgentPage() {
     setDeletingAgent(true);
     try {
       await agentConfigApi.delete(selectedAgent);
-      toast.success(`Agent "${selectedAgent}" deleted`);
+      toast.success(t("agentDeleted", { name: selectedAgent }));
       const updatedAgents = agents.filter((a) => a !== selectedAgent);
       setAgents(updatedAgents);
       setDeleteAgentConfirm(false);
@@ -601,7 +601,7 @@ export default function AgentPage() {
         localStorage.removeItem(LAST_AGENT_KEY);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete agent");
+      toast.error(err instanceof Error ? err.message : t("deleteAgentError"));
     } finally {
       setDeletingAgent(false);
     }
@@ -643,7 +643,7 @@ export default function AgentPage() {
       await loadKnowledge(selectedAgent);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to upload file"
+        err instanceof Error ? err.message : t("uploadError")
       );
     } finally {
       setUploading(false);
@@ -767,7 +767,7 @@ export default function AgentPage() {
       resetToolForm();
       await loadTools(selectedAgent);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save tool");
+      toast.error(err instanceof Error ? err.message : t("toolSaveError"));
     } finally {
       setSavingTool(false);
     }
@@ -793,7 +793,7 @@ export default function AgentPage() {
       setAgentTools((prev) =>
         prev.map((t) => (t.id === tool.id ? { ...t, enabled: !t.enabled } : t))
       );
-      toast.success(`Tool "${tool.name}" ${tool.enabled ? "disabled" : "enabled"}`);
+      toast.success(t(tool.enabled ? "toolDisabled" : "toolEnabled", { name: tool.name }));
     } catch {
       toast.error(t("toolToggleError"));
     }
@@ -804,7 +804,7 @@ export default function AgentPage() {
     try {
       const result = await agentToolsApi.seed(selectedAgent);
       if (result.seeded > 0) {
-        toast.success(`${result.seeded} default tool(s) created!`);
+        toast.success(t("defaultToolsCreated", { count: result.seeded }));
       } else {
         toast.info(t("defaultToolsExist"));
       }
@@ -819,7 +819,7 @@ export default function AgentPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">Loading configuration...</p>
+        <p className="text-muted-foreground">{t("loadingConfig")}</p>
       </div>
     );
   }
@@ -1250,7 +1250,7 @@ export default function AgentPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-1">
                           <Label htmlFor="rt-11l-stability" className="text-xs text-muted-foreground">
-                            Stability ({runtimeConfig.tts?.stability?.toFixed(2) ?? "0.50"})
+                            {t("stability")} ({runtimeConfig.tts?.stability?.toFixed(2) ?? "0.50"})
                           </Label>
                           <input
                             id="rt-11l-stability"
@@ -1268,13 +1268,13 @@ export default function AgentPage() {
                             className="w-full accent-primary h-2 cursor-pointer"
                           />
                           <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>More expressive</span>
-                            <span>More consistent</span>
+                            <span>{t("moreExpressive")}</span>
+                            <span>{t("moreConsistent")}</span>
                           </div>
                         </div>
                         <div className="space-y-1">
                           <Label htmlFor="rt-11l-similarity" className="text-xs text-muted-foreground">
-                            Similarity ({runtimeConfig.tts?.similarityBoost?.toFixed(2) ?? "0.75"})
+                            {t("similarity")} ({runtimeConfig.tts?.similarityBoost?.toFixed(2) ?? "0.75"})
                           </Label>
                           <input
                             id="rt-11l-similarity"
@@ -1292,13 +1292,13 @@ export default function AgentPage() {
                             className="w-full accent-primary h-2 cursor-pointer"
                           />
                           <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>More varied</span>
-                            <span>More faithful</span>
+                            <span>{t("moreVaried")}</span>
+                            <span>{t("moreFaithful")}</span>
                           </div>
                         </div>
                         <div className="space-y-1">
                           <Label htmlFor="rt-11l-speed" className="text-xs text-muted-foreground">
-                            Speed ({runtimeConfig.tts?.speed?.toFixed(1) ?? "1.0"})
+                            {t("speed")} ({runtimeConfig.tts?.speed?.toFixed(1) ?? "1.0"})
                           </Label>
                           <input
                             id="rt-11l-speed"
@@ -1806,7 +1806,7 @@ export default function AgentPage() {
                   {/* Greeting Mode */}
                   <div className="space-y-1 pt-1">
                     <Label htmlFor="rt-greeting-mode" className="text-xs text-muted-foreground">
-                      Greeting Mode
+                      {t("greetingMode")}
                     </Label>
                     <Select
                       value={runtimeConfig.greetingMode ?? "auto"}
@@ -1822,29 +1822,29 @@ export default function AgentPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="auto">
-                          Auto (say for ElevenLabs, generateReply for OpenAI)
+                          {t("greetingModeAuto")}
                         </SelectItem>
                         <SelectItem value="say">
-                          Say — TTS reads text literally (low latency)
+                          {t("greetingModeSay")}
                         </SelectItem>
                         <SelectItem value="generateReply">
-                          Generate Reply — LLM generates natural response
+                          {t("greetingModeGenerate")}
                         </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-[11px] text-muted-foreground">
-                      <strong>Say</strong> plays the exact greeting text via TTS (fastest). <strong>Generate Reply</strong> sends the text as instructions to the LLM, which generates a natural response (dynamic but slower).
+                      {t("greetingModeHelp")}
                     </p>
                   </div>
                 </div>
 
                 {/* Turn Detection (VAD) */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Turn Detection</Label>
+                  <Label className="text-sm font-semibold">{t("turnDetection")}</Label>
                   <p className="text-xs text-muted-foreground -mt-1">
                     {isPipelineMode
-                      ? "Pipeline mode: controla como o agente detecta que o usuário terminou de falar."
-                      : "Voice Activity Detection — controls when the agent detects the user has stopped speaking and can respond."}
+                      ? t("turnDetectionPipelineDescription")
+                      : t("turnDetectionDescription")}
                   </p>
 
                   {/* Pipeline mode: turn detection strategy */}
@@ -1852,7 +1852,7 @@ export default function AgentPage() {
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <Label htmlFor="rt-pipeline-td" className="text-xs text-muted-foreground">
-                          Turn Detector
+                          {t("turnDetector")}
                         </Label>
                         <Select
                           value={runtimeConfig.pipelineTurnDetector ?? "turn_detector_model"}
@@ -1867,16 +1867,16 @@ export default function AgentPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="turn_detector_model">Turn Detector Model — Contextual (Recomendado)</SelectItem>
-                            <SelectItem value="stt">STT — Baseado em transcrição</SelectItem>
-                            <SelectItem value="vad">VAD — Voice Activity Detection</SelectItem>
-                            <SelectItem value="manual">Manual — Controle manual</SelectItem>
+                            <SelectItem value="turn_detector_model">{t("turnDetectorModel")}</SelectItem>
+                            <SelectItem value="stt">{t("turnDetectorStt")}</SelectItem>
+                            <SelectItem value="vad">{t("turnDetectorVad")}</SelectItem>
+                            <SelectItem value="manual">{t("turnDetectorManual")}</SelectItem>
                           </SelectContent>
                         </Select>
                         <p className="text-[11px] text-muted-foreground">
-                          <strong>Turn Detector Model</strong>: modelo que usa contexto da conversa para decidir se o usuário terminou (evita interrupções em pausas naturais).{" "}
-                          <strong>STT</strong>: detecta fim pelo endpointing do STT.{" "}
-                          <strong>VAD</strong>: usa apenas detecção de voz/silêncio.
+                          {t("turnDetectorModelHelp")}{" "}
+                          {t("turnDetectorSttHelp")}{" "}
+                          {t("turnDetectorVadHelp")}
                         </p>
                       </div>
 
@@ -2400,7 +2400,7 @@ export default function AgentPage() {
                 {/* Humanization */}
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground -mt-1">
-                    Add human-like behaviors to make the agent sound more natural.
+                    {t("humanizationDescription")}
                   </p>
                   <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                     <div className="flex items-center gap-2">
@@ -2420,7 +2420,7 @@ export default function AgentPage() {
                         className="h-4 w-4 rounded border-border"
                       />
                       <Label htmlFor="rt-fillers" className="text-sm cursor-pointer">
-                        Fillers <span className="text-[10px] text-muted-foreground">(uhm, hmm…)</span>
+                        {t("fillers")} <span className="text-[10px] text-muted-foreground">{t("fillersHint")}</span>
                       </Label>
                     </div>
                     <div className="flex items-center gap-2">
@@ -2440,7 +2440,7 @@ export default function AgentPage() {
                         className="h-4 w-4 rounded border-border"
                       />
                       <Label htmlFor="rt-typing" className="text-sm cursor-pointer">
-                        Typing sounds <span className="text-[10px] text-muted-foreground">(keyboard clicks)</span>
+                        {t("typingSounds")} <span className="text-[10px] text-muted-foreground">{t("typingSoundsHint")}</span>
                       </Label>
                     </div>
                     <div className="flex items-center gap-2">
@@ -2460,7 +2460,7 @@ export default function AgentPage() {
                         className="h-4 w-4 rounded border-border"
                       />
                       <Label htmlFor="rt-ambience" className="text-sm cursor-pointer">
-                        Office ambience <span className="text-[10px] text-muted-foreground">(background noise)</span>
+                        {t("officeAmbience")} <span className="text-[10px] text-muted-foreground">{t("officeAmbienceHint")}</span>
                       </Label>
                     </div>
                   </div>
@@ -2469,10 +2469,10 @@ export default function AgentPage() {
                 {/* Timeouts */}
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold flex items-center gap-2">
-                    <Timer className="h-4 w-4" /> Timeouts
+                    <Timer className="h-4 w-4" /> {t("timeouts")}
                   </Label>
                   <p className="text-xs text-muted-foreground -mt-1">
-                    Automatic call termination rules. Leave empty to disable.
+                    {t("timeoutsDescription")}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1">
@@ -2480,7 +2480,7 @@ export default function AgentPage() {
                         htmlFor="rt-timeout"
                         className="text-xs text-muted-foreground"
                       >
-                        Inactivity timeout (seconds)
+                        {t("inactivityTimeout")}
                       </Label>
                       <Input
                         id="rt-timeout"
@@ -2504,7 +2504,7 @@ export default function AgentPage() {
                         htmlFor="rt-maxduration"
                         className="text-xs text-muted-foreground"
                       >
-                        Max call duration (seconds)
+                        {t("maxCallDuration")}
                       </Label>
                       <Input
                         id="rt-maxduration"
@@ -2528,7 +2528,7 @@ export default function AgentPage() {
                         htmlFor="rt-stt-final-timeout"
                         className="text-xs text-muted-foreground"
                       >
-                        STT final timeout (ms)
+                        {t("sttFinalTimeout")}
                       </Label>
                       <Input
                         id="rt-stt-final-timeout"
@@ -2844,16 +2844,15 @@ export default function AgentPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <BookOpen className="h-5 w-5" />
-                    Knowledge Base
+                    {t("knowledgeBase")}
                   </CardTitle>
                   <CardDescription>
-                    Upload TXT or PDF files to enrich the agent&apos;s context.
-                    Knowledge is automatically appended to instructions.
+                    {t("knowledgeBaseDescription")}
                   </CardDescription>
                 </div>
                 <Badge variant="secondary">
                   {knowledgeItems.length}{" "}
-                  {knowledgeItems.length === 1 ? "file" : "files"}
+                  {knowledgeItems.length === 1 ? t("file") : t("files")}
                 </Badge>
               </div>
             </CardHeader>
@@ -2874,7 +2873,7 @@ export default function AgentPage() {
                       className="cursor-pointer inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
                     >
                       <Upload className="h-4 w-4" />
-                      {uploading ? "Uploading..." : "Choose file (.txt, .pdf)"}
+                      {uploading ? t("uploading") : t("chooseFile")}
                     </Label>
                   </div>
 
@@ -2887,7 +2886,7 @@ export default function AgentPage() {
                       className="h-4 w-4 rounded border-border"
                     />
                     <Label htmlFor="summarize" className="text-sm cursor-pointer">
-                      Summarize before saving
+                      {t("summarizeBeforeSaving")}
                     </Label>
                   </div>
                 </div>
@@ -2896,9 +2895,7 @@ export default function AgentPage() {
                   <div className="flex items-start gap-2 rounded-md bg-yellow-500/10 border border-yellow-500/20 p-3 text-sm text-yellow-700 dark:text-yellow-400">
                     <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                     <span>
-                      The file will be summarized via AI (gpt-4o-mini) before saving.
-                      This reduces tokens and improves real-time performance, but
-                      some details may be simplified.
+                      {t("summarizeWarning")}
                     </span>
                   </div>
                 )}
@@ -2909,10 +2906,10 @@ export default function AgentPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>File</TableHead>
-                        <TableHead className="w-[100px]">Size</TableHead>
-                        <TableHead className="w-[100px]">Type</TableHead>
-                        <TableHead className="w-[140px]">Date</TableHead>
+                        <TableHead>{t("fileHeader")}</TableHead>
+                        <TableHead className="w-[100px]">{t("size")}</TableHead>
+                        <TableHead className="w-[100px]">{t("type")}</TableHead>
+                        <TableHead className="w-[140px]">{t("date")}</TableHead>
                         <TableHead className="w-[50px]" />
                       </TableRow>
                     </TableHeader>
@@ -2928,14 +2925,14 @@ export default function AgentPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-muted-foreground text-xs">
-                            {item.char_count.toLocaleString()} chars
+                            {item.char_count.toLocaleString()} {t("chars")}
                           </TableCell>
                           <TableCell>
                             <Badge
                               variant={item.summarized ? "default" : "outline"}
                               className="text-xs"
                             >
-                              {item.summarized ? "Summarized" : "Original"}
+                              {item.summarized ? t("summarized") : t("original")}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground text-xs">
@@ -2959,7 +2956,7 @@ export default function AgentPage() {
                 </div>
               ) : (
                 <div className="text-center py-6 text-sm text-muted-foreground">
-                  No knowledge files uploaded yet.
+                  {t("noKnowledge")}
                 </div>
               )}
             </CardContent>
@@ -2974,11 +2971,10 @@ export default function AgentPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Wrench className="h-5 w-5" />
-                    Agent Tools
+                    {t("agentTools")}
                   </CardTitle>
                   <CardDescription>
-                    Define which tools (functions) the agent can call during a conversation.
-                    Tools are loaded dynamically from the database when the worker starts a new session.
+                    {t("agentToolsDescription")}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -2993,11 +2989,11 @@ export default function AgentPage() {
                     ) : (
                       <RefreshCw className="mr-1 h-3 w-3" />
                     )}
-                    Seed Defaults
+                    {t("seedDefaults")}
                   </Button>
                   <Button size="sm" onClick={openToolDialogForCreate}>
                     <Plus className="mr-1 h-3 w-3" />
-                    Add Tool
+                    {t("addTool")}
                   </Button>
                 </div>
               </div>
@@ -3010,9 +3006,9 @@ export default function AgentPage() {
               ) : agentTools.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Wrench className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No tools configured for this agent.</p>
+                  <p className="text-sm">{t("noToolsConfigured")}</p>
                   <p className="text-xs mt-1">
-                    Click &quot;Add Tool&quot; to create an HTTP Request, Pre-Call Hook, or Post-Call Hook.
+                    {t("noToolsHint")}
                   </p>
                 </div>
               ) : (
@@ -3020,11 +3016,11 @@ export default function AgentPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[40px]">#</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="hidden md:table-cell">Description</TableHead>
-                      <TableHead className="w-[80px]">Enabled</TableHead>
-                      <TableHead className="w-[100px] text-right">Actions</TableHead>
+                      <TableHead>{tc("name")}</TableHead>
+                      <TableHead>{t("type")}</TableHead>
+                      <TableHead className="hidden md:table-cell">{t("descriptionLabel")}</TableHead>
+                      <TableHead className="w-[80px]">{t("enabled")}</TableHead>
+                      <TableHead className="w-[100px] text-right">{tc("actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -3106,7 +3102,7 @@ export default function AgentPage() {
           <Dialog open={toolDialogOpen} onOpenChange={(open) => { setToolDialogOpen(open); if (!open) resetToolForm(); }}>
             <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingTool ? "Edit Tool" : "Add Tool"}</DialogTitle>
+                <DialogTitle>{editingTool ? t("editTool") : t("addTool")}</DialogTitle>
                 <DialogDescription>
                   {editingTool
                     ? "Update the tool configuration."
@@ -3115,7 +3111,7 @@ export default function AgentPage() {
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <div className="space-y-1">
-                  <Label htmlFor="tool-name" className="text-sm">Name</Label>
+                  <Label htmlFor="tool-name" className="text-sm">{t("name")}</Label>
                   <Input
                     id="tool-name"
                     value={toolForm.name}
@@ -3137,7 +3133,7 @@ export default function AgentPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="tool-type" className="text-sm">Type</Label>
+                  <Label htmlFor="tool-type" className="text-sm">{t("type")}</Label>
                   <Select
                     value={toolForm.type}
                     onValueChange={(v) => setToolForm((p) => ({ ...p, type: v as ToolType }))}
@@ -3159,7 +3155,7 @@ export default function AgentPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="tool-desc" className="text-sm">Description</Label>
+                  <Label htmlFor="tool-desc" className="text-sm">{t("descriptionLabel")}</Label>
                   <Textarea
                     id="tool-desc"
                     value={toolForm.description}
@@ -3172,7 +3168,7 @@ export default function AgentPage() {
                 {toolForm.type !== "PRE_CALL" && toolForm.type !== "POST_CALL" && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">Parameters</Label>
+                    <Label className="text-sm">{t("parameters")}</Label>
                     <div className="flex items-center gap-1">
                       {paramsMode === "json" && (
                         <Button
@@ -3185,12 +3181,12 @@ export default function AgentPage() {
                               const parsed = JSON.parse(toolForm.parameters || "{}");
                               setToolForm((p) => ({ ...p, parameters: JSON.stringify(parsed, null, 2) }));
                             } catch {
-                              toast.error("Invalid JSON — cannot format");
+                              toast.error(t("invalidJsonFormat"));
                             }
                           }}
                         >
                           <Braces className="mr-1 h-3 w-3" />
-                          Format
+                          {t("formatJson")}
                         </Button>
                       )}
                       <div className="flex items-center rounded-md border bg-muted/30">
@@ -3285,7 +3281,7 @@ export default function AgentPage() {
                                 next[idx] = { ...next[idx], description: e.target.value };
                                 setParamRows(next);
                               }}
-                              placeholder="Description"
+                              placeholder={t("descriptionLabel")}
                               className="h-8 text-xs"
                             />
                           </div>
@@ -3335,7 +3331,7 @@ export default function AgentPage() {
                         onClick={() => setParamRows((r) => [...r, getExampleParamRow(toolForm.type)])}
                       >
                         <PlusCircle className="mr-1 h-3 w-3" />
-                        Add Parameter
+                        {t("addParameter")}
                       </Button>
                     </div>
                   )}
@@ -3358,7 +3354,7 @@ export default function AgentPage() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">Config</Label>
+                    <Label className="text-sm">{t("config")}</Label>
                     <div className="flex items-center gap-1">
                       {configMode === "json" && (
                         <Button
@@ -3371,12 +3367,12 @@ export default function AgentPage() {
                               const parsed = JSON.parse(toolForm.config || "{}");
                               setToolForm((p) => ({ ...p, config: JSON.stringify(parsed, null, 2) }));
                             } catch {
-                              toast.error("Invalid JSON — cannot format");
+                              toast.error(t("invalidJsonFormat"));
                             }
                           }}
                         >
                           <Braces className="mr-1 h-3 w-3" />
-                          Format
+                          {t("formatJson")}
                         </Button>
                       )}
                       <div className="flex items-center rounded-md border bg-muted/30">
@@ -3659,11 +3655,11 @@ export default function AgentPage() {
                       onChange={(e) => setToolForm((p) => ({ ...p, enabled: e.target.checked }))}
                       className="h-4 w-4 rounded border-border"
                     />
-                    <Label htmlFor="tool-enabled" className="text-sm cursor-pointer">Enabled</Label>
+                    <Label htmlFor="tool-enabled" className="text-sm cursor-pointer">{t("enabled")}</Label>
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="tool-order" className="text-sm">Order</Label>
+                      <Label htmlFor="tool-order" className="text-sm">{t("order")}</Label>
                       <Input
                         id="tool-order"
                         type="number"
@@ -3685,12 +3681,12 @@ export default function AgentPage() {
                   {savingTool ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
+                      {t("savingTool")}
                     </>
                   ) : editingTool ? (
-                    "Update Tool"
+                    t("updateTool")
                   ) : (
-                    "Create Tool"
+                    t("createTool")
                   )}
                 </Button>
               </DialogFooter>
@@ -3706,11 +3702,10 @@ export default function AgentPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Tag className="h-5 w-5" />
-                    Published Versions
+                    {t("publishedVersions")}
                   </CardTitle>
                   <CardDescription>
-                    Publish immutable snapshots of your agent configuration (instructions + runtime config + tools).
-                    Use versions to freeze configs that work and spawn workers with specific versions for testing.
+                    {t("publishedVersionsDescription")}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -3721,11 +3716,11 @@ export default function AgentPage() {
                     disabled={loadingVersions}
                   >
                     <RefreshCw className={`h-4 w-4 mr-1 ${loadingVersions ? "animate-spin" : ""}`} />
-                    Refresh
+                    {tc("refresh")}
                   </Button>
                   <Button size="sm" onClick={() => { setPublishDescription(""); setPublishDialogOpen(true); }}>
                     <Tag className="h-4 w-4 mr-1" />
-                    Publish Version
+                    {t("publishVersion")}
                   </Button>
                 </div>
               </div>
@@ -3737,18 +3732,17 @@ export default function AgentPage() {
                 </div>
               ) : versions.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  No versions published yet. Click &ldquo;Publish Version&rdquo; to create the first snapshot
-                  of your agent configuration.
+                  {t("noVersions")}
                 </div>
               ) : (
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[80px]">Version</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead className="w-[180px]">Published</TableHead>
-                        <TableHead className="w-[120px] text-right">Actions</TableHead>
+                        <TableHead className="w-[80px]">{t("versionHeader")}</TableHead>
+                        <TableHead>{t("descriptionLabel")}</TableHead>
+                        <TableHead className="w-[180px]">{t("published")}</TableHead>
+                        <TableHead className="w-[120px] text-right">{tc("actions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -3760,7 +3754,7 @@ export default function AgentPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {v.description || <span className="italic">No description</span>}
+                            {v.description || <span className="italic">{t("noDescription")}</span>}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {new Date(v.created_at).toLocaleString()}
@@ -3770,13 +3764,13 @@ export default function AgentPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="View details"
+                                title={t("viewDetails")}
                                 onClick={async () => {
                                   try {
                                     const detail = await agentVersionApi.get(selectedAgent, v.version);
                                     setViewingVersion(detail);
                                   } catch (err) {
-                                    toast.error(err instanceof Error ? err.message : "Failed to load version");
+                                    toast.error(err instanceof Error ? err.message : t("failedToLoadVersion"));
                                   }
                                 }}
                               >
@@ -3785,7 +3779,7 @@ export default function AgentPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                title="Restore to draft"
+                                title={t("restoreToDraft")}
                                 onClick={() => setRestoreConfirmVersion(v)}
                               >
                                 <RotateCcw className="h-4 w-4" />
@@ -3794,16 +3788,16 @@ export default function AgentPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-destructive hover:text-destructive"
-                                title="Delete version"
+                                title={t("deleteVersion")}
                                 disabled={deletingVersionNum === v.version}
                                 onClick={async () => {
                                   setDeletingVersionNum(v.version);
                                   try {
                                     await agentVersionApi.delete(selectedAgent, v.version);
-                                    toast.success(`Version v${v.version} deleted`);
+                                    toast.success(t("versionDeleted", { version: v.version }));
                                     loadVersions(selectedAgent);
                                   } catch (err) {
-                                    toast.error(err instanceof Error ? err.message : "Failed to delete version");
+                                    toast.error(err instanceof Error ? err.message : t("failedToDeleteVersion"));
                                   } finally {
                                     setDeletingVersionNum(null);
                                   }
@@ -3834,18 +3828,18 @@ export default function AgentPage() {
                   )}
                 </DialogTitle>
                 <DialogDescription>
-                  Published {viewingVersion?.created_at ? new Date(viewingVersion.created_at).toLocaleString() : ""}
+                  {t("published")} {viewingVersion?.created_at ? new Date(viewingVersion.created_at).toLocaleString() : ""}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <Label className="text-sm font-medium">Instructions</Label>
+                  <Label className="text-sm font-medium">{t("instructionsLabel")}</Label>
                   <pre className="mt-1 p-3 bg-muted rounded-md text-xs whitespace-pre-wrap max-h-[200px] overflow-y-auto">
-                    {viewingVersion?.instructions || "(empty)"}
+                    {viewingVersion?.instructions || t("empty")}
                   </pre>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Runtime Config</Label>
+                  <Label className="text-sm font-medium">{t("runtimeConfigLabel")}</Label>
                   <pre className="mt-1 p-3 bg-muted rounded-md text-xs whitespace-pre-wrap max-h-[200px] overflow-y-auto">
                     {viewingVersion?.runtime_config
                       ? JSON.stringify(
@@ -3855,25 +3849,25 @@ export default function AgentPage() {
                           null,
                           2
                         )
-                      : "(default)"}
+                      : t("default")}
                   </pre>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">
-                    Tools ({viewingVersion?.tools_snapshot?.length ?? 0})
+                    {t("toolsCount", { count: viewingVersion?.tools_snapshot?.length ?? 0 })}
                   </Label>
                   {viewingVersion?.tools_snapshot?.length > 0 ? (
                     <div className="mt-1 space-y-2">
-                      {viewingVersion.tools_snapshot.map((t: any, i: number) => (
+                      {viewingVersion.tools_snapshot.map((tool: any, i: number) => (
                         <div key={i} className="p-2 bg-muted rounded-md text-xs">
-                          <span className="font-medium">{t.name}</span>
-                          <Badge variant="outline" className="ml-2 text-xs">{t.type}</Badge>
-                          <p className="text-muted-foreground mt-0.5">{t.description}</p>
+                          <span className="font-medium">{tool.name}</span>
+                          <Badge variant="outline" className="ml-2 text-xs">{tool.type}</Badge>
+                          <p className="text-muted-foreground mt-0.5">{tool.description}</p>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-1 text-sm text-muted-foreground">(no tools)</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("noTools")}</p>
                   )}
                 </div>
               </div>
@@ -3886,10 +3880,10 @@ export default function AgentPage() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-amber-500" />
-                  Restore Version v{restoreConfirmVersion?.version}?
+                  {t("restoreVersionTitle", { version: restoreConfirmVersion?.version ?? 0 })}
                 </DialogTitle>
                 <DialogDescription>
-                  This will overwrite your current draft with the configuration from
+                  {t("restoreDescription")}
                   <strong> v{restoreConfirmVersion?.version}</strong>
                   {restoreConfirmVersion?.description && (
                     <> ({restoreConfirmVersion.description})</>
@@ -3897,8 +3891,7 @@ export default function AgentPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-3 text-sm text-amber-800 dark:text-amber-200">
-                <strong>Warning:</strong> Any unsaved changes in your current draft (instructions, runtime config, and tools) will be lost.
-                Consider publishing the current draft as a version first if you want to keep it.
+                <strong>{t("warning")}</strong> {t("restoreWarning")}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setRestoreConfirmVersion(null)}>
@@ -3912,13 +3905,13 @@ export default function AgentPage() {
                     setRestoring(true);
                     try {
                       await agentVersionApi.restore(selectedAgent, restoreConfirmVersion.version);
-                      toast.success(`Draft restored from v${restoreConfirmVersion.version}`);
+                      toast.success(t("draftRestored", { version: restoreConfirmVersion.version }));
                       setRestoreConfirmVersion(null);
                       // Reload all agent data to reflect restored config
                       loadConfig(selectedAgent);
                       loadTools(selectedAgent);
                     } catch (err) {
-                      toast.error(err instanceof Error ? err.message : "Failed to restore version");
+                      toast.error(err instanceof Error ? err.message : t("failedToRestoreVersion"));
                     } finally {
                       setRestoring(false);
                     }
@@ -3927,12 +3920,12 @@ export default function AgentPage() {
                   {restoring ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      Restoring...
+                      {t("restoring")}
                     </>
                   ) : (
                     <>
                       <RotateCcw className="h-4 w-4 mr-1" />
-                      Restore v{restoreConfirmVersion?.version}
+                      {t("restoreVersion", { version: restoreConfirmVersion?.version ?? 0 })}
                     </>
                   )}
                 </Button>
@@ -3952,11 +3945,11 @@ export default function AgentPage() {
               disabled={publishing}
             >
               <Tag className="h-4 w-4 mr-2" />
-              Publish Version
+              {t("publishVersion")}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               <Save className="h-4 w-4 mr-2" />
-              {saving ? "Saving..." : tc("save")}
+              {saving ? tc("saving") : tc("save")}
             </Button>
           </div>
         </div>
@@ -3966,17 +3959,16 @@ export default function AgentPage() {
       <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Publish New Version</DialogTitle>
+            <DialogTitle>{t("publishNewVersion")}</DialogTitle>
             <DialogDescription>
-              This will create an immutable snapshot of the current agent configuration
-              (instructions, runtime config, and tools). The version number will be v{(versions[0]?.version ?? 0) + 1}.
+              {t("publishNewVersionDescription", { version: (versions[0]?.version ?? 0) + 1 })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="version-desc">Description (optional)</Label>
+            <Label htmlFor="version-desc">{t("descriptionOptional")}</Label>
             <Textarea
               id="version-desc"
-              placeholder="e.g., Fixed greeting message, added transfer tool..."
+              placeholder={t("publishPlaceholder")}
               value={publishDescription}
               onChange={(e) => setPublishDescription(e.target.value)}
               rows={3}
@@ -3994,11 +3986,11 @@ export default function AgentPage() {
                     selectedAgent,
                     publishDescription.trim() || undefined,
                   );
-                  toast.success(`Version v${result.version} published!`);
+                  toast.success(t("versionPublished", { version: result.version }));
                   setPublishDialogOpen(false);
                   loadVersions(selectedAgent);
                 } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Failed to publish version");
+                  toast.error(err instanceof Error ? err.message : t("publishError"));
                 } finally {
                   setPublishing(false);
                 }
@@ -4008,12 +4000,12 @@ export default function AgentPage() {
               {publishing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  Publishing...
+                  {t("publishing")}
                 </>
               ) : (
                 <>
                   <Tag className="h-4 w-4 mr-1" />
-                  Publish v{(versions[0]?.version ?? 0) + 1}
+                  {t("publishVersionNumber", { version: (versions[0]?.version ?? 0) + 1 })}
                 </>
               )}
             </Button>
@@ -4027,9 +4019,7 @@ export default function AgentPage() {
           <DialogHeader>
             <DialogTitle>{t("deleteAgent")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the agent <strong>&quot;{selectedAgent}&quot;</strong>?
-              This will permanently remove the agent configuration, all knowledge items, tools, and deployment history.
-              This action cannot be undone.
+              {t("deleteAgentConfirm", { name: selectedAgent })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -4048,9 +4038,9 @@ export default function AgentPage() {
       <Dialog open={!!pendingDeleteKnowledgeId} onOpenChange={() => setPendingDeleteKnowledgeId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Knowledge Item</DialogTitle>
+            <DialogTitle>{t("deleteKnowledgeItem")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this knowledge item? This action cannot be undone.
+              {t("deleteKnowledgeConfirm")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -4061,7 +4051,7 @@ export default function AgentPage() {
               variant="destructive"
               onClick={() => pendingDeleteKnowledgeId && handleDeleteKnowledge(pendingDeleteKnowledgeId)}
             >
-              Delete
+              {tc("delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -4071,9 +4061,9 @@ export default function AgentPage() {
       <Dialog open={!!pendingDeleteToolId} onOpenChange={() => setPendingDeleteToolId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Tool</DialogTitle>
+            <DialogTitle>{t("deleteTool")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this tool? This action cannot be undone.
+              {t("deleteToolConfirm")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -4086,7 +4076,7 @@ export default function AgentPage() {
               disabled={!!deletingToolId}
             >
               {deletingToolId ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Delete
+              {tc("delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -58,6 +58,7 @@ import {
   Timer,
 } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -91,63 +92,65 @@ function formatDuration(seconds: number | null | undefined): string {
 
 const EVENT_TYPE_CONFIG: Record<
   string,
-  { label: string; icon: React.ElementType; color: string }
+  { labelKey: string; icon: React.ElementType; color: string }
 > = {
   USER_TRANSCRIPTION: {
-    label: "Transcrição",
+    labelKey: "transcription",
     icon: Mic,
     color: "bg-blue-500/10 text-blue-600",
   },
   CONVERSATION_ITEM: {
-    label: "Conversa",
+    labelKey: "conversation",
     icon: MessageSquare,
     color: "bg-green-500/10 text-green-600",
   },
   TOOL_EXECUTED: {
-    label: "Tool",
+    labelKey: "tool",
     icon: Wrench,
     color: "bg-purple-500/10 text-purple-600",
   },
   METRICS: {
-    label: "Métricas",
+    labelKey: "metrics",
     icon: Activity,
     color: "bg-amber-500/10 text-amber-600",
   },
   ERROR: {
-    label: "Erro",
+    labelKey: "error",
     icon: AlertTriangle,
     color: "bg-red-500/10 text-red-600",
   },
   SESSION_CLOSED: {
-    label: "Encerramento",
+    labelKey: "sessionClosed",
     icon: XCircle,
     color: "bg-gray-500/10 text-gray-600",
   },
   DTMF: {
-    label: "DTMF",
+    labelKey: "dtmf",
     icon: Hash,
     color: "bg-orange-500/10 text-orange-600",
   },
   FOLLOW_UP: {
-    label: "Follow-up",
+    labelKey: "followUp",
     icon: Phone,
     color: "bg-cyan-500/10 text-cyan-600",
   },
 };
 
 function EventBadge({ eventType }: { eventType: string }) {
+  const t = useTranslations("telephony.sessionDetail");
   const config = EVENT_TYPE_CONFIG[eventType] ?? {
-    label: eventType,
+    labelKey: eventType,
     icon: Activity,
     color: "bg-muted text-muted-foreground",
   };
   const Icon = config.icon;
+  const label = EVENT_TYPE_CONFIG[eventType] ? t(config.labelKey) : config.labelKey;
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${config.color}`}
     >
       <Icon className="h-3 w-3" />
-      {config.label}
+      {label}
     </span>
   );
 }
@@ -155,6 +158,7 @@ function EventBadge({ eventType }: { eventType: string }) {
 // ─── Event payload preview ──────────────────────────────────
 
 function EventPayloadPreview({ event }: { event: SessionEvent }) {
+  const t = useTranslations("telephony.sessionDetail");
   const p = event.payload;
 
   switch (event.event_type) {
@@ -164,11 +168,11 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
           <span className="text-sm">&ldquo;{p.transcript}&rdquo;</span>
           {p.isFinal ? (
             <Badge variant="default" className="text-[10px] px-1.5 py-0">
-              final
+              {t("final")}
             </Badge>
           ) : (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              parcial
+              {t("partial")}
             </Badge>
           )}
           {p.language && (
@@ -191,7 +195,7 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
           </span>
           <span className="text-sm line-clamp-2">
             {p.textContent || (
-              <span className="text-muted-foreground italic">vazio</span>
+              <span className="text-muted-foreground italic">{t("empty")}</span>
             )}
           </span>
           {p.interrupted && (
@@ -199,7 +203,7 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
               variant="destructive"
               className="text-[10px] px-1.5 py-0 shrink-0"
             >
-              interrompido
+              {t("interrupted")}
             </Badge>
           )}
         </div>
@@ -277,7 +281,7 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
     case "SESSION_CLOSED":
       return (
         <span className="text-sm">
-          Razão: <span className="font-medium">{p.reason}</span>
+          {t("reason")} <span className="font-medium">{p.reason}</span>
           {p.error && <span className="text-red-500 ml-2">({p.error})</span>}
         </span>
       );
@@ -290,7 +294,7 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
           </Badge>
           {p.participant_identity && (
             <span className="text-xs text-muted-foreground">
-              de {p.participant_identity}
+              {t("fromParticipant", { identity: p.participant_identity })}
             </span>
           )}
         </div>
@@ -301,17 +305,19 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
         <div className="flex items-center gap-2">
           <span className="text-sm">
             {p.action === "end_call"
-              ? "Encerrado por falta de resposta"
-              : `Tentativa ${p.count}${p.max > 0 ? "/" + p.max : ""}`}
+              ? t("endedNoResponse")
+              : p.max > 0
+                ? t("attemptWithMax", { count: p.count, max: p.max })
+                : t("attempt", { count: p.count })}
           </span>
           <Badge
             variant={p.action === "end_call" ? "destructive" : "secondary"}
             className="text-[10px] px-1.5 py-0"
           >
-            {p.action === "end_call" ? "encerrado" : "perguntou"}
+            {p.action === "end_call" ? t("closed") : t("asked")}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            após {p.timeoutSeconds}s de silêncio
+            {t("afterSilence", { seconds: p.timeoutSeconds })}
           </span>
         </div>
       );
@@ -328,6 +334,7 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
 // ─── Conversation Timeline (chat bubbles) ───────────────────
 
 function ConversationTimeline({ events }: { events: SessionEvent[] }) {
+  const t = useTranslations("telephony.sessionDetail");
   const filtered = events.filter(
     (e) => e.event_type === "CONVERSATION_ITEM"
   );
@@ -336,7 +343,7 @@ function ConversationTimeline({ events }: { events: SessionEvent[] }) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <MessageSquare className="h-10 w-10 text-muted-foreground mb-3" />
-        <p className="text-muted-foreground">Nenhum item de conversa</p>
+        <p className="text-muted-foreground">{t("noConversationItems")}</p>
       </div>
     );
   }
@@ -370,7 +377,7 @@ function ConversationTimeline({ events }: { events: SessionEvent[] }) {
                 }`}
               >
                 {formatTime(ev.occurred_at)}
-                {ev.payload.interrupted && " · interrompido"}
+                {ev.payload.interrupted && ` · ${t("interrupted")}`}
               </p>
             </div>
           </div>
@@ -419,6 +426,7 @@ function MetricCard({
 }
 
 function MetricsView({ events }: { events: SessionEvent[] }) {
+  const t = useTranslations("telephony.sessionDetail");
   const metricsEvents = events.filter((e) => e.event_type === "METRICS");
   const dtmfEvents = events.filter((e) => e.event_type === "DTMF");
 
@@ -426,7 +434,7 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <Activity className="h-10 w-10 text-muted-foreground mb-3" />
-        <p className="text-muted-foreground">Nenhuma métrica coletada</p>
+        <p className="text-muted-foreground">{t("noMetrics")}</p>
       </div>
     );
   }
@@ -440,11 +448,11 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
   }
 
   const metricTypeLabels: Record<string, string> = {
-    tts_metrics: "TTS (Text-to-Speech)",
-    realtime_model_metrics: "LLM (Modelo de Linguagem)",
-    llm_metrics: "LLM (Modelo de Linguagem)",
-    stt_metrics: "STT (Speech-to-Text)",
-    eou_metrics: "EOU (End of Utterance)",
+    tts_metrics: "tts",
+    realtime_model_metrics: "llm",
+    llm_metrics: "llm",
+    stt_metrics: "stt",
+    eou_metrics: "eou",
   };
 
   const dtmfSequence = dtmfEvents.map((e) => e.payload.digit).join(" → ");
@@ -454,25 +462,22 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
       {dtmfEvents.length > 0 && (
         <div>
           <h4 className="text-sm font-semibold mb-3">
-            DTMF (Dígitos){" "}
-            <span className="text-muted-foreground font-normal">
-              ({dtmfEvents.length} eventos)
-            </span>
+            {t("dtmfTitle", { count: dtmfEvents.length })}
           </h4>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <MetricCard
-              label="Total de dígitos"
+              label={t("totalDigits")}
               value={dtmfEvents.length}
               unit=""
             />
             <MetricCard
-              label="Dígitos únicos"
+              label={t("uniqueDigits")}
               value={new Set(dtmfEvents.map((e) => e.payload.digit)).size}
               unit=""
             />
           </div>
           <div className="mt-3 rounded-md border bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground mb-1">Sequência</p>
+            <p className="text-xs text-muted-foreground mb-1">{t("sequence")}</p>
             <p className="text-sm font-mono font-bold tracking-wider">
               {dtmfSequence}
             </p>
@@ -483,21 +488,21 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
       {Object.entries(byType).map(([type, items]) => (
         <div key={type}>
           <h4 className="text-sm font-semibold mb-3">
-            {metricTypeLabels[type] ?? type}{" "}
+            {metricTypeLabels[type] ? t(metricTypeLabels[type]) : type}{" "}
             <span className="text-muted-foreground font-normal">
-              ({items.length} amostras)
+              ({items.length} {t("samples")})
             </span>
           </h4>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {type === "tts_metrics" && (
               <>
                 <MetricCard
-                  label="TTFB médio"
+                  label={t("avgTtfb")}
                   value={avg(items, "ttfbMs")}
                   unit="ms"
                 />
                 <MetricCard
-                  label="Duração média"
+                  label={t("avgDuration")}
                   value={avg(items, "durationMs")}
                   unit="ms"
                 />
@@ -507,7 +512,7 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
                   unit="ms"
                 />
                 <MetricCard
-                  label="Caracteres (total)"
+                  label={t("totalCharacters")}
                   value={sum(items, "charactersCount")}
                   unit=""
                 />
@@ -516,27 +521,27 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
             {(type === "realtime_model_metrics" || type === "llm_metrics") && (
               <>
                 <MetricCard
-                  label="TTFT médio"
+                  label={t("avgTtft")}
                   value={avg(items, "ttftMs")}
                   unit="ms"
                 />
                 <MetricCard
-                  label="Duração média"
+                  label={t("avgDuration")}
                   value={avg(items, "durationMs")}
                   unit="ms"
                 />
                 <MetricCard
-                  label="Tokens In (total)"
+                  label={t("tokensIn")}
                   value={sum(items, "inputTokens")}
                   unit=""
                 />
                 <MetricCard
-                  label="Tokens Out (total)"
+                  label={t("tokensOut")}
                   value={sum(items, "outputTokens")}
                   unit=""
                 />
                 <MetricCard
-                  label="Velocidade média"
+                  label={t("avgSpeed")}
                   value={avg(items, "tokensPerSecond")}
                   unit="tok/s"
                 />
@@ -544,7 +549,7 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
             )}
             {type === "stt_metrics" && (
               <MetricCard
-                label="Duração média"
+                label={t("avgDuration")}
                 value={avg(items, "durationMs")}
                 unit="ms"
               />
@@ -552,7 +557,7 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
             {type === "eou_metrics" && (
               <>
                 <MetricCard
-                  label="EOU delay médio"
+                  label={t("avgEouDelay")}
                   value={avg(items, "endOfUtteranceDelayMs")}
                   unit="ms"
                 />
@@ -749,6 +754,7 @@ export default function SessionDetailPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = use(params);
+  const t = useTranslations("telephony.sessionDetail");
   const [session, setSession] = useState<CallSession | null>(null);
   const [events, setEvents] = useState<SessionEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1010,7 +1016,7 @@ export default function SessionDetailPage({
                 key={type}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${config?.color ?? "bg-muted text-muted-foreground"}`}
               >
-                {config?.label ?? type}: {count}
+                {config ? t(config.labelKey) : type}: {count}
               </span>
             );
           })}
@@ -1022,7 +1028,7 @@ export default function SessionDetailPage({
         <TabsList>
           <TabsTrigger value="conversation" className="gap-2">
             <MessageSquare className="h-4 w-4" />
-            Conversa
+            {t("conversation")}
           </TabsTrigger>
           <TabsTrigger value="timeline" className="gap-2">
             <Clock className="h-4 w-4" />
@@ -1030,7 +1036,7 @@ export default function SessionDetailPage({
           </TabsTrigger>
           <TabsTrigger value="metrics" className="gap-2">
             <Activity className="h-4 w-4" />
-            Métricas
+            {t("metrics")}
           </TabsTrigger>
         </TabsList>
 
@@ -1040,7 +1046,7 @@ export default function SessionDetailPage({
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5" />
-                Conversa
+                {t("conversation")}
               </CardTitle>
               <CardDescription>
                 Visualização estilo chat da interação entre usuário e agente.
@@ -1125,7 +1131,7 @@ export default function SessionDetailPage({
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5" />
-                Métricas de Performance
+                {t("metrics")}
               </CardTitle>
               <CardDescription>
                 TTS, LLM, STT e EOU métricas coletadas durante a sessão.

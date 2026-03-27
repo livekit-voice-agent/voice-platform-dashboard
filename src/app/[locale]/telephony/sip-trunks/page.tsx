@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   sipTrunkApi,
   type SipInboundTrunk,
@@ -37,6 +38,8 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 
 export default function SipTrunksPage() {
+  const t = useTranslations("telephony.sipTrunks");
+  const tc = useTranslations("common");
   const [trunks, setTrunks] = useState<SipInboundTrunk[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -60,7 +63,7 @@ export default function SipTrunksPage() {
       const data = await sipTrunkApi.list();
       setTrunks(data);
     } catch (err: any) {
-      toast.error(err.message || "Failed to load SIP trunks");
+      toast.error(err.message || t("toastLoadError"));
     } finally {
       setLoading(false);
     }
@@ -104,7 +107,7 @@ export default function SipTrunksPage() {
 
   const handleSave = async () => {
     if (!formName.trim()) {
-      toast.error("Name is required");
+      toast.error(t("toastNameRequired"));
       return;
     }
     const numbers = parseCommaSeparated(formNumbers);
@@ -120,7 +123,7 @@ export default function SipTrunksPage() {
           name: formName,
           metadata: formMetadata || undefined,
         });
-        toast.success("SIP trunk updated");
+        toast.success(t("toastUpdated"));
       } else {
         const payload: CreateSipTrunkRequest = {
           name: formName,
@@ -131,13 +134,13 @@ export default function SipTrunksPage() {
           metadata: formMetadata || undefined,
         };
         await sipTrunkApi.create(payload);
-        toast.success("SIP trunk created");
+        toast.success(t("toastCreated"));
       }
       setDialogOpen(false);
       resetForm();
       fetchTrunks();
     } catch (err: any) {
-      toast.error(err.message || "Failed to save SIP trunk");
+      toast.error(err.message || t("toastSaveError"));
     } finally {
       setSaving(false);
     }
@@ -146,11 +149,11 @@ export default function SipTrunksPage() {
   const handleDelete = async (id: string) => {
     try {
       await sipTrunkApi.delete(id);
-      toast.success("SIP trunk deleted");
+      toast.success(t("toastDeleted"));
       setDeleteConfirmId(null);
       fetchTrunks();
     } catch (err: any) {
-      toast.error(err.message || "Failed to delete SIP trunk");
+      toast.error(err.message || t("toastDeleteError"));
     }
   };
 
@@ -158,14 +161,14 @@ export default function SipTrunksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">SIP Trunks</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">
-            Manage inbound SIP trunks for accepting calls via LiveKit.
+            {t("description")}
           </p>
         </div>
         <Button onClick={openCreateDialog}>
           <Plus className="mr-2 h-4 w-4" />
-          Create Trunk
+          {t("createTrunk")}
         </Button>
       </div>
 
@@ -173,10 +176,10 @@ export default function SipTrunksPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Phone className="h-5 w-5" />
-            Inbound Trunks
+            {t("inboundTrunks")}
           </CardTitle>
           <CardDescription>
-            Inbound trunks define how your SIP provider connects to LiveKit.
+            {t("inboundTrunksDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -187,21 +190,21 @@ export default function SipTrunksPage() {
           ) : trunks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Phone className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">No SIP trunks found</p>
+              <p className="text-muted-foreground">{t("noTrunksFound")}</p>
               <p className="text-sm text-muted-foreground">
-                Create your first inbound trunk to start accepting calls.
+                {t("createFirstTrunk")}
               </p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Numbers</TableHead>
-                  <TableHead>Allowed Numbers</TableHead>
-                  <TableHead>Krisp</TableHead>
-                  <TableHead>Trunk ID</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("tableName")}</TableHead>
+                  <TableHead>{t("tableNumbers")}</TableHead>
+                  <TableHead>{t("tableAllowedNumbers")}</TableHead>
+                  <TableHead>{t("tableKrisp")}</TableHead>
+                  <TableHead>{t("tableTrunkId")}</TableHead>
+                  <TableHead className="text-right">{t("tableActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -227,14 +230,14 @@ export default function SipTrunksPage() {
                                 {n}
                               </Badge>
                             ))
-                          : "All"}
+                          : t("allAllowed")}
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant={trunk.krispEnabled ? "default" : "secondary"}
                       >
-                        {trunk.krispEnabled ? "Enabled" : "Disabled"}
+                        {trunk.krispEnabled ? t("krispEnabled") : t("krispDisabled")}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
@@ -273,21 +276,21 @@ export default function SipTrunksPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingTrunk ? "Edit SIP Trunk" : "Create SIP Trunk"}
+              {editingTrunk ? t("editTitle") : t("createTitle")}
             </DialogTitle>
             <DialogDescription>
               {editingTrunk
-                ? "Update the trunk configuration."
-                : "Configure a new inbound SIP trunk for your SIP provider."}
+                ? t("editDescription")
+                : t("createDescription")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t("tableName")}</Label>
               <Input
                 id="name"
-                placeholder="My trunk"
+                placeholder={t("namePlaceholder")}
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
               />
@@ -297,9 +300,9 @@ export default function SipTrunksPage() {
               <>
                 <div className="grid gap-2">
                   <Label htmlFor="numbers">
-                    Phone Numbers{" "}
+                    {t("phoneNumbers")}{" "}
                     <span className="text-xs text-muted-foreground">
-                      (comma-separated)
+                      {t("phoneNumbersHint")}
                     </span>
                   </Label>
                   <Input
@@ -312,9 +315,9 @@ export default function SipTrunksPage() {
 
                 <div className="grid gap-2">
                   <Label htmlFor="allowedNumbers">
-                    Allowed Numbers{" "}
+                    {t("allowedNumbers")}{" "}
                     <span className="text-xs text-muted-foreground">
-                      (optional, comma-separated)
+                      {t("allowedNumbersHint")}
                     </span>
                   </Label>
                   <Input
@@ -327,9 +330,9 @@ export default function SipTrunksPage() {
 
                 <div className="grid gap-2">
                   <Label htmlFor="allowedAddresses">
-                    Allowed Addresses{" "}
+                    {t("allowedAddresses")}{" "}
                     <span className="text-xs text-muted-foreground">
-                      (optional, comma-separated IPs)
+                      {t("allowedAddressesHint")}
                     </span>
                   </Label>
                   <Input
@@ -349,7 +352,7 @@ export default function SipTrunksPage() {
                     className="h-4 w-4 rounded border-gray-300"
                   />
                   <Label htmlFor="krispEnabled">
-                    Enable Krisp Noise Cancellation
+                    {t("enableKrisp")}
                   </Label>
                 </div>
               </>
@@ -357,10 +360,7 @@ export default function SipTrunksPage() {
 
             <div className="grid gap-2">
               <Label htmlFor="metadata">
-                Metadata{" "}
-                <span className="text-xs text-muted-foreground">
-                  (optional)
-                </span>
+                {tc("metadataOptional")}
               </Label>
               <Input
                 id="metadata"
@@ -377,11 +377,11 @@ export default function SipTrunksPage() {
               onClick={() => setDialogOpen(false)}
               disabled={saving}
             >
-              Cancel
+              {tc("cancel")}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {editingTrunk ? "Update" : "Create"}
+              {editingTrunk ? tc("update") : tc("create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -394,10 +394,9 @@ export default function SipTrunksPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete SIP Trunk</DialogTitle>
+            <DialogTitle>{t("deleteTitle")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this SIP trunk? This action cannot
-              be undone. Incoming calls using this trunk will stop working.
+              {t("deleteConfirmation")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -405,13 +404,13 @@ export default function SipTrunksPage() {
               variant="outline"
               onClick={() => setDeleteConfirmId(null)}
             >
-              Cancel
+              {tc("cancel")}
             </Button>
             <Button
               variant="destructive"
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
             >
-              Delete
+              {tc("delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

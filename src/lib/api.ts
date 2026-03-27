@@ -197,6 +197,7 @@ export interface WorkerStatusEntry {
   running: boolean;
   hasFile: boolean;
   auto_start: boolean;
+  version: string | null;
 }
 
 export interface WorkerStatus {
@@ -213,11 +214,14 @@ export const agentWorkerApi = {
 
   available: () => request<string[]>("/agent-worker/available"),
 
-  spawn: (agentName: string) =>
-    request<WorkerRestartResponse>(
-      `/agent-worker/spawn?agentName=${encodeURIComponent(agentName)}`,
+  spawn: (agentName: string, version?: string) => {
+    const params = new URLSearchParams({ agentName });
+    if (version) params.set("version", version);
+    return request<WorkerRestartResponse>(
+      `/agent-worker/spawn?${params.toString()}`,
       { method: "POST" }
-    ),
+    );
+  },
 
   restart: (agentName: string) =>
     request<WorkerRestartResponse>(
@@ -229,6 +233,60 @@ export const agentWorkerApi = {
     request<WorkerRestartResponse>(
       `/agent-worker/kill?agentName=${encodeURIComponent(agentName)}`,
       { method: "DELETE" }
+    ),
+};
+
+// ─── Agent Versions ──────────────────────────────────────────────────────────
+
+export interface AgentVersionSummary {
+  id: string;
+  version: number;
+  description: string | null;
+  created_at: string;
+}
+
+export interface AgentVersionDetail extends AgentVersionSummary {
+  agent_name: string;
+  instructions: string;
+  runtime_config: string | null;
+  tools_snapshot: any[];
+}
+
+export const agentVersionApi = {
+  publish: (agentName: string, description?: string) =>
+    request<AgentVersionDetail>(
+      `/agent-version/${encodeURIComponent(agentName)}/publish`,
+      {
+        method: "POST",
+        body: JSON.stringify({ description }),
+      }
+    ),
+
+  list: (agentName: string) =>
+    request<AgentVersionSummary[]>(
+      `/agent-version/${encodeURIComponent(agentName)}`
+    ),
+
+  get: (agentName: string, version: number) =>
+    request<AgentVersionDetail>(
+      `/agent-version/${encodeURIComponent(agentName)}/${version}`
+    ),
+
+  getLatest: (agentName: string) =>
+    request<AgentVersionDetail>(
+      `/agent-version/${encodeURIComponent(agentName)}/latest`
+    ),
+
+  delete: (agentName: string, version: number) =>
+    request<AgentVersionDetail>(
+      `/agent-version/${encodeURIComponent(agentName)}/${version}`,
+      { method: "DELETE" }
+    ),
+
+  restore: (agentName: string, version: number) =>
+    request<{ restored: boolean; version: number; description: string | null }>(
+      `/agent-version/${encodeURIComponent(agentName)}/${version}/restore`,
+      { method: "POST" }
     ),
 };
 
