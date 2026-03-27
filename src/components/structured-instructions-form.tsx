@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Textarea } from "@/components/ui/textarea";
+import { ExpandableTextarea } from "@/components/ui/expandable-textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -199,6 +199,7 @@ export function StructuredInstructionsForm({
   onChange,
 }: StructuredInstructionsFormProps) {
   const t = useTranslations("agent.instructions_form");
+  const tc = useTranslations("common");
   const [advancedOpen, setAdvancedOpen] = useState(() => {
     return !!(
       value.flow ||
@@ -225,12 +226,14 @@ export function StructuredInstructionsForm({
             <p className="text-xs text-muted-foreground -mt-1">
               {t(field.descriptionKey)}
             </p>
-            <Textarea
+            <ExpandableTextarea
               value={value[field.key] as string}
               onChange={(e) => updateField(field.key, e.target.value)}
               rows={field.rows ?? 3}
               className="text-sm resize-none"
               placeholder={t(field.placeholderKey)}
+              expandLabel={tc("expand")}
+              collapseLabel={tc("collapse")}
             />
           </div>
         ))}
@@ -268,12 +271,14 @@ export function StructuredInstructionsForm({
                 <p className="text-xs text-muted-foreground -mt-1">
                   {t(field.descriptionKey)}
                 </p>
-                <Textarea
+                <ExpandableTextarea
                   value={value[field.key] as string}
                   onChange={(e) => updateField(field.key, e.target.value)}
                   rows={field.rows ?? 3}
                   className="text-sm resize-none"
                   placeholder={t(field.placeholderKey)}
+                  expandLabel={tc("expand")}
+                  collapseLabel={tc("collapse")}
                 />
               </div>
             ))}

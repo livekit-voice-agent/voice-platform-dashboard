@@ -209,7 +209,8 @@ export default function AgentPage() {
       model: "gpt-4o-mini-transcribe",
       language: "pt",
     },
-    sttFinalTimeoutMs: null,
+    // [DISABLED] STT final timeout
+    // sttFinalTimeoutMs: null,
     followUpTimeoutSeconds: null,
     followUpMessage: null,
     followUpMode: null,
@@ -2523,6 +2524,7 @@ export default function AgentPage() {
                         placeholder={t("disabledPlaceholder")}
                       />
                     </div>
+                    {/* [DISABLED] STT final timeout — UI field commented out
                     <div className="space-y-1">
                       <Label
                         htmlFor="rt-stt-final-timeout"
@@ -2548,6 +2550,7 @@ export default function AgentPage() {
                         placeholder={t("disabledPlaceholder")}
                       />
                     </div>
+                    */}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-3">
                     <div className="space-y-1">
@@ -2651,9 +2654,7 @@ export default function AgentPage() {
                   <p className="text-xs text-muted-foreground">
                     Leave empty to disable. Follow-up sends a message after silence
                     asking if the user is still there; Inactivity timeout ends the
-                    call after silence; max duration is a hard limit; STT final
-                    timeout injects the last partial transcription if no final
-                    arrives in time.
+                    call after silence; max duration is a hard limit.
                   </p>
                 </div>
 

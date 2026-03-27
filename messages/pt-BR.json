@@ -28,7 +28,9 @@
     "add": "Adicionar",
     "created": "Criado",
     "remove": "Remover",
-    "type": "Tipo"
+    "type": "Tipo",
+    "expand": "Expandir",
+    "collapse": "Recolher"
   },
   "sidebar": {
     "brand": "Voice Platform",
@@ -280,7 +282,7 @@
     "timeoutsDescription": "Regras de encerramento automático de chamada. Deixe vazio para desabilitar.",
     "inactivityTimeout": "Timeout de inatividade (segundos)",
     "maxCallDuration": "Duração máxima da chamada (segundos)",
-    "sttFinalTimeout": "Timeout final do STT (ms)",
+    "sttFinalTimeout_DISABLED": "Timeout final do STT (ms)",
     "savingTool": "Salvando...",
     "updateTool": "Atualizar Ferramenta",
     "createTool": "Criar Ferramenta",

@@ -28,7 +28,9 @@
     "add": "Add",
     "created": "Created",
     "remove": "Remove",
-    "type": "Type"
+    "type": "Type",
+    "expand": "Expand",
+    "collapse": "Collapse"
   },
   "sidebar": {
     "brand": "Voice Platform",
@@ -280,7 +282,7 @@
     "timeoutsDescription": "Automatic call termination rules. Leave empty to disable.",
     "inactivityTimeout": "Inactivity timeout (seconds)",
     "maxCallDuration": "Max call duration (seconds)",
-    "sttFinalTimeout": "STT final timeout (ms)",
+    "sttFinalTimeout_DISABLED": "STT final timeout (ms)",
     "savingTool": "Saving...",
     "updateTool": "Update Tool",
     "createTool": "Create Tool",

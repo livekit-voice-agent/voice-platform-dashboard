@@ -107,7 +107,8 @@ export interface RuntimeConfig {
     model?: string;
     language?: string;
   };
-  sttFinalTimeoutMs?: number | null;
+  // [DISABLED] STT final timeout
+  // sttFinalTimeoutMs?: number | null;
   followUpTimeoutSeconds?: number | null;
   followUpMessage?: string | null;
   followUpMode?: 'say' | 'generateReply' | null;
