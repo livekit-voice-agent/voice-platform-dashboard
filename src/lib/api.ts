@@ -575,6 +575,15 @@ export interface CallSession {
   ended_at: string | null;
 }
 
+export interface ListSessionsParams {
+  ticketField?: string;
+  ticketValue?: string;
+  hasTicket?: boolean;
+  agentName?: string;
+  status?: string;
+  limit?: number;
+}
+
 export interface AgentConfigSnapshot {
   model?: string;
   voice?: string;
@@ -634,7 +643,17 @@ export const roomApi = {
       body: JSON.stringify(data),
     }),
 
-  listSessions: () => request<CallSession[]>("/rooms"),
+  listSessions: (params?: ListSessionsParams) => {
+    const searchParams = new URLSearchParams();
+    if (params?.ticketField) searchParams.set("ticketField", params.ticketField);
+    if (params?.ticketValue) searchParams.set("ticketValue", params.ticketValue);
+    if (params?.hasTicket) searchParams.set("hasTicket", "true");
+    if (params?.agentName) searchParams.set("agentName", params.agentName);
+    if (params?.status) searchParams.set("status", params.status);
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    const qs = searchParams.toString();
+    return request<CallSession[]>(`/rooms${qs ? `?${qs}` : ""}`);
+  },
 
   listLive: () => request<LiveKitRoom[]>("/rooms/live"),
 

@@ -4,11 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   roomApi,
+  agentConfigApi,
   type LiveKitRoom,
   type CallSession,
+  type ListSessionsParams,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { AutoRefreshSelector } from "@/components/auto-refresh-selector";
 import { useAutoRefresh, type AutoRefreshInterval } from "@/hooks/useAutoRefresh";
 import {
@@ -34,17 +37,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   DoorOpen,
   Eye,
+  Filter,
   History,
   Radio,
+  Search,
   Trash2,
   Loader2,
   RefreshCw,
   Users,
+  X,
 } from "lucide-react";
 
 function formatDate(val: string | number | undefined): string {
@@ -82,6 +95,30 @@ export default function RoomsPage() {
   const [activeTab, setActiveTab] = useState("live");
   const router = useRouter();
 
+  // Filter state
+  const [agents, setAgents] = useState<string[]>([]);
+  const [filterTicketField, setFilterTicketField] = useState("");
+  const [filterTicketValue, setFilterTicketValue] = useState("");
+  const [filterAgent, setFilterAgent] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterHasTicket, setFilterHasTicket] = useState(false);
+  const [filtersApplied, setFiltersApplied] = useState(false);
+
+  useEffect(() => {
+    agentConfigApi.listAgents().then(setAgents).catch(() => {});
+  }, []);
+
+  const buildFilterParams = useCallback((): ListSessionsParams | undefined => {
+    const params: ListSessionsParams = {};
+    if (filterTicketField) params.ticketField = filterTicketField;
+    if (filterTicketValue) params.ticketValue = filterTicketValue;
+    if (filterAgent) params.agentName = filterAgent;
+    if (filterStatus) params.status = filterStatus;
+    if (filterHasTicket) params.hasTicket = true;
+
+    return Object.keys(params).length > 0 ? params : undefined;
+  }, [filterTicketField, filterTicketValue, filterAgent, filterStatus, filterHasTicket]);
+
   const fetchLiveRooms = useCallback(async () => {
     try {
       const data = await roomApi.listLive();
@@ -95,14 +132,16 @@ export default function RoomsPage() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const data = await roomApi.listSessions();
+      const params = buildFilterParams();
+      const data = await roomApi.listSessions(params);
       setSessions(data);
+      setFiltersApplied(!!params);
     } catch (err: any) {
       toast.error(err.message || "Failed to load call sessions");
     } finally {
       setLoadingSessions(false);
     }
-  }, []);
+  }, [buildFilterParams]);
 
   const handleRefresh = useCallback(() => {
     if (activeTab === "live") fetchLiveRooms();
@@ -258,6 +297,99 @@ export default function RoomsPage() {
 
         {/* ─── Call History ─── */}
         <TabsContent value="history">
+          {/* Filter Bar */}
+          <Card className="mb-4">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Filtros</span>
+                {filtersApplied && (
+                  <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Campo do Ticket</label>
+                  <Input
+                    placeholder="ex: ideia"
+                    value={filterTicketField}
+                    onChange={(e) => setFilterTicketField(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Valor</label>
+                  <Input
+                    placeholder="buscar no campo..."
+                    value={filterTicketValue}
+                    onChange={(e) => setFilterTicketValue(e.target.value)}
+                    className="h-8 text-sm"
+                    disabled={!filterTicketField}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Agente</label>
+                  <Select value={filterAgent} onValueChange={(v) => setFilterAgent(v === "_all" ? "" : v)}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_all">Todos</SelectItem>
+                      {agents.map((a) => (
+                        <SelectItem key={a} value={a}>{a}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Status</label>
+                  <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v === "_all" ? "" : v)}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_all">Todos</SelectItem>
+                      <SelectItem value="active">active</SelectItem>
+                      <SelectItem value="created">created</SelectItem>
+                      <SelectItem value="completed">completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end gap-2">
+                  <Button
+                    size="sm"
+                    className="h-8"
+                    onClick={() => {
+                      setLoadingSessions(true);
+                      fetchSessions();
+                    }}
+                  >
+                    <Search className="mr-1 h-3.5 w-3.5" />
+                    Buscar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => {
+                      setFilterTicketField("");
+                      setFilterTicketValue("");
+                      setFilterAgent("");
+                      setFilterStatus("");
+                      setFilterHasTicket(false);
+                      setFiltersApplied(false);
+                      setLoadingSessions(true);
+                      roomApi.listSessions().then(setSessions).catch(() => {}).finally(() => setLoadingSessions(false));
+                    }}
+                  >
+                    <X className="mr-1 h-3.5 w-3.5" />
+                    Limpar
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -265,6 +397,11 @@ export default function RoomsPage() {
                   <CardTitle className="flex items-center gap-2">
                     <History className="h-5 w-5" />
                     Call Sessions
+                    {filtersApplied && (
+                      <Badge variant="outline" className="text-xs font-normal">
+                        {sessions.length} resultado{sessions.length !== 1 ? "s" : ""}
+                      </Badge>
+                    )}
                   </CardTitle>
                   <CardDescription>
                     Recent call sessions stored in the database.
@@ -291,9 +428,13 @@ export default function RoomsPage() {
               ) : sessions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <History className="h-10 w-10 text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground">No call sessions</p>
+                  <p className="text-muted-foreground">
+                    {filtersApplied ? "Nenhuma session encontrada com esses filtros" : "No call sessions"}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    Sessions appear here when rooms are created via the API.
+                    {filtersApplied
+                      ? "Tente ajustar os filtros ou limpar a busca."
+                      : "Sessions appear here when rooms are created via the API."}
                   </p>
                 </div>
               ) : (
@@ -304,6 +445,7 @@ export default function RoomsPage() {
                       <TableHead>Status</TableHead>
                       <TableHead>Agent</TableHead>
                       <TableHead>From</TableHead>
+                      <TableHead>Ticket</TableHead>
                       <TableHead>Duration</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -312,6 +454,11 @@ export default function RoomsPage() {
                   <TableBody>
                     {sessions.map((session) => {
                       const meta = parseMetadata(session.metadata);
+                      const ticketKeys = session.ticket && typeof session.ticket === "object"
+                        ? Object.entries(session.ticket)
+                            .filter(([, v]) => v !== null && v !== undefined && v !== "" && v !== "null")
+                            .map(([k]) => k)
+                        : [];
                       return (
                         <TableRow
                           key={session.id}
@@ -338,6 +485,38 @@ export default function RoomsPage() {
                           </TableCell>
                           <TableCell>{session.agent_name || meta?.agent_name || "—"}</TableCell>
                           <TableCell>{session.phone_number || meta?.from_number || "—"}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {ticketKeys.length > 0 ? (
+                                ticketKeys.slice(0, 3).map((key) => (
+                                  <Badge
+                                    key={key}
+                                    variant="outline"
+                                    className="text-xs cursor-pointer hover:bg-primary/10"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setFilterTicketField(key);
+                                      setFilterTicketValue("");
+                                      setLoadingSessions(true);
+                                      roomApi.listSessions({ ticketField: key }).then(setSessions).catch(() => {}).finally(() => {
+                                        setLoadingSessions(false);
+                                        setFiltersApplied(true);
+                                      });
+                                    }}
+                                  >
+                                    #{key}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                              {ticketKeys.length > 3 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{ticketKeys.length - 3}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>{formatDuration(session.duration_seconds)}</TableCell>
                           <TableCell>
                             {formatDate(session.created_at)}
