@@ -1,17 +1,64 @@
+import { getSession } from "next-auth/react";
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+let currentProjectId: string | null = null;
+
+export function setCurrentProjectId(projectId: string | null) {
+  currentProjectId = projectId;
+  if (typeof window !== "undefined") {
+    if (projectId) {
+      localStorage.setItem("selectedProjectId", projectId);
+    } else {
+      localStorage.removeItem("selectedProjectId");
+    }
+  }
+}
+
+export function getCurrentProjectId(): string | null {
+  if (currentProjectId) return currentProjectId;
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("selectedProjectId");
+  }
+  return null;
+}
 
 async function request<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
+  const session = await getSession();
+  const projectId = getCurrentProjectId();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string>),
+  };
+
+  if (session?.apiToken) {
+    headers["Authorization"] = `Bearer ${session.apiToken}`;
+  }
+
+  if (projectId) {
+    headers["x-project-id"] = projectId;
+  }
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
     ...options,
+    headers,
   });
+
+  if (res.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    throw new Error("Unauthorized");
+  }
+
+  if (res.status === 403) {
+    throw new Error("You don't have permission for this action");
+  }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: res.statusText }));
@@ -166,12 +213,22 @@ export const agentKnowledgeApi = {
     const formData = new FormData();
     formData.append("file", file);
 
+    const session = await getSession();
+    const uploadHeaders: Record<string, string> = {};
+    if (session?.apiToken) {
+      uploadHeaders["Authorization"] = `Bearer ${session.apiToken}`;
+    }
+    const projectId = getCurrentProjectId();
+    if (projectId) {
+      uploadHeaders["x-project-id"] = projectId;
+    }
+
     const res = await fetch(
       `${API_BASE_URL}/agent-knowledge/upload?agentName=${encodeURIComponent(agentName)}&summarize=${summarize}`,
       {
         method: "POST",
+        headers: uploadHeaders,
         body: formData,
-        // Do NOT set Content-Type — browser sets it with multipart boundary
       }
     );
 
@@ -721,4 +778,93 @@ export const roomApi = {
       `/rooms/live/${encodeURIComponent(roomName)}`,
       { method: "DELETE" }
     ),
+};
+
+// ─── Projects API ────────────────────────────────────────────────
+export interface Project {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  created_at: string;
+  _count?: { members: number; agents: number };
+}
+
+export const projectApi = {
+  list: () => request<Project[]>("/projects"),
+  getById: (id: string) => request<Project>(`/projects/${id}`),
+  create: (data: { name: string; description?: string }) =>
+    request<Project>("/projects", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: { name?: string; description?: string }) =>
+    request<Project>(`/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    request<{ deleted: boolean }>(`/projects/${id}`, { method: "DELETE" }),
+  listMembers: (id: string) =>
+    request<any[]>(`/projects/${id}/members`),
+  addMember: (id: string, data: { user_id: string; role?: string }) =>
+    request<any>(`/projects/${id}/members`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateMemberRole: (projectId: string, userId: string, role: string) =>
+    request<any>(`/projects/${projectId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (projectId: string, userId: string) =>
+    request<{ removed: boolean }>(`/projects/${projectId}/members/${userId}`, {
+      method: "DELETE",
+    }),
+};
+
+// ─── Users API ────────────────────────────────────────────────
+export interface UserProfile {
+  id: string;
+  email: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  is_super_admin: boolean;
+  memberships?: Array<{
+    role: string;
+    project: { id: string; name: string; slug: string };
+  }>;
+}
+
+export const userApi = {
+  getMe: () => request<UserProfile>("/users/me"),
+  listAll: () => request<UserProfile[]>("/users"),
+  create: (data: {
+    email: string;
+    password: string;
+    name?: string;
+    is_super_admin?: boolean;
+  }) =>
+    request<UserProfile>("/users", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (
+    id: string,
+    data: { name?: string; avatar_url?: string; is_super_admin?: boolean }
+  ) =>
+    request<UserProfile>(`/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    request<{ deleted: boolean }>(`/users/${id}`, { method: "DELETE" }),
+  changePassword: (data: {
+    current_password: string;
+    new_password: string;
+  }) =>
+    request<{ updated: boolean }>("/users/me/password", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 };

@@ -11,9 +11,14 @@ import {
   DoorOpen,
   ChevronDown,
   Activity,
+  Shield,
+  Users,
+  FolderKanban,
 } from "lucide-react";
 import { useState } from "react";
+import { useIsSuperAdmin } from "@/lib/auth-utils";
 import { ProviderStatusWidget } from "./provider-status-widget";
+import { ProjectSwitcher } from "@/components/project/project-switcher";
 import {
   Sheet,
   SheetContent,
@@ -33,11 +38,20 @@ const telephonyItems = [
   { href: "/telephony/rooms" as const, labelKey: "rooms" as const, icon: DoorOpen },
 ];
 
+const adminItems = [
+  { href: "/admin/users" as const, labelKey: "adminUsers" as const, icon: Users },
+  { href: "/admin/projects" as const, labelKey: "adminProjects" as const, icon: FolderKanban },
+];
+
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const t = useTranslations("sidebar");
+  const isSuperAdmin = useIsSuperAdmin();
   const [telephonyOpen, setTelephonyOpen] = useState(
     pathname.startsWith("/telephony")
+  );
+  const [adminOpen, setAdminOpen] = useState(
+    pathname.startsWith("/admin")
   );
 
   return (
@@ -52,6 +66,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <span>{t("brand")}</span>
         </Link>
       </div>
+      <ProjectSwitcher />
       <nav className="flex-1 space-y-1 p-4">
         {navItems.map((item) => {
           const hasMoreSpecificMatch = navItems.some(
@@ -123,6 +138,50 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </div>
           )}
         </div>
+
+        {/* Admin Section - Super Admin Only */}
+        {isSuperAdmin && (
+          <div className="pt-3">
+            <button
+              onClick={() => setAdminOpen(!adminOpen)}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <Shield className="h-4 w-4" />
+              {t("admin")}
+              <ChevronDown
+                className={cn(
+                  "ml-auto h-4 w-4 transition-transform",
+                  adminOpen && "rotate-180"
+                )}
+              />
+            </button>
+            {adminOpen && (
+              <div className="ml-4 space-y-1 border-l pl-3 mt-1">
+                {adminItems.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onNavigate}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {t(item.labelKey)}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
       <ProviderStatusWidget />
     </>

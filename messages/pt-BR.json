@@ -41,7 +41,10 @@
     "sipTrunks": "SIP Trunks",
     "dispatchRules": "Dispatch Rules",
     "rooms": "Rooms",
-    "navigation": "Navegação"
+    "navigation": "Navegação",
+    "admin": "Admin",
+    "adminUsers": "Usuários",
+    "adminProjects": "Projetos"
   },
   "providers": {
     "title": "Status dos Provedores",
@@ -537,5 +540,70 @@
     "fiveSeconds": "5s",
     "tenSeconds": "10s",
     "oneMinute": "1min"
+  },
+  "auth": {
+    "login": "Entrar",
+    "loginDescription": "Digite suas credenciais para acessar a plataforma",
+    "register": "Criar Conta",
+    "registerDescription": "Preencha os dados abaixo para criar sua conta",
+    "email": "Email",
+    "password": "Senha",
+    "confirmPassword": "Confirmar Senha",
+    "name": "Nome",
+    "signIn": "Entrar",
+    "signInWithGoogle": "Entrar com Google",
+    "createAccount": "Criar Conta",
+    "noAccount": "Não tem uma conta?",
+    "hasAccount": "Já tem uma conta?",
+    "invalidCredentials": "Email ou senha inválidos",
+    "loginError": "Ocorreu um erro durante o login",
+    "registerError": "Ocorreu um erro durante o cadastro",
+    "passwordMismatch": "As senhas não coincidem",
+    "loading": "Carregando...",
+    "or": "ou",
+    "logout": "Sair",
+    "signOut": "Sair"
+  },
+  "project": {
+    "switcher": "Projeto",
+    "select": "Selecione um projeto",
+    "noProjects": "Nenhum projeto disponível",
+    "loading": "Carregando projetos..."
+  },
+  "admin": {
+    "title": "Administração",
+    "users": {
+      "title": "Usuários",
+      "description": "Gerenciar usuários da plataforma e seus acessos",
+      "create": "Criar Usuário",
+      "edit": "Editar Usuário",
+      "delete": "Excluir Usuário",
+      "deleteConfirm": "Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.",
+      "email": "Email",
+      "name": "Nome",
+      "password": "Senha",
+      "superAdmin": "Super Admin",
+      "createdAt": "Criado em",
+      "noUsers": "Nenhum usuário encontrado"
+    },
+    "projects": {
+      "title": "Projetos",
+      "description": "Descrição",
+      "create": "Criar Projeto",
+      "edit": "Editar Projeto",
+      "delete": "Excluir Projeto",
+      "deleteConfirm": "Tem certeza que deseja excluir este projeto? Todos os dados associados serão perdidos.",
+      "name": "Nome",
+      "slug": "Slug",
+      "members": "Membros",
+      "addMember": "Adicionar Membro",
+      "removeMember": "Remover Membro",
+      "changeRole": "Alterar Função",
+      "role": "Função",
+      "selectUser": "Selecionar usuário",
+      "selectRole": "Selecionar função",
+      "noProjects": "Nenhum projeto encontrado",
+      "noMembers": "Nenhum membro neste projeto"
+    }
   }
 }
