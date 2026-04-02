@@ -35,7 +35,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Phone, Plus, Pencil, Trash2, Loader2, X, ArrowRight } from "lucide-react";
 
 export default function SipTrunksPage() {
   const t = useTranslations("telephony.sipTrunks");
@@ -56,6 +56,9 @@ export default function SipTrunksPage() {
   const [formAllowedAddresses, setFormAllowedAddresses] = useState("");
   const [formKrispEnabled, setFormKrispEnabled] = useState(false);
   const [formMetadata, setFormMetadata] = useState("");
+  const [formHeaderMappings, setFormHeaderMappings] = useState<
+    { header: string; attribute: string }[]
+  >([]);
 
   const fetchTrunks = useCallback(async () => {
     try {
@@ -80,6 +83,7 @@ export default function SipTrunksPage() {
     setFormAllowedAddresses("");
     setFormKrispEnabled(false);
     setFormMetadata("");
+    setFormHeaderMappings([]);
     setEditingTrunk(null);
   };
 
@@ -132,6 +136,14 @@ export default function SipTrunksPage() {
           allowedAddresses: parseCommaSeparated(formAllowedAddresses),
           krispEnabled: formKrispEnabled,
           metadata: formMetadata || undefined,
+          headersToAttributes:
+            formHeaderMappings.length > 0
+              ? Object.fromEntries(
+                  formHeaderMappings
+                    .filter((m) => m.header.trim() && m.attribute.trim())
+                    .map((m) => [m.header.trim(), m.attribute.trim()])
+                )
+              : undefined,
         };
         await sipTrunkApi.create(payload);
         toast.success(t("toastCreated"));
@@ -203,6 +215,7 @@ export default function SipTrunksPage() {
                   <TableHead>{t("tableNumbers")}</TableHead>
                   <TableHead>{t("tableAllowedNumbers")}</TableHead>
                   <TableHead>{t("tableKrisp")}</TableHead>
+                  <TableHead>{t("tableHeaderMappings")}</TableHead>
                   <TableHead>{t("tableTrunkId")}</TableHead>
                   <TableHead className="text-right">{t("tableActions")}</TableHead>
                 </TableRow>
@@ -239,6 +252,19 @@ export default function SipTrunksPage() {
                       >
                         {trunk.krispEnabled ? t("krispEnabled") : t("krispDisabled")}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {trunk.headersToAttributes &&
+                      Object.keys(trunk.headersToAttributes).length > 0 ? (
+                        <Badge variant="outline">
+                          {Object.keys(trunk.headersToAttributes).length}{" "}
+                          {Object.keys(trunk.headersToAttributes).length === 1
+                            ? "mapping"
+                            : "mappings"}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {trunk.sipTrunkId}
@@ -369,6 +395,97 @@ export default function SipTrunksPage() {
                 onChange={(e) => setFormMetadata(e.target.value)}
               />
             </div>
+
+            {/* Headers to Attributes mapping */}
+            {!editingTrunk ? (
+              <div className="grid gap-2">
+                <Label>
+                  {t("headerMappings")}{" "}
+                  <span className="text-xs text-muted-foreground">
+                    {t("headerMappingsHint")}
+                  </span>
+                </Label>
+                {formHeaderMappings.map((mapping, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Input
+                      placeholder="X-Customer-Id"
+                      value={mapping.header}
+                      onChange={(e) => {
+                        const updated = [...formHeaderMappings];
+                        updated[idx] = { ...updated[idx], header: e.target.value };
+                        setFormHeaderMappings(updated);
+                      }}
+                      className="flex-1"
+                    />
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Input
+                      placeholder="customer_id"
+                      value={mapping.attribute}
+                      onChange={(e) => {
+                        const updated = [...formHeaderMappings];
+                        updated[idx] = { ...updated[idx], attribute: e.target.value };
+                        setFormHeaderMappings(updated);
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      onClick={() =>
+                        setFormHeaderMappings(
+                          formHeaderMappings.filter((_, i) => i !== idx)
+                        )
+                      }
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() =>
+                    setFormHeaderMappings([
+                      ...formHeaderMappings,
+                      { header: "", attribute: "" },
+                    ])
+                  }
+                >
+                  <Plus className="mr-2 h-3 w-3" />
+                  {t("addMapping")}
+                </Button>
+              </div>
+            ) : editingTrunk.headersToAttributes &&
+              Object.keys(editingTrunk.headersToAttributes).length > 0 ? (
+              <div className="grid gap-2">
+                <Label>
+                  {t("headerMappings")}{" "}
+                  <span className="text-xs text-muted-foreground">
+                    {t("headerMappingsReadonly")}
+                  </span>
+                </Label>
+                <div className="rounded-md border p-3 bg-muted/50 space-y-2">
+                  {Object.entries(editingTrunk.headersToAttributes).map(
+                    ([header, attr]) => (
+                      <div
+                        key={header}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <Badge variant="secondary" className="font-mono">
+                          {header}
+                        </Badge>
+                        <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <Badge variant="outline" className="font-mono">
+                          {attr}
+                        </Badge>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <DialogFooter>

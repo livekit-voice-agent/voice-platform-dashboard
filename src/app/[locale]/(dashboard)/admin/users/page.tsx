@@ -62,8 +62,8 @@ export default function AdminUsersPage() {
       setLoading(true);
       const data = await userApi.listAll();
       setUsers(data);
-    } catch {
-      toast.error("Failed to load users");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load users");
     } finally {
       setLoading(false);
     }
@@ -95,8 +95,8 @@ export default function AdminUsersPage() {
       setCreateOpen(false);
       setCreateForm({ name: "", email: "", password: "", is_super_admin: false });
       fetchUsers();
-    } catch {
-      toast.error("Failed to create user");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create user");
     } finally {
       setCreating(false);
     }
@@ -116,8 +116,8 @@ export default function AdminUsersPage() {
       toast.success("User updated");
       setEditOpen(false);
       fetchUsers();
-    } catch {
-      toast.error("Failed to update user");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update user");
     } finally {
       setUpdating(false);
     }
@@ -136,8 +136,8 @@ export default function AdminUsersPage() {
       toast.success("User deleted");
       setDeleteOpen(false);
       fetchUsers();
-    } catch {
-      toast.error("Failed to delete user");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete user");
     } finally {
       setDeleting(false);
     }

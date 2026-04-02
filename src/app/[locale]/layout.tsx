@@ -3,6 +3,7 @@ import { getMessages, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { hasLocale } from "next-intl";
 import { locales } from "@/i18n/config";
+import { LocaleSync } from "@/components/locale-sync";
 
 type Props = {
   children: React.ReactNode;
@@ -25,6 +26,7 @@ export default async function LocaleLayout({ children, params }: Props) {
 
   return (
     <NextIntlClientProvider messages={messages}>
+      <LocaleSync />
       {children}
     </NextIntlClientProvider>
   );

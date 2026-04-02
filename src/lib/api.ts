@@ -1,9 +1,21 @@
-import { getSession } from "next-auth/react";
-
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 let currentProjectId: string | null = null;
+let cachedApiToken: string | null = null;
+let currentLocale: string = "en";
+
+export function setApiToken(token: string | null) {
+  cachedApiToken = token;
+}
+
+export function getApiToken(): string | null {
+  return cachedApiToken;
+}
+
+export function setApiLocale(locale: string) {
+  currentLocale = locale;
+}
 
 export function setCurrentProjectId(projectId: string | null) {
   currentProjectId = projectId;
@@ -28,7 +40,7 @@ async function request<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
-  const session = await getSession();
+  const token = cachedApiToken;
   const projectId = getCurrentProjectId();
 
   const headers: Record<string, string> = {
@@ -36,12 +48,16 @@ async function request<T>(
     ...(options?.headers as Record<string, string>),
   };
 
-  if (session?.apiToken) {
-    headers["Authorization"] = `Bearer ${session.apiToken}`;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   if (projectId) {
     headers["x-project-id"] = projectId;
+  }
+
+  if (currentLocale) {
+    headers["Accept-Language"] = currentLocale;
   }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -57,12 +73,13 @@ async function request<T>(
   }
 
   if (res.status === 403) {
-    throw new Error("You don't have permission for this action");
+    const body = await res.json().catch(() => ({ message: "Forbidden" }));
+    throw new Error(body.message || "You don't have permission for this action");
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(error.message || `API error: ${res.status}`);
+    const body = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(body.message || `API error: ${res.status}`);
   }
 
   return res.json();
@@ -213,14 +230,17 @@ export const agentKnowledgeApi = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const session = await getSession();
+    const token = cachedApiToken;
     const uploadHeaders: Record<string, string> = {};
-    if (session?.apiToken) {
-      uploadHeaders["Authorization"] = `Bearer ${session.apiToken}`;
+    if (token) {
+      uploadHeaders["Authorization"] = `Bearer ${token}`;
     }
     const projectId = getCurrentProjectId();
     if (projectId) {
       uploadHeaders["x-project-id"] = projectId;
+    }
+    if (currentLocale) {
+      uploadHeaders["Accept-Language"] = currentLocale;
     }
 
     const res = await fetch(
@@ -253,7 +273,6 @@ export const agentKnowledgeApi = {
 
 export interface WorkerStatusEntry {
   running: boolean;
-  hasFile: boolean;
   auto_start: boolean;
   version: string | null;
 }
@@ -548,6 +567,7 @@ export interface SipInboundTrunk {
   allowedAddresses: string[];
   krispEnabled: boolean;
   metadata: string;
+  headersToAttributes?: Record<string, string>;
   createdAt?: number;
 }
 
@@ -558,6 +578,7 @@ export interface CreateSipTrunkRequest {
   allowedAddresses?: string[];
   krispEnabled?: boolean;
   metadata?: string;
+  headersToAttributes?: Record<string, string>;
 }
 
 export interface UpdateSipTrunkRequest {

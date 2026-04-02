@@ -618,8 +618,8 @@ export default function AgentPage() {
       });
       setLastUpdated(config.updated_at);
       toast.success(t("configSaved"));
-    } catch {
-      toast.error(t("configSaveError"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("configSaveError"));
     } finally {
       setSaving(false);
     }

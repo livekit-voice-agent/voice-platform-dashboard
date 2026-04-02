@@ -93,8 +93,8 @@ export default function AdminProjectsPage() {
       setLoading(true);
       const data = await projectApi.list();
       setProjects(data);
-    } catch {
-      toast.error("Failed to load projects");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
       setLoading(false);
     }
@@ -121,8 +121,8 @@ export default function AdminProjectsPage() {
       setLoadingMembers(true);
       const data = await projectApi.listMembers(projectId);
       setMembers(data);
-    } catch {
-      toast.error("Failed to load members");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load members");
     } finally {
       setLoadingMembers(false);
     }
@@ -160,8 +160,8 @@ export default function AdminProjectsPage() {
       setCreateOpen(false);
       setCreateForm({ name: "", description: "" });
       fetchProjects();
-    } catch {
-      toast.error("Failed to create project");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create project");
     } finally {
       setCreating(false);
     }
@@ -184,8 +184,8 @@ export default function AdminProjectsPage() {
       toast.success("Project updated");
       setEditOpen(false);
       fetchProjects();
-    } catch {
-      toast.error("Failed to update project");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update project");
     } finally {
       setUpdating(false);
     }
@@ -208,8 +208,8 @@ export default function AdminProjectsPage() {
         setMembers([]);
       }
       fetchProjects();
-    } catch {
-      toast.error("Failed to delete project");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete project");
     } finally {
       setDeleting(false);
     }
@@ -225,8 +225,8 @@ export default function AdminProjectsPage() {
       setAddMemberForm({ user_id: "", role: "VIEWER" });
       fetchMembers(expandedProject);
       fetchProjects();
-    } catch {
-      toast.error("Failed to add member");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add member");
     } finally {
       setAddingMember(false);
     }
@@ -241,8 +241,8 @@ export default function AdminProjectsPage() {
       await projectApi.updateMemberRole(projectId, userId, role);
       toast.success("Role updated");
       fetchMembers(projectId);
-    } catch {
-      toast.error("Failed to update role");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update role");
     }
   };
 
@@ -252,8 +252,8 @@ export default function AdminProjectsPage() {
       toast.success("Member removed");
       fetchMembers(projectId);
       fetchProjects();
-    } catch {
-      toast.error("Failed to remove member");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove member");
     }
   };
 

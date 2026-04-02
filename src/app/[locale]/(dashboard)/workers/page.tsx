@@ -248,7 +248,6 @@ export default function WorkersPage() {
                     <TableHead className="w-[100px]">{t("tableStatus")}</TableHead>
                     <TableHead className="w-[90px]">{t("tableVersion")}</TableHead>
                     <TableHead className="w-[110px]">{t("tableAutoStart")}</TableHead>
-                    <TableHead className="w-[90px]">{t("tableFile")}</TableHead>
                     <TableHead className="w-[180px] text-right">
                       {t("tableActions")}
                     </TableHead>
@@ -292,18 +291,9 @@ export default function WorkersPage() {
                           {status.auto_start ? t("autoStartOn") : t("autoStartOff")}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            status.hasFile ? "secondary" : "destructive"
-                          }
-                        >
-                          {status.hasFile ? t("fileYes") : t("fileNo")}
-                        </Badge>
-                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {!status.running && status.hasFile && (
+                          {!status.running && (
                             <Button
                               variant="outline"
                               size="sm"
