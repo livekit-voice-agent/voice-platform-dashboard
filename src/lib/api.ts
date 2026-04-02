@@ -129,6 +129,8 @@ export interface ExtractionField {
   description: string;
   options?: string[];
   required?: boolean;
+  /** Transient: raw text typed by the user in the options input (not persisted) */
+  _optionsText?: string;
 }
 
 export interface EndpointingConfig {

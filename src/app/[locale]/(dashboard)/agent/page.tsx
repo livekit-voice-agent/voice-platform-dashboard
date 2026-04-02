@@ -612,9 +612,19 @@ export default function AgentPage() {
     setSaving(true);
     try {
       const instructions = composeInstructions(instructionFields);
+      const sanitizedConfig = {
+        ...runtimeConfig,
+        extractionFields: (runtimeConfig.extractionFields ?? []).map(({ _optionsText, ...f }) => ({
+          ...f,
+          options: (_optionsText != null
+            ? _optionsText.split(",").map((s) => s.trim())
+            : f.options
+          )?.filter(Boolean),
+        })),
+      };
       const config = await agentConfigApi.update(instructions, selectedAgent, {
         auto_start: autoStart,
-        runtime_config: runtimeConfig,
+        runtime_config: sanitizedConfig,
       });
       setLastUpdated(config.updated_at);
       toast.success(t("configSaved"));
@@ -2813,13 +2823,25 @@ export default function AgentPage() {
                         <div>
                           <Label className="text-xs">Opções (separadas por vírgula)</Label>
                           <Input
-                            value={(field.options ?? []).join(", ")}
+                            value={field._optionsText ?? (field.options ?? []).join(", ")}
                             onChange={(e) =>
                               setRuntimeConfig((prev) => {
                                 const fields = [...(prev.extractionFields ?? [])];
                                 fields[idx] = {
                                   ...fields[idx],
-                                  options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+                                  _optionsText: e.target.value,
+                                };
+                                return { ...prev, extractionFields: fields };
+                              })
+                            }
+                            onBlur={(e) =>
+                              setRuntimeConfig((prev) => {
+                                const fields = [...(prev.extractionFields ?? [])];
+                                const parsed = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                                fields[idx] = {
+                                  ...fields[idx],
+                                  options: parsed,
+                                  _optionsText: undefined,
                                 };
                                 return { ...prev, extractionFields: fields };
                               })
