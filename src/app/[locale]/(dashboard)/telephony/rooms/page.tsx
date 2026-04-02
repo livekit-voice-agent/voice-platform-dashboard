@@ -158,6 +158,16 @@ export default function RoomsPage() {
     fetchSessions();
   }, [fetchLiveRooms, fetchSessions]);
 
+  useEffect(() => {
+    if (activeTab === "live") {
+      setLoadingLive(true);
+      fetchLiveRooms();
+    } else {
+      setLoadingSessions(true);
+      fetchSessions();
+    }
+  }, [activeTab]);
+
   const handleDeleteRoom = async (roomName: string) => {
     try {
       await roomApi.deleteLive(roomName);
