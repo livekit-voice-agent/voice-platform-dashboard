@@ -453,6 +453,7 @@ export default function AgentPage() {
           { key: "waitMessage", value: "One moment while I check that for you." },
           { key: "channel", value: "{{channel}}" },
           { key: "from_number", value: "{{from_number}}" },
+          { key: "room_name", value: "{{room_name}}" },
         ];
       case "PRE_CALL":
         return [
@@ -3607,6 +3608,7 @@ export default function AgentPage() {
                           <div className="flex flex-wrap gap-1 mt-1">
                             <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{phone_number}}`}</code>
                             <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{from_number}}`}</code>
+                            <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{room_name}}`}</code>
                             <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{customer_name}}`}</code>
                             <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{agent_name}}`}</code>
                             <code className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">{`{{to_number}}`}</code>
