@@ -460,13 +460,13 @@ export default function RoomsPage() {
                       <TableHead>{t("tableTicket")}</TableHead>
                       <TableHead>{t("tableDuration")}</TableHead>
                       <TableHead>{t("tableCreated")}</TableHead>
-                      <TableHead>Channel ID</TableHead>
+                      <TableHead>Canal</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {sessions.map((session) => {
                       const meta = parseMetadata(session.metadata);
-                      const channelId = meta?.channel_id || meta?.channelId || "—";
+                      const channel = session.channel || meta?.channel || "—";
                       const ticketKeys = session.ticket && typeof session.ticket === "object"
                         ? Object.entries(session.ticket)
                             .filter(([, v]) => v !== null && v !== undefined && v !== "" && v !== "null")
@@ -536,7 +536,7 @@ export default function RoomsPage() {
                           </TableCell>
                           <TableCell>
                             <span className="font-mono text-xs text-muted-foreground">
-                              {channelId}
+                              {channel}
                             </span>
                           </TableCell>
                         </TableRow>
