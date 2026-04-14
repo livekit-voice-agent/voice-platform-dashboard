@@ -49,7 +49,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   DoorOpen,
-  Eye,
   Filter,
   History,
   Radio,
@@ -461,12 +460,13 @@ export default function RoomsPage() {
                       <TableHead>{t("tableTicket")}</TableHead>
                       <TableHead>{t("tableDuration")}</TableHead>
                       <TableHead>{t("tableCreated")}</TableHead>
-                      <TableHead className="text-right">{t("tableActions")}</TableHead>
+                      <TableHead>Channel ID</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {sessions.map((session) => {
                       const meta = parseMetadata(session.metadata);
+                      const channelId = meta?.channel_id || meta?.channelId || "—";
                       const ticketKeys = session.ticket && typeof session.ticket === "object"
                         ? Object.entries(session.ticket)
                             .filter(([, v]) => v !== null && v !== undefined && v !== "" && v !== "null")
@@ -534,17 +534,10 @@ export default function RoomsPage() {
                           <TableCell>
                             {formatDate(session.created_at)}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/telephony/rooms/${session.id}`);
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                          <TableCell>
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {channelId}
+                            </span>
                           </TableCell>
                         </TableRow>
                       );
