@@ -1,7 +1,7 @@
+import { type NextRequest, NextResponse } from "next/server";
 import createIntlMiddleware from "next-intl/middleware";
-import { auth } from "@/auth";
+import { getToken } from "next-auth/jwt";
 import { routing } from "./i18n/navigation";
-import { NextResponse } from "next/server";
 
 const intlMiddleware = createIntlMiddleware(routing);
 
@@ -18,23 +18,27 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
-export default auth((req) => {
+export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Skip auth check for public paths
   if (isPublicPath(pathname)) {
     return intlMiddleware(req);
   }
 
-  // Check auth for all other paths
-  if (!req.auth) {
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET,
+    secureCookie: req.nextUrl.protocol === "https:",
+  });
+
+  if (!token) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   return intlMiddleware(req);
-});
+}
 
 export const config = {
   matcher: ["/((?!api/auth|_next|_vercel|.*\\..*).*)"],
