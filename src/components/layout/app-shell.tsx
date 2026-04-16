@@ -43,17 +43,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <MobileSidebar open={mobileOpen} onOpenChange={setMobileOpen} />
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center gap-3 border-b px-4">
+        <header className="flex h-12 items-center gap-3 border-b px-4">
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 md:hidden"
+            className="h-8 w-8 p-0 md:hidden"
             onClick={() => setMobileOpen(true)}
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-4 w-4" />
             <span className="sr-only">{tc("openMenu")}</span>
           </Button>
-          <span className="text-sm font-semibold md:hidden">{t("brand")}</span>
+          <span className="text-sm font-semibold tracking-tight md:hidden">{t("brand")}</span>
 
           <div className="ml-auto flex items-center gap-2">
             <LanguageSwitcher />

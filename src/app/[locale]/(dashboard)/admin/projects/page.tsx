@@ -12,6 +12,9 @@ import {
   ChevronRight,
   UserPlus,
   X,
+  FolderKanban,
+  Users,
+  Loader2,
 } from "lucide-react";
 
 import { projectApi, userApi, type Project, type UserProfile } from "@/lib/api";
@@ -19,8 +22,6 @@ import { useIsSuperAdmin } from "@/lib/auth-utils";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -258,87 +259,115 @@ export default function AdminProjectsPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t("projects.title")}</h1>
-          <p className="text-muted-foreground">{t("projects.description")}</p>
+          <h1 className="text-xl font-semibold tracking-tight">{t("projects.title")}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{t("projects.description")}</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-3 w-3" />
           {t("projects.create")}
         </Button>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50">
+              <FolderKanban className="h-3.5 w-3.5 text-blue-600" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">{t("projects.title")}</span>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">{projects.length}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
+              <Users className="h-3.5 w-3.5 text-emerald-600" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">{t("projects.members")}</span>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">
+            {projects.reduce((acc, p) => acc + (p._count?.members ?? 0), 0)}
+          </p>
+        </div>
+      </div>
+
       {loading ? (
-        <p className="text-muted-foreground">{tc("loading")}</p>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
       ) : projects.length === 0 ? (
-        <p className="text-muted-foreground">{t("projects.noProjects")}</p>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <FolderKanban className="h-10 w-10 text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">{t("projects.noProjects")}</p>
+        </div>
       ) : (
-        <div className="rounded-md border">
+        <div className="rounded-lg border bg-card overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
                 <TableHead className="w-[40px]" />
-                <TableHead>{t("projects.name")}</TableHead>
-                <TableHead>{t("projects.slug")}</TableHead>
-                <TableHead>{t("projects.description")}</TableHead>
-                <TableHead>{t("projects.members")}</TableHead>
-                <TableHead>{tc("created")}</TableHead>
-                <TableHead className="w-[100px]">{tc("actions")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("projects.name")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("projects.slug")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("projects.description")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("projects.members")}</TableHead>
+                <TableHead className="text-xs font-medium">{tc("created")}</TableHead>
+                <TableHead className="w-[80px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {projects.map((project) => (
                 <>
-                  <TableRow key={project.id}>
+                  <TableRow key={project.id} className="group">
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
+                      <button
+                        className="p-1 rounded hover:bg-muted"
                         onClick={() => toggleExpand(project.id)}
                       >
                         {expandedProject === project.id ? (
-                          <ChevronDown className="h-4 w-4" />
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                         ) : (
-                          <ChevronRight className="h-4 w-4" />
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                         )}
-                      </Button>
+                      </button>
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium text-sm">
                       {project.name}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{project.slug}</Badge>
+                      <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono font-medium text-muted-foreground">
+                        {project.slug}
+                      </span>
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate">
+                    <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
                       {project.description || "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-sm">
                       {project._count?.members ?? "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
                       {project.created_at
                         ? new Date(project.created_at).toLocaleDateString()
                         : "—"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          className="p-1 rounded hover:bg-muted"
                           onClick={() => openEdit(project)}
                         >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                        <button
+                          className="p-1 rounded hover:bg-red-50"
                           onClick={() => openDelete(project)}
                         >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                          <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                        </button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -346,7 +375,7 @@ export default function AdminProjectsPage() {
                   {/* Expanded Members Section */}
                   {expandedProject === project.id && (
                     <TableRow key={`${project.id}-members`}>
-                      <TableCell colSpan={7} className="bg-muted/50 p-4">
+                      <TableCell colSpan={7} className="bg-muted/30 p-4">
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-semibold">
@@ -355,87 +384,81 @@ export default function AdminProjectsPage() {
                             <Button
                               size="sm"
                               variant="outline"
+                              className="h-7 gap-1.5 text-xs"
                               onClick={() => setAddMemberOpen(true)}
                             >
-                              <UserPlus className="mr-2 h-3 w-3" />
+                              <UserPlus className="h-3 w-3" />
                               {t("projects.addMember")}
                             </Button>
                           </div>
 
                           {loadingMembers ? (
-                            <p className="text-sm text-muted-foreground">
-                              {tc("loading")}
-                            </p>
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            </div>
                           ) : members.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
                               {t("projects.noMembers")}
                             </p>
                           ) : (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>{t("users.name")}</TableHead>
-                                  <TableHead>{t("users.email")}</TableHead>
-                                  <TableHead>{t("projects.role")}</TableHead>
-                                  <TableHead className="w-[80px]">
-                                    {tc("actions")}
-                                  </TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {members.map((member) => (
-                                  <TableRow key={member.user_id}>
-                                    <TableCell>
-                                      {member.user?.name || "—"}
-                                    </TableCell>
-                                    <TableCell>
-                                      {member.user?.email || "—"}
-                                    </TableCell>
-                                    <TableCell>
-                                      <Select
-                                        value={member.role}
-                                        onValueChange={(value) =>
-                                          handleChangeRole(
-                                            project.id,
-                                            member.user_id,
-                                            value
-                                          )
-                                        }
-                                      >
-                                        <SelectTrigger className="w-[130px] h-8">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="ADMIN">
-                                            Admin
-                                          </SelectItem>
-                                          <SelectItem value="EDITOR">
-                                            Editor
-                                          </SelectItem>
-                                          <SelectItem value="VIEWER">
-                                            Viewer
-                                          </SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() =>
-                                          handleRemoveMember(
-                                            project.id,
-                                            member.user_id
-                                          )
-                                        }
-                                      >
-                                        <X className="h-4 w-4 text-destructive" />
-                                      </Button>
-                                    </TableCell>
+                            <div className="rounded-md border bg-card overflow-hidden">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                                    <TableHead className="text-xs font-medium">{t("users.name")}</TableHead>
+                                    <TableHead className="text-xs font-medium">{t("users.email")}</TableHead>
+                                    <TableHead className="text-xs font-medium">{t("projects.role")}</TableHead>
+                                    <TableHead className="w-[60px]" />
                                   </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
+                                </TableHeader>
+                                <TableBody>
+                                  {members.map((member) => (
+                                    <TableRow key={member.user_id} className="group/member">
+                                      <TableCell className="text-sm">
+                                        {member.user?.name || "—"}
+                                      </TableCell>
+                                      <TableCell className="text-sm text-muted-foreground">
+                                        {member.user?.email || "—"}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Select
+                                          value={member.role}
+                                          onValueChange={(value) =>
+                                            handleChangeRole(
+                                              project.id,
+                                              member.user_id,
+                                              value
+                                            )
+                                          }
+                                        >
+                                          <SelectTrigger className="w-[120px] h-7 text-xs">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="ADMIN">Admin</SelectItem>
+                                            <SelectItem value="EDITOR">Editor</SelectItem>
+                                            <SelectItem value="VIEWER">Viewer</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </TableCell>
+                                      <TableCell>
+                                        <button
+                                          className="p-1 rounded hover:bg-red-50 opacity-0 group-hover/member:opacity-100 transition-opacity"
+                                          onClick={() =>
+                                            handleRemoveMember(
+                                              project.id,
+                                              member.user_id
+                                            )
+                                          }
+                                        >
+                                          <X className="h-3.5 w-3.5 text-red-400" />
+                                        </button>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
                           )}
                         </div>
                       </TableCell>
@@ -445,49 +468,52 @@ export default function AdminProjectsPage() {
               ))}
             </TableBody>
           </Table>
+          <div className="border-t px-4 py-2.5 bg-muted/20">
+            <span className="text-xs text-muted-foreground">
+              {projects.length} {projects.length === 1 ? "project" : "projects"}
+            </span>
+          </div>
         </div>
       )}
 
       {/* Create Project Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("projects.create")}</DialogTitle>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
+                <FolderKanban className="h-3.5 w-3.5 text-violet-600" />
+              </span>
+              {t("projects.create")}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="create-project-name">
-                {t("projects.name")}
-              </Label>
+          <div className="p-5 space-y-4">
+            <div>
+              <label htmlFor="create-project-name" className="text-xs font-medium mb-1 block">{t("projects.name")}</label>
               <Input
                 id="create-project-name"
+                className="h-8"
                 value={createForm.name}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, name: e.target.value })
-                }
+                onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-project-desc">
-                {t("projects.description")}
-              </Label>
+            <div>
+              <label htmlFor="create-project-desc" className="text-xs font-medium mb-1 block">
+                {t("projects.description")} <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
               <Input
                 id="create-project-desc"
+                className="h-8"
                 value={createForm.description}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, description: e.target.value })
-                }
+                onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setCreateOpen(false)}>
               {tc("cancel")}
             </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={creating || !createForm.name}
-            >
+            <Button size="sm" className="h-8 text-xs" onClick={handleCreate} disabled={creating || !createForm.name}>
               {creating ? tc("saving") : tc("create")}
             </Button>
           </DialogFooter>
@@ -496,41 +522,42 @@ export default function AdminProjectsPage() {
 
       {/* Edit Project Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("projects.edit")}</DialogTitle>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
+                <Pencil className="h-3.5 w-3.5 text-violet-600" />
+              </span>
+              {t("projects.edit")}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-project-name">
-                {t("projects.name")}
-              </Label>
+          <div className="p-5 space-y-4">
+            <div>
+              <label htmlFor="edit-project-name" className="text-xs font-medium mb-1 block">{t("projects.name")}</label>
               <Input
                 id="edit-project-name"
+                className="h-8"
                 value={editForm.name}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, name: e.target.value })
-                }
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-project-desc">
-                {t("projects.description")}
-              </Label>
+            <div>
+              <label htmlFor="edit-project-desc" className="text-xs font-medium mb-1 block">
+                {t("projects.description")} <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
               <Input
                 id="edit-project-desc"
+                className="h-8"
                 value={editForm.description}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, description: e.target.value })
-                }
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditOpen(false)}>
               {tc("cancel")}
             </Button>
-            <Button onClick={handleEdit} disabled={updating}>
+            <Button size="sm" className="h-8 text-xs" onClick={handleEdit} disabled={updating}>
               {updating ? tc("saving") : tc("save")}
             </Button>
           </DialogFooter>
@@ -539,22 +566,25 @@ export default function AdminProjectsPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("projects.delete")}</DialogTitle>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50">
+                <Trash2 className="h-3.5 w-3.5 text-red-600" />
+              </span>
+              {t("projects.delete")}
+            </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {t("projects.deleteConfirm")}
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+          <div className="p-5">
+            <p className="text-sm text-muted-foreground">
+              {t("projects.deleteConfirm")}
+            </p>
+          </div>
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDeleteOpen(false)}>
               {tc("cancel")}
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
+            <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={handleDelete} disabled={deleting}>
               {deleting ? tc("loading") : tc("delete")}
             </Button>
           </DialogFooter>
@@ -563,28 +593,28 @@ export default function AdminProjectsPage() {
 
       {/* Add Member Dialog */}
       <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("projects.addMember")}</DialogTitle>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
+                <UserPlus className="h-3.5 w-3.5 text-blue-600" />
+              </span>
+              {t("projects.addMember")}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>{t("projects.selectUser")}</Label>
+          <div className="p-5 space-y-4">
+            <div>
+              <label className="text-xs font-medium mb-1 block">{t("projects.selectUser")}</label>
               <Select
                 value={addMemberForm.user_id}
-                onValueChange={(value) =>
-                  setAddMemberForm({ ...addMemberForm, user_id: value })
-                }
+                onValueChange={(value) => setAddMemberForm({ ...addMemberForm, user_id: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder={t("projects.selectUser")} />
                 </SelectTrigger>
                 <SelectContent>
                   {allUsers
-                    .filter(
-                      (u) =>
-                        !members.some((m) => m.user_id === u.id)
-                    )
+                    .filter((u) => !members.some((m) => m.user_id === u.id))
                     .map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.name || user.email} ({user.email})
@@ -593,15 +623,13 @@ export default function AdminProjectsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>{t("projects.selectRole")}</Label>
+            <div>
+              <label className="text-xs font-medium mb-1 block">{t("projects.selectRole")}</label>
               <Select
                 value={addMemberForm.role}
-                onValueChange={(value) =>
-                  setAddMemberForm({ ...addMemberForm, role: value })
-                }
+                onValueChange={(value) => setAddMemberForm({ ...addMemberForm, role: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder={t("projects.selectRole")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -612,17 +640,11 @@ export default function AdminProjectsPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setAddMemberOpen(false)}
-            >
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setAddMemberOpen(false)}>
               {tc("cancel")}
             </Button>
-            <Button
-              onClick={handleAddMember}
-              disabled={addingMember || !addMemberForm.user_id}
-            >
+            <Button size="sm" className="h-8 text-xs" onClick={handleAddMember} disabled={addingMember || !addMemberForm.user_id}>
               {addingMember ? tc("saving") : tc("add")}
             </Button>
           </DialogFooter>

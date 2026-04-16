@@ -18,24 +18,24 @@ export function ProjectSwitcher() {
 
   if (isLoading) {
     return (
-      <div className="px-6 py-3">
-        <p className="text-xs text-muted-foreground">{t("loading")}</p>
+      <div className="px-6 py-2">
+        <p className="text-[10px] text-muted-foreground">{t("loading")}</p>
       </div>
     );
   }
 
   if (projects.length === 0) {
     return (
-      <div className="px-6 py-3">
-        <p className="text-xs text-muted-foreground">{t("noProjects")}</p>
+      <div className="px-6 py-2">
+        <p className="text-[10px] text-muted-foreground">{t("noProjects")}</p>
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-3">
-      <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <FolderOpen className="h-3.5 w-3.5" />
+    <div className="px-3 py-2">
+      <label className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-3">
+        <FolderOpen className="h-3 w-3" />
         {t("switcher")}
       </label>
       <Select

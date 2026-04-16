@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   sipTrunkApi,
@@ -9,13 +9,6 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -33,9 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Phone, Plus, Pencil, Trash2, Loader2, X, ArrowRight } from "lucide-react";
+import { Phone, Plus, Pencil, Trash2, Loader2, X, ArrowRight, Link2, Mic } from "lucide-react";
 
 export default function SipTrunksPage() {
   const t = useTranslations("telephony.sipTrunks");
@@ -49,7 +40,6 @@ export default function SipTrunksPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form state
   const [formName, setFormName] = useState("");
   const [formNumbers, setFormNumbers] = useState("");
   const [formAllowedNumbers, setFormAllowedNumbers] = useState("");
@@ -75,6 +65,15 @@ export default function SipTrunksPage() {
   useEffect(() => {
     fetchTrunks();
   }, [fetchTrunks]);
+
+  const stats = useMemo(() => {
+    const total = trunks.length;
+    const withKrisp = trunks.filter((t) => t.krispEnabled).length;
+    const withMappings = trunks.filter(
+      (t) => t.headersToAttributes && Object.keys(t.headersToAttributes).length > 0
+    ).length;
+    return { total, withKrisp, withMappings };
+  }, [trunks]);
 
   const resetForm = () => {
     setFormName("");
@@ -115,10 +114,6 @@ export default function SipTrunksPage() {
       return;
     }
     const numbers = parseCommaSeparated(formNumbers);
-    // if (!editingTrunk && numbers.length === 0) {
-    //   toast.error("At least one phone number is required");
-    //   return;
-    // }
 
     setSaving(true);
     try {
@@ -169,153 +164,173 @@ export default function SipTrunksPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
-          <p className="text-muted-foreground">
-            {t("description")}
-          </p>
+          <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{t("description")}</p>
         </div>
-        <Button onClick={openCreateDialog}>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={openCreateDialog}>
+          <Plus className="h-3 w-3" />
           {t("createTrunk")}
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Phone className="h-5 w-5" />
-            {t("inboundTrunks")}
-          </CardTitle>
-          <CardDescription>
-            {t("inboundTrunksDescription")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50">
+              <Phone className="h-3.5 w-3.5 text-blue-600" />
             </div>
-          ) : trunks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Phone className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">{t("noTrunksFound")}</p>
-              <p className="text-sm text-muted-foreground">
-                {t("createFirstTrunk")}
-              </p>
+            <span className="text-xs font-medium text-muted-foreground">{t("inboundTrunks")}</span>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">{stats.total}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-violet-50">
+              <Mic className="h-3.5 w-3.5 text-violet-600" />
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("tableName")}</TableHead>
-                  <TableHead>{t("tableNumbers")}</TableHead>
-                  <TableHead>{t("tableAllowedNumbers")}</TableHead>
-                  <TableHead>{t("tableKrisp")}</TableHead>
-                  <TableHead>{t("tableHeaderMappings")}</TableHead>
-                  <TableHead>{t("tableTrunkId")}</TableHead>
-                  <TableHead className="text-right">{t("tableActions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {trunks.map((trunk) => (
-                  <TableRow key={trunk.sipTrunkId}>
-                    <TableCell className="font-medium">
-                      {trunk.name || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {(trunk.numbers || []).map((n) => (
-                          <Badge key={n} variant="secondary">
-                            {n}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {(trunk.allowedNumbers || []).length > 0
-                          ? trunk.allowedNumbers.map((n) => (
-                              <Badge key={n} variant="outline">
-                                {n}
-                              </Badge>
-                            ))
-                          : t("allAllowed")}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={trunk.krispEnabled ? "default" : "secondary"}
+            <span className="text-xs font-medium text-muted-foreground">Krisp</span>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">{stats.withKrisp}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50">
+              <Link2 className="h-3.5 w-3.5 text-amber-600" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">{t("tableHeaderMappings")}</span>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">{stats.withMappings}</p>
+        </div>
+      </div>
+
+      {/* Table */}
+      {trunks.length > 0 ? (
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead className="text-xs font-medium">{t("tableName")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("tableNumbers")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("tableKrisp")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("tableHeaderMappings")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("tableTrunkId")}</TableHead>
+                <TableHead className="w-[80px]" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {trunks.map((trunk) => (
+                <TableRow key={trunk.sipTrunkId} className="group">
+                  <TableCell className="font-medium text-sm">
+                    {trunk.name || "—"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {(trunk.numbers || []).map((n) => (
+                        <span
+                          key={n}
+                          className="inline-flex items-center rounded-md bg-blue-50 border border-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700"
+                        >
+                          {n}
+                        </span>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {trunk.krispEnabled ? (
+                      <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+                        Enabled
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {trunk.headersToAttributes &&
+                    Object.keys(trunk.headersToAttributes).length > 0 ? (
+                      <span className="inline-flex items-center rounded-md bg-amber-50 border border-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                        {Object.keys(trunk.headersToAttributes).length}{" "}
+                        {Object.keys(trunk.headersToAttributes).length === 1
+                          ? "mapping"
+                          : "mappings"}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-mono text-[11px] text-muted-foreground">
+                    {trunk.sipTrunkId}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        className="p-1 rounded hover:bg-muted"
+                        onClick={() => openEditDialog(trunk)}
                       >
-                        {trunk.krispEnabled ? t("krispEnabled") : t("krispDisabled")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {trunk.headersToAttributes &&
-                      Object.keys(trunk.headersToAttributes).length > 0 ? (
-                        <Badge variant="outline">
-                          {Object.keys(trunk.headersToAttributes).length}{" "}
-                          {Object.keys(trunk.headersToAttributes).length === 1
-                            ? "mapping"
-                            : "mappings"}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {trunk.sipTrunkId}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(trunk)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            setDeleteConfirmId(trunk.sipTrunkId)
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      <button
+                        className="p-1 rounded hover:bg-red-50"
+                        onClick={() => setDeleteConfirmId(trunk.sipTrunkId)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="border-t px-4 py-2.5 bg-muted/20">
+            <span className="text-xs text-muted-foreground">
+              {stats.total} {stats.total === 1 ? "trunk" : "trunks"}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Phone className="h-10 w-10 text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">{t("noTrunksFound")}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("createFirstTrunk")}</p>
+        </div>
+      )}
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="p-0 gap-0 sm:max-w-lg" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50">
+                {editingTrunk ? <Pencil className="h-3.5 w-3.5 text-sky-600" /> : <Phone className="h-3.5 w-3.5 text-sky-600" />}
+              </span>
               {editingTrunk ? t("editTitle") : t("createTitle")}
             </DialogTitle>
-            <DialogDescription>
-              {editingTrunk
-                ? t("editDescription")
-                : t("createDescription")}
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              {editingTrunk ? t("editDescription") : t("createDescription")}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">{t("tableName")}</Label>
+          <div className="p-5 space-y-5 max-h-[60vh] overflow-y-auto">
+            {/* Identity section */}
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Identity</div>
+            <div>
+              <label htmlFor="name" className="text-xs font-medium mb-1 block">{t("tableName")}</label>
               <Input
                 id="name"
+                className="h-8"
                 placeholder={t("namePlaceholder")}
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
@@ -324,180 +339,170 @@ export default function SipTrunksPage() {
 
             {!editingTrunk && (
               <>
-                <div className="grid gap-2">
-                  <Label htmlFor="numbers">
-                    {t("phoneNumbers")}{" "}
-                    <span className="text-xs text-muted-foreground">
-                      {t("phoneNumbersHint")}
-                    </span>
-                  </Label>
+                <div className="border-t" />
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Phone Numbers</div>
+                <div>
+                  <label htmlFor="numbers" className="text-xs font-medium mb-1 block">
+                    {t("phoneNumbers")} <span className="text-muted-foreground font-normal">{t("phoneNumbersHint")}</span>
+                  </label>
                   <Input
                     id="numbers"
+                    className="h-8 font-mono text-xs"
                     placeholder="+15105550100, +15105550101"
                     value={formNumbers}
                     onChange={(e) => setFormNumbers(e.target.value)}
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="allowedNumbers">
-                    {t("allowedNumbers")}{" "}
-                    <span className="text-xs text-muted-foreground">
-                      {t("allowedNumbersHint")}
-                    </span>
-                  </Label>
+                <div className="border-t" />
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Security</div>
+                <div>
+                  <label htmlFor="allowedNumbers" className="text-xs font-medium mb-1 block">
+                    {t("allowedNumbers")} <span className="text-muted-foreground font-normal">{t("allowedNumbersHint")}</span>
+                  </label>
                   <Input
                     id="allowedNumbers"
+                    className="h-8 font-mono text-xs"
                     placeholder="+13105550100"
                     value={formAllowedNumbers}
                     onChange={(e) => setFormAllowedNumbers(e.target.value)}
                   />
                 </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="allowedAddresses">
-                    {t("allowedAddresses")}{" "}
-                    <span className="text-xs text-muted-foreground">
-                      {t("allowedAddressesHint")}
-                    </span>
-                  </Label>
+                <div>
+                  <label htmlFor="allowedAddresses" className="text-xs font-medium mb-1 block">
+                    {t("allowedAddresses")} <span className="text-muted-foreground font-normal">{t("allowedAddressesHint")}</span>
+                  </label>
                   <Input
                     id="allowedAddresses"
+                    className="h-8 font-mono text-xs"
                     placeholder="192.168.1.10"
                     value={formAllowedAddresses}
                     onChange={(e) => setFormAllowedAddresses(e.target.value)}
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="border-t" />
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Options</div>
+                <label htmlFor="krispEnabled" className="flex items-center justify-between rounded-lg border px-3 py-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                  <div>
+                    <span className="text-xs font-medium">{t("enableKrisp")}</span>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">AI-powered noise cancellation for calls</p>
+                  </div>
                   <input
                     type="checkbox"
                     id="krispEnabled"
                     checked={formKrispEnabled}
                     onChange={(e) => setFormKrispEnabled(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border-gray-300 accent-foreground"
                   />
-                  <Label htmlFor="krispEnabled">
-                    {t("enableKrisp")}
-                  </Label>
-                </div>
+                </label>
               </>
             )}
 
-            <div className="grid gap-2">
-              <Label htmlFor="metadata">
+            <div className="border-t" />
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Metadata</div>
+            <div>
+              <label htmlFor="metadata" className="text-xs font-medium mb-1 block">
                 {tc("metadataOptional")}
-              </Label>
+              </label>
               <Input
                 id="metadata"
+                className="h-8 font-mono text-xs"
                 placeholder='{"team": "sales"}'
                 value={formMetadata}
                 onChange={(e) => setFormMetadata(e.target.value)}
               />
             </div>
 
-            {/* Headers to Attributes mapping */}
+            {/* Header Mappings */}
             {!editingTrunk ? (
-              <div className="grid gap-2">
-                <Label>
-                  {t("headerMappings")}{" "}
-                  <span className="text-xs text-muted-foreground">
-                    {t("headerMappingsHint")}
-                  </span>
-                </Label>
-                {formHeaderMappings.map((mapping, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input
-                      placeholder="X-Customer-Id"
-                      value={mapping.header}
-                      onChange={(e) => {
-                        const updated = [...formHeaderMappings];
-                        updated[idx] = { ...updated[idx], header: e.target.value };
-                        setFormHeaderMappings(updated);
-                      }}
-                      className="flex-1"
-                    />
-                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <Input
-                      placeholder="customer_id"
-                      value={mapping.attribute}
-                      onChange={(e) => {
-                        const updated = [...formHeaderMappings];
-                        updated[idx] = { ...updated[idx], attribute: e.target.value };
-                        setFormHeaderMappings(updated);
-                      }}
-                      className="flex-1"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      type="button"
-                      onClick={() =>
-                        setFormHeaderMappings(
-                          formHeaderMappings.filter((_, i) => i !== idx)
-                        )
-                      }
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+              <>
+                <div className="border-t" />
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {t("headerMappings")} <span className="font-normal normal-case">{t("headerMappingsHint")}</span>
+                </div>
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="grid grid-cols-[1fr_28px_1fr_32px] gap-0 items-center bg-muted/40 px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <span>SIP Header</span>
+                    <span />
+                    <span>Attribute</span>
+                    <span />
                   </div>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={() =>
-                    setFormHeaderMappings([
-                      ...formHeaderMappings,
-                      { header: "", attribute: "" },
-                    ])
-                  }
-                >
-                  <Plus className="mr-2 h-3 w-3" />
-                  {t("addMapping")}
-                </Button>
-              </div>
+                  {formHeaderMappings.map((mapping, idx) => (
+                    <div key={idx} className="grid grid-cols-[1fr_28px_1fr_32px] gap-0 items-center px-3 py-1.5 border-t group">
+                      <Input
+                        placeholder="X-Customer-Id"
+                        value={mapping.header}
+                        onChange={(e) => {
+                          const updated = [...formHeaderMappings];
+                          updated[idx] = { ...updated[idx], header: e.target.value };
+                          setFormHeaderMappings(updated);
+                        }}
+                        className="h-7 text-xs font-mono border-0 bg-transparent p-0 focus-visible:ring-0 shadow-none"
+                      />
+                      <ArrowRight className="h-3 w-3 text-muted-foreground mx-auto" />
+                      <Input
+                        placeholder="customer_id"
+                        value={mapping.attribute}
+                        onChange={(e) => {
+                          const updated = [...formHeaderMappings];
+                          updated[idx] = { ...updated[idx], attribute: e.target.value };
+                          setFormHeaderMappings(updated);
+                        }}
+                        className="h-7 text-xs font-mono border-0 bg-transparent p-0 focus-visible:ring-0 shadow-none"
+                      />
+                      <button
+                        className="p-1 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity mx-auto"
+                        type="button"
+                        onClick={() => setFormHeaderMappings(formHeaderMappings.filter((_, i) => i !== idx))}
+                      >
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="w-full border-t px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors flex items-center gap-1.5"
+                    onClick={() => setFormHeaderMappings([...formHeaderMappings, { header: "", attribute: "" }])}
+                  >
+                    <Plus className="h-3 w-3" />
+                    {t("addMapping")}
+                  </button>
+                </div>
+              </>
             ) : editingTrunk.headersToAttributes &&
               Object.keys(editingTrunk.headersToAttributes).length > 0 ? (
-              <div className="grid gap-2">
-                <Label>
-                  {t("headerMappings")}{" "}
-                  <span className="text-xs text-muted-foreground">
-                    {t("headerMappingsReadonly")}
-                  </span>
-                </Label>
-                <div className="rounded-md border p-3 bg-muted/50 space-y-2">
+              <>
+                <div className="border-t" />
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {t("headerMappings")} <span className="font-normal normal-case">{t("headerMappingsReadonly")}</span>
+                </div>
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="grid grid-cols-[1fr_28px_1fr] gap-0 items-center bg-muted/40 px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <span>SIP Header</span>
+                    <span />
+                    <span>Attribute</span>
+                  </div>
                   {Object.entries(editingTrunk.headersToAttributes).map(
                     ([header, attr]) => (
-                      <div
-                        key={header}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <Badge variant="secondary" className="font-mono">
-                          {header}
-                        </Badge>
-                        <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                        <Badge variant="outline" className="font-mono">
-                          {attr}
-                        </Badge>
+                      <div key={header} className="grid grid-cols-[1fr_28px_1fr] gap-0 items-center px-3 py-1.5 border-t">
+                        <span className="text-xs font-mono">{header}</span>
+                        <ArrowRight className="h-3 w-3 text-muted-foreground mx-auto" />
+                        <span className="text-xs font-mono">{attr}</span>
                       </div>
                     )
                   )}
                 </div>
-              </div>
+              </>
             ) : null}
           </div>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              disabled={saving}
-            >
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDialogOpen(false)} disabled={saving}>
               {tc("cancel")}
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button size="sm" className="h-8 text-xs" onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
               {editingTrunk ? tc("update") : tc("create")}
             </Button>
           </DialogFooter>
@@ -509,22 +514,28 @@ export default function SipTrunksPage() {
         open={!!deleteConfirmId}
         onOpenChange={() => setDeleteConfirmId(null)}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("deleteTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("deleteConfirmation")}
-            </DialogDescription>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50">
+                <Trash2 className="h-3.5 w-3.5 text-red-600" />
+              </span>
+              {t("deleteTitle")}
+            </DialogTitle>
           </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteConfirmId(null)}
-            >
+          <div className="p-5">
+            <p className="text-sm text-muted-foreground">
+              {t("deleteConfirmation")}
+            </p>
+          </div>
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDeleteConfirmId(null)}>
               {tc("cancel")}
             </Button>
             <Button
               variant="destructive"
+              size="sm"
+              className="h-8 text-xs"
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
             >
               {tc("delete")}

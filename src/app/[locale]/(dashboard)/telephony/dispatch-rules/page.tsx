@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   dispatchRuleApi,
@@ -11,13 +11,6 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -34,17 +27,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Route, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Route, Plus, Pencil, Trash2, Loader2, GitBranch, Bot } from "lucide-react";
 
 function getRuleType(rule: DispatchRuleInfo): string {
   if (rule.rule?.dispatchRuleDirect) return "direct";
@@ -69,6 +53,21 @@ function getAgentName(rule: DispatchRuleInfo): string {
   return "—";
 }
 
+function RuleTypeBadge({ type }: { type: string }) {
+  const colors: Record<string, string> = {
+    individual: "border-blue-200 bg-blue-50 text-blue-700",
+    direct: "border-amber-200 bg-amber-50 text-amber-700",
+    callee: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${colors[type] || "border-zinc-200 bg-zinc-50 text-zinc-500"}`}
+    >
+      {type}
+    </span>
+  );
+}
+
 export default function DispatchRulesPage() {
   const t = useTranslations("telephony.dispatchRules");
   const tc = useTranslations("common");
@@ -80,7 +79,6 @@ export default function DispatchRulesPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form state
   const [formName, setFormName] = useState("");
   const [formRuleType, setFormRuleType] = useState<
     "individual" | "direct" | "callee"
@@ -112,6 +110,13 @@ export default function DispatchRulesPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const stats = useMemo(() => {
+    const total = rules.length;
+    const individual = rules.filter((r) => getRuleType(r) === "individual").length;
+    const direct = rules.filter((r) => getRuleType(r) === "direct").length;
+    return { total, individual, direct };
+  }, [rules]);
 
   const resetForm = () => {
     setFormName("");
@@ -238,246 +243,273 @@ export default function DispatchRulesPage() {
     return trunk?.name || id;
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
-          <p className="text-muted-foreground">
-            {t("description")}
-          </p>
+          <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{t("description")}</p>
         </div>
-        <Button onClick={openCreateDialog}>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={openCreateDialog}>
+          <Plus className="h-3 w-3" />
           {t("createRule")}
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Route className="h-5 w-5" />
-            {t("cardTitle")}
-          </CardTitle>
-          <CardDescription>
-            {t("cardDescription")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50">
+              <Route className="h-3.5 w-3.5 text-blue-600" />
             </div>
-          ) : rules.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Route className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">{t("noRulesFound")}</p>
-              <p className="text-sm text-muted-foreground">
-                {t("createFirstRule")}
-              </p>
+            <span className="text-xs font-medium text-muted-foreground">{t("cardTitle")}</span>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">{stats.total}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
+              <GitBranch className="h-3.5 w-3.5 text-emerald-600" />
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("tableName")}</TableHead>
-                  <TableHead>{t("tableRuleType")}</TableHead>
-                  <TableHead>{t("tableTarget")}</TableHead>
-                  <TableHead>{t("tableAgent")}</TableHead>
-                  <TableHead>{t("tableTrunks")}</TableHead>
-                  <TableHead>{t("tableRuleId")}</TableHead>
-                  <TableHead className="text-right">{t("tableActions")}</TableHead>
+            <span className="text-xs font-medium text-muted-foreground">Individual</span>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">{stats.individual}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50">
+              <Bot className="h-3.5 w-3.5 text-amber-600" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">Direct</span>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">{stats.direct}</p>
+        </div>
+      </div>
+
+      {/* Table */}
+      {rules.length > 0 ? (
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead className="text-xs font-medium">{t("tableName")}</TableHead>
+                <TableHead className="text-xs font-medium w-[100px]">{t("tableRuleType")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("tableTarget")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("tableAgent")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("tableTrunks")}</TableHead>
+                <TableHead className="text-xs font-medium">{t("tableRuleId")}</TableHead>
+                <TableHead className="w-[80px]" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rules.map((rule) => (
+                <TableRow key={rule.sipDispatchRuleId} className="group">
+                  <TableCell className="font-medium text-sm">
+                    {rule.name || "—"}
+                  </TableCell>
+                  <TableCell>
+                    <RuleTypeBadge type={getRuleType(rule)} />
+                  </TableCell>
+                  <TableCell className="text-sm">{getRuleTarget(rule)}</TableCell>
+                  <TableCell className="text-sm">{getAgentName(rule)}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {(rule.trunkIds || []).length > 0
+                        ? rule.trunkIds.map((id) => (
+                            <span
+                              key={id}
+                              className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                            >
+                              {trunkNameById(id)}
+                            </span>
+                          ))
+                        : <span className="text-xs text-muted-foreground">{t("allTrunks")}</span>}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-[11px] text-muted-foreground">
+                    {rule.sipDispatchRuleId}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        className="p-1 rounded hover:bg-muted"
+                        onClick={() => openEditDialog(rule)}
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      <button
+                        className="p-1 rounded hover:bg-red-50"
+                        onClick={() => setDeleteConfirmId(rule.sipDispatchRuleId)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                      </button>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rules.map((rule) => (
-                  <TableRow key={rule.sipDispatchRuleId}>
-                    <TableCell className="font-medium">
-                      {rule.name || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getRuleType(rule)}</Badge>
-                    </TableCell>
-                    <TableCell>{getRuleTarget(rule)}</TableCell>
-                    <TableCell>{getAgentName(rule)}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {(rule.trunkIds || []).length > 0
-                          ? rule.trunkIds.map((id) => (
-                              <Badge key={id} variant="secondary" className="text-xs">
-                                {trunkNameById(id)}
-                              </Badge>
-                            ))
-                          : t("allTrunks")}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {rule.sipDispatchRuleId}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(rule)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            setDeleteConfirmId(rule.sipDispatchRuleId)
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="border-t px-4 py-2.5 bg-muted/20">
+            <span className="text-xs text-muted-foreground">
+              {stats.total} {stats.total === 1 ? "rule" : "rules"}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Route className="h-10 w-10 text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">{t("noRulesFound")}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("createFirstRule")}</p>
+        </div>
+      )}
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="p-0 gap-0 sm:max-w-lg" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50">
+                {editingRule ? <Pencil className="h-3.5 w-3.5 text-amber-600" /> : <Route className="h-3.5 w-3.5 text-amber-600" />}
+              </span>
               {editingRule ? t("editTitle") : t("createTitle")}
             </DialogTitle>
-            <DialogDescription>
-              {editingRule
-                ? t("editDescription")
-                : t("createDescription")}
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              {editingRule ? t("editDescription") : t("createDescription")}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">{t("tableName")}</Label>
+          <div className="p-5 space-y-5 max-h-[60vh] overflow-y-auto">
+            {/* Identity */}
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Identity</div>
+            <div>
+              <label htmlFor="name" className="text-xs font-medium mb-1 block">{t("tableName")}</label>
               <Input
                 id="name"
+                className="h-8"
                 placeholder={t("namePlaceholder")}
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
               />
             </div>
 
-                <div className="grid gap-2">
-                  <Label>{t("ruleType")}</Label>
-                  <Select
-                    value={formRuleType}
-                    onValueChange={(v) =>
-                      setFormRuleType(v as "individual" | "direct" | "callee")
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="individual">
-                        {t("ruleTypeIndividual")}
-                      </SelectItem>
-                      <SelectItem value="direct">
-                        {t("ruleTypeDirect")}
-                      </SelectItem>
-                      <SelectItem value="callee">
-                        {t("ruleTypeCallee")}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="border-t" />
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("ruleType")}</div>
+            {/* Rule type card selector */}
+            <div className="grid grid-cols-3 gap-2">
+              {(["individual", "direct", "callee"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${formRuleType === type ? "border-foreground/30 bg-muted/40" : "hover:bg-muted/30"}`}
+                  onClick={() => setFormRuleType(type)}
+                >
+                  <span className="text-xs font-medium block">
+                    {type === "individual" ? t("ruleTypeIndividual") : type === "direct" ? t("ruleTypeDirect") : t("ruleTypeCallee")}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-                {formRuleType === "direct" ? (
-                  <div className="grid gap-2">
-                    <Label htmlFor="roomName">{t("roomName")}</Label>
-                    <Input
-                      id="roomName"
-                      placeholder="open-room"
-                      value={formRoomName}
-                      onChange={(e) => setFormRoomName(e.target.value)}
-                    />
-                  </div>
-                ) : (
-                  <div className="grid gap-2">
-                    <Label htmlFor="roomPrefix">{t("roomPrefix")}</Label>
-                    <Input
-                      id="roomPrefix"
-                      placeholder="call-"
-                      value={formRoomPrefix}
-                      onChange={(e) => setFormRoomPrefix(e.target.value)}
-                    />
-                  </div>
-                )}
+            <div className="border-t" />
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Routing</div>
+            {formRuleType === "direct" ? (
+              <div>
+                <label htmlFor="roomName" className="text-xs font-medium mb-1 block">{t("roomName")}</label>
+                <Input
+                  id="roomName"
+                  className="h-8 font-mono text-xs"
+                  placeholder="open-room"
+                  value={formRoomName}
+                  onChange={(e) => setFormRoomName(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="roomPrefix" className="text-xs font-medium mb-1 block">{t("roomPrefix")}</label>
+                <Input
+                  id="roomPrefix"
+                  className="h-8 font-mono text-xs"
+                  placeholder="call-"
+                  value={formRoomPrefix}
+                  onChange={(e) => setFormRoomPrefix(e.target.value)}
+                />
+              </div>
+            )}
+            <div>
+              <label htmlFor="pin" className="text-xs font-medium mb-1 block">
+                {t("pinLabel")} <span className="text-muted-foreground font-normal">{t("pinHint")}</span>
+              </label>
+              <Input
+                id="pin"
+                className="h-8 font-mono text-xs"
+                placeholder="12345"
+                value={formPin}
+                onChange={(e) => setFormPin(e.target.value)}
+              />
+            </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="pin">
-                    {t("pinLabel")}{" "}
-                    <span className="text-xs text-muted-foreground">
-                      {t("pinHint")}
-                    </span>
-                  </Label>
-                  <Input
-                    id="pin"
-                    placeholder="12345"
-                    value={formPin}
-                    onChange={(e) => setFormPin(e.target.value)}
-                  />
-                </div>
+            <div className="border-t" />
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Agent</div>
+            <div>
+              <label htmlFor="agentName" className="text-xs font-medium mb-1 block">
+                {t("agentNameLabel")} <span className="text-muted-foreground font-normal">{t("agentNameHint")}</span>
+              </label>
+              <Input
+                id="agentName"
+                className="h-8 font-mono text-xs"
+                placeholder="inbound-agent"
+                value={formAgentName}
+                onChange={(e) => setFormAgentName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="trunkIds" className="text-xs font-medium mb-1 block">
+                {t("trunkIdsLabel")} <span className="text-muted-foreground font-normal">{t("trunkIdsHint")}</span>
+              </label>
+              <Input
+                id="trunkIds"
+                className="h-8 font-mono text-xs"
+                placeholder="ST_xxx, ST_yyy"
+                value={formTrunkIds}
+                onChange={(e) => setFormTrunkIds(e.target.value)}
+              />
+            </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="agentName">
-                    {t("agentNameLabel")}{" "}
-                    <span className="text-xs text-muted-foreground">
-                      {t("agentNameHint")}
-                    </span>
-                  </Label>
-                  <Input
-                    id="agentName"
-                    placeholder="inbound-agent"
-                    value={formAgentName}
-                    onChange={(e) => setFormAgentName(e.target.value)}
-                  />
-                </div>
+            <div className="border-t" />
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Options</div>
+            <label htmlFor="hidePhoneNumber" className="flex items-center justify-between rounded-lg border px-3 py-3 cursor-pointer hover:bg-muted/30 transition-colors">
+              <div>
+                <span className="text-xs font-medium">{t("hidePhoneNumber")}</span>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Mask caller phone number from participants</p>
+              </div>
+              <input
+                id="hidePhoneNumber"
+                type="checkbox"
+                checked={formHidePhoneNumber}
+                onChange={(e) => setFormHidePhoneNumber(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 accent-foreground"
+              />
+            </label>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="trunkIds">
-                    {t("trunkIdsLabel")}{" "}
-                    <span className="text-xs text-muted-foreground">
-                      {t("trunkIdsHint")}
-                    </span>
-                  </Label>
-                  <Input
-                    id="trunkIds"
-                    placeholder="ST_xxx, ST_yyy"
-                    value={formTrunkIds}
-                    onChange={(e) => setFormTrunkIds(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="hidePhoneNumber"
-                    checked={formHidePhoneNumber}
-                    onChange={(e) => setFormHidePhoneNumber(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="hidePhoneNumber">
-                    {t("hidePhoneNumber")}
-                  </Label>
-                </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="metadata">
+            <div className="border-t" />
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Metadata</div>
+            <div>
+              <label htmlFor="metadata" className="text-xs font-medium mb-1 block">
                 {tc("metadataOptional")}
-              </Label>
+              </label>
               <Input
                 id="metadata"
+                className="h-8 font-mono text-xs"
                 placeholder='{"source": "web"}'
                 value={formMetadata}
                 onChange={(e) => setFormMetadata(e.target.value)}
@@ -485,16 +517,12 @@ export default function DispatchRulesPage() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              disabled={saving}
-            >
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDialogOpen(false)} disabled={saving}>
               {tc("cancel")}
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button size="sm" className="h-8 text-xs" onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
               {editingRule ? tc("update") : tc("create")}
             </Button>
           </DialogFooter>
@@ -506,22 +534,28 @@ export default function DispatchRulesPage() {
         open={!!deleteConfirmId}
         onOpenChange={() => setDeleteConfirmId(null)}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("deleteTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("deleteConfirmation")}
-            </DialogDescription>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50">
+                <Trash2 className="h-3.5 w-3.5 text-red-600" />
+              </span>
+              {t("deleteTitle")}
+            </DialogTitle>
           </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteConfirmId(null)}
-            >
+          <div className="p-5">
+            <p className="text-sm text-muted-foreground">
+              {t("deleteConfirmation")}
+            </p>
+          </div>
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDeleteConfirmId(null)}>
               {tc("cancel")}
             </Button>
             <Button
               variant="destructive"
+              size="sm"
+              className="h-8 text-xs"
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
             >
               {tc("delete")}

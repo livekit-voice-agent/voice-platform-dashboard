@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ExternalLink, Power, Activity, Gauge } from "lucide-react";
+import { ExternalLink, Power, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   PROVIDERS,
@@ -17,7 +17,6 @@ import { API_BASE_URL } from "@/lib/api";
 import { useAutoRefresh, type AutoRefreshInterval } from "@/hooks/useAutoRefresh";
 import { AutoRefreshSelector } from "@/components/auto-refresh-selector";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardHeader,
@@ -196,21 +195,12 @@ export default function ProvidersPage() {
     setExpanded((prev) => ({ ...prev, [slug]: !prev[slug] }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Activity className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold sm:text-2xl">
-              {t("title")}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {t("description")}
-            </p>
-          </div>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{t("description")}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -224,7 +214,7 @@ export default function ProvidersPage() {
             className={cn(
               "h-8 gap-1.5 text-xs",
               enabled
-                ? "text-emerald-600 border-emerald-300 dark:text-emerald-400 dark:border-emerald-700"
+                ? "text-emerald-600 border-emerald-300"
                 : "text-muted-foreground"
             )}
             onClick={toggleMonitoring}
@@ -281,7 +271,7 @@ export default function ProvidersPage() {
       {/* Provider cards — show when data exists (even if paused = stale) */}
       {(enabled || summaries.length > 0) && !loading && (
         <div className={cn(
-          "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 transition-opacity",
+          "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 transition-opacity",
           !enabled && "opacity-60"
         )}>
           {PROVIDERS.map((providerConfig) => {
@@ -298,34 +288,37 @@ export default function ProvidersPage() {
             const isExpanded = expanded[providerConfig.slug] ?? false;
             const Icon = providerConfig.icon;
             const isSelfHosted = providerConfig.type === "self-hosted";
+            const initials = providerConfig.name.slice(0, 2).toUpperCase();
 
             return (
-              <Card key={providerConfig.slug}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Icon className="h-4 w-4" />
-                      {providerConfig.name}
-                      {isSelfHosted && (
-                        <span className="text-[10px] font-normal text-muted-foreground">
-                          {t("selfHosted")}
-                        </span>
-                      )}
-                    </CardTitle>
-                    <Badge
-                      variant="outline"
+              <div key={providerConfig.slug} className="rounded-lg border bg-card overflow-hidden hover:border-foreground/20 transition-colors">
+                <div className="px-4 py-3.5">
+                  {/* Header row: avatar + name + status */}
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-[11px] font-semibold text-muted-foreground shrink-0">
+                        {initials}
+                      </span>
+                      <div>
+                        <span className="text-sm font-medium leading-tight block">{providerConfig.name}</span>
+                        {isSelfHosted && (
+                          <span className="text-[10px] text-muted-foreground">Self-hosted</span>
+                        )}
+                      </div>
+                    </div>
+                    <span
                       className={cn(
-                        "text-[10px]",
+                        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0",
                         indicator === "none" &&
-                          "border-emerald-300 text-emerald-600 dark:border-emerald-700 dark:text-emerald-400",
+                          "border-emerald-200 bg-emerald-50 text-emerald-600",
                         indicator === "minor" &&
-                          "border-yellow-300 text-yellow-600 dark:border-yellow-700 dark:text-yellow-400",
+                          "border-yellow-200 bg-yellow-50 text-yellow-600",
                         indicator === "major" &&
-                          "border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400",
+                          "border-orange-200 bg-orange-50 text-orange-600",
                         indicator === "critical" &&
-                          "border-red-300 text-red-600 dark:border-red-700 dark:text-red-400",
+                          "border-red-200 bg-red-50 text-red-600",
                         indicator === "unknown" &&
-                          "border-border text-muted-foreground"
+                          "border-zinc-200 bg-zinc-50 text-zinc-500"
                       )}
                     >
                       <span
@@ -335,84 +328,83 @@ export default function ProvidersPage() {
                         )}
                       />
                       {visual.label}
-                    </Badge>
+                    </span>
                   </div>
-                  <CardDescription>
+
+                  {/* Description */}
+                  <p className="text-xs text-muted-foreground mb-2.5 line-clamp-2">
                     {summary?.description ?? "—"}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3">
-                  {/* Latency for self-hosted */}
-                  {isSelfHosted && summary?.latencyMs != null && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Gauge className="h-3 w-3" />
-                      <span>{t("latency", { ms: summary.latencyMs })}</span>
-                    </div>
-                  )}
-
-                  {/* Updated at */}
-                  <p className="text-xs text-muted-foreground">
-                    {t("updated", { time: timeAgo(summary?.updatedAt ?? null) })}
                   </p>
 
-                  {/* Components toggle — statuspage providers only */}
-                  {!isSelfHosted && summary && summary.components.length > 0 && (
-                    <div>
-                      <button
-                        onClick={() => toggleExpanded(providerConfig.slug)}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {isExpanded
-                          ? t("hideComponents")
-                          : t("showComponents", { count: summary.components.length })}
-                      </button>
+                  {/* Info row: latency + updated */}
+                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                    {isSelfHosted && summary?.latencyMs != null && (
+                      <span className="inline-flex items-center gap-1">
+                        <Gauge className="h-3 w-3" />
+                        {t("latency", { ms: summary.latencyMs })}
+                      </span>
+                    )}
+                    <span>{t("updated", { time: timeAgo(summary?.updatedAt ?? null) })}</span>
+                  </div>
+                </div>
 
-                      {isExpanded && (
-                        <div className="mt-2 space-y-1">
-                          {summary.components.map((comp) => (
-                            <div
-                              key={comp.id}
-                              className="flex items-center justify-between text-xs"
+                {/* Components toggle — statuspage providers only */}
+                {!isSelfHosted && summary && summary.components.length > 0 && (
+                  <div className="border-t">
+                    <button
+                      onClick={() => toggleExpanded(providerConfig.slug)}
+                      className="w-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-left"
+                    >
+                      {isExpanded
+                        ? t("hideComponents")
+                        : t("showComponents", { count: summary.components.length })}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 pb-3 space-y-1">
+                        {summary.components.map((comp) => (
+                          <div
+                            key={comp.id}
+                            className="flex items-center justify-between text-xs py-0.5"
+                          >
+                            <span className="text-muted-foreground truncate mr-2">
+                              {comp.name}
+                            </span>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                                COMPONENT_STATUS_STYLES[comp.status] ??
+                                  "bg-muted text-muted-foreground"
+                              )}
                             >
-                              <span className="text-muted-foreground truncate mr-2">
-                                {comp.name}
-                              </span>
-                              <span
-                                className={cn(
-                                  "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                                  COMPONENT_STATUS_STYLES[comp.status] ??
-                                    "bg-muted text-muted-foreground"
-                                )}
-                              >
-                                {componentStatusLabel(comp.status)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
+                              {componentStatusLabel(comp.status)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                <CardFooter>
+                {/* Footer link */}
+                <div className="border-t px-4 py-2 bg-muted/20">
                   {providerConfig.statusPageUrl ? (
                     <a
                       href={providerConfig.statusPageUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {t("viewStatusPage")}
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   ) : (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-[11px] text-muted-foreground">
                       {t("checkedViaBackend")}
                     </span>
                   )}
-                </CardFooter>
-              </Card>
+                </div>
+              </div>
             );
           })}
         </div>

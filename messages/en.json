@@ -44,7 +44,8 @@
     "navigation": "Navigation",
     "admin": "Admin",
     "adminUsers": "Users",
-    "adminProjects": "Projects"
+    "adminProjects": "Projects",
+    "infrastructure": "Infrastructure"
   },
   "providers": {
     "title": "Provider Status",

@@ -5,8 +5,25 @@ let currentProjectId: string | null = null;
 let cachedApiToken: string | null = null;
 let currentLocale: string = "en";
 
+// Promise that resolves once the session token is available.
+let _tokenResolve: (() => void) | null = null;
+let _tokenReady: Promise<void> | null = new Promise<void>((r) => {
+  _tokenResolve = r;
+});
+
 export function setApiToken(token: string | null) {
   cachedApiToken = token;
+  if (token && _tokenResolve) {
+    _tokenResolve();
+    _tokenResolve = null;
+    _tokenReady = null;
+  }
+  // If the token was cleared (logout), prepare a new promise for the next login.
+  if (!token && !_tokenReady) {
+    _tokenReady = new Promise<void>((r) => {
+      _tokenResolve = r;
+    });
+  }
 }
 
 export function getApiToken(): string | null {
@@ -40,17 +57,28 @@ async function request<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
+  // Wait for the session token if it hasn't arrived yet (max 10 s).
+  if (!cachedApiToken && _tokenReady) {
+    await Promise.race([
+      _tokenReady,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("NO_TOKEN")), 10_000)
+      ),
+    ]);
+  }
+
   const token = cachedApiToken;
+  if (!token) {
+    throw new Error("NO_TOKEN");
+  }
+
   const projectId = getCurrentProjectId();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`,
     ...(options?.headers as Record<string, string>),
   };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
 
   if (projectId) {
     headers["x-project-id"] = projectId;

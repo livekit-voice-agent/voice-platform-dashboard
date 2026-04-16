@@ -9,13 +9,10 @@ import {
   Phone,
   Route,
   DoorOpen,
-  ChevronDown,
   Activity,
-  Shield,
   Users,
   FolderKanban,
 } from "lucide-react";
-import { useState } from "react";
 import { useIsSuperAdmin } from "@/lib/auth-utils";
 import { ProviderStatusWidget } from "./provider-status-widget";
 import { ProjectSwitcher } from "@/components/project/project-switcher";
@@ -26,16 +23,19 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-const navItems = [
+const agentItems = [
   { href: "/agent" as const, labelKey: "agent" as const, icon: Bot },
-  { href: "/workers" as const, labelKey: "workers" as const, icon: Cpu },
-  { href: "/providers" as const, labelKey: "providers" as const, icon: Activity },
 ];
 
 const telephonyItems = [
+  { href: "/telephony/rooms" as const, labelKey: "rooms" as const, icon: DoorOpen },
   { href: "/telephony/sip-trunks" as const, labelKey: "sipTrunks" as const, icon: Phone },
   { href: "/telephony/dispatch-rules" as const, labelKey: "dispatchRules" as const, icon: Route },
-  { href: "/telephony/rooms" as const, labelKey: "rooms" as const, icon: DoorOpen },
+];
+
+const infraItems = [
+  { href: "/workers" as const, labelKey: "workers" as const, icon: Cpu },
+  { href: "/providers" as const, labelKey: "providers" as const, icon: Activity },
 ];
 
 const adminItems = [
@@ -43,146 +43,109 @@ const adminItems = [
   { href: "/admin/projects" as const, labelKey: "adminProjects" as const, icon: FolderKanban },
 ];
 
+type NavSection = {
+  labelKey: string;
+  items: readonly { href: string; labelKey: string; icon: React.ComponentType<{ className?: string }> }[];
+};
+
+function NavItem({
+  item,
+  isActive,
+  onNavigate,
+  t,
+}: {
+  item: { href: string; labelKey: string; icon: React.ComponentType<{ className?: string }> };
+  isActive: boolean;
+  onNavigate?: () => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <Link
+      href={item.href as "/agent"}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+        isActive
+          ? "bg-muted text-foreground font-medium"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+      )}
+    >
+      <item.icon className="h-4 w-4" />
+      {t(item.labelKey)}
+    </Link>
+  );
+}
+
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const t = useTranslations("sidebar");
   const isSuperAdmin = useIsSuperAdmin();
-  const [telephonyOpen, setTelephonyOpen] = useState(
-    pathname.startsWith("/telephony")
-  );
-  const [adminOpen, setAdminOpen] = useState(
-    pathname.startsWith("/admin")
-  );
+
+  const allItems = [...agentItems, ...telephonyItems, ...infraItems, ...adminItems];
+
+  const isItemActive = (href: string) => {
+    const hasMoreSpecificMatch = allItems.some(
+      (other) =>
+        other.href !== href &&
+        other.href.startsWith(href + "/") &&
+        (pathname === other.href || pathname.startsWith(other.href + "/"))
+    );
+    return (
+      !hasMoreSpecificMatch &&
+      (pathname === href || (href !== "/" && pathname.startsWith(href + "/")))
+    );
+  };
+
+  const sections: NavSection[] = [
+    { labelKey: "agent", items: agentItems },
+    { labelKey: "telephony", items: telephonyItems },
+    { labelKey: "infrastructure", items: infraItems },
+  ];
+
+  if (isSuperAdmin) {
+    sections.push({ labelKey: "admin", items: adminItems });
+  }
 
   return (
     <>
-      <div className="flex h-14 items-center border-b px-6">
+      {/* Brand */}
+      <div className="px-6 pt-5 pb-1">
         <Link
           href="/agent"
-          className="flex items-center gap-2 font-semibold"
+          className="flex items-center gap-1.5"
           onClick={onNavigate}
         >
-          <Bot className="h-6 w-6" />
-          <span>{t("brand")}</span>
+          <span className="text-base font-semibold tracking-tight">VP</span>
+          <span className="text-[10px] text-muted-foreground mt-0.5">dashboard</span>
         </Link>
       </div>
+
+      {/* Project Switcher */}
       <ProjectSwitcher />
-      <nav className="flex-1 space-y-1 p-4">
-        {navItems.map((item) => {
-          const hasMoreSpecificMatch = navItems.some(
-            (other) =>
-              other.href !== item.href &&
-              other.href.startsWith(item.href + "/") &&
-              (pathname === other.href || pathname.startsWith(other.href + "/"))
-          );
-          const isActive =
-            !hasMoreSpecificMatch &&
-            (pathname === item.href ||
-              ((item.href as string) !== "/" && pathname.startsWith(item.href + "/")));
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <item.icon className="h-4 w-4" />
-              {t(item.labelKey)}
-            </Link>
-          );
-        })}
 
-        {/* Telephony Section */}
-        <div className="pt-3">
-          <button
-            onClick={() => setTelephonyOpen(!telephonyOpen)}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <Phone className="h-4 w-4" />
-            {t("telephony")}
-            <ChevronDown
-              className={cn(
-                "ml-auto h-4 w-4 transition-transform",
-                telephonyOpen && "rotate-180"
-              )}
-            />
-          </button>
-          {telephonyOpen && (
-            <div className="ml-4 space-y-1 border-l pl-3 mt-1">
-              {telephonyItems.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  pathname.startsWith(item.href + "/");
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {t(item.labelKey)}
-                  </Link>
-                );
-              })}
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-4">
+        {sections.map((section) => (
+          <div key={section.labelKey}>
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-3 mb-1.5">
+              {t(section.labelKey)}
             </div>
-          )}
-        </div>
-
-        {/* Admin Section - Super Admin Only */}
-        {isSuperAdmin && (
-          <div className="pt-3">
-            <button
-              onClick={() => setAdminOpen(!adminOpen)}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <Shield className="h-4 w-4" />
-              {t("admin")}
-              <ChevronDown
-                className={cn(
-                  "ml-auto h-4 w-4 transition-transform",
-                  adminOpen && "rotate-180"
-                )}
-              />
-            </button>
-            {adminOpen && (
-              <div className="ml-4 space-y-1 border-l pl-3 mt-1">
-                {adminItems.map((item) => {
-                  const isActive =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={onNavigate}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                        isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {t(item.labelKey)}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
+            <div className="space-y-0.5">
+              {section.items.map((item) => (
+                <NavItem
+                  key={item.href}
+                  item={item}
+                  isActive={isItemActive(item.href)}
+                  onNavigate={onNavigate}
+                  t={t}
+                />
+              ))}
+            </div>
           </div>
-        )}
+        ))}
       </nav>
+
+      {/* Provider Status */}
       <ProviderStatusWidget />
     </>
   );
@@ -190,7 +153,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export function Sidebar() {
   return (
-    <aside className="flex h-screen w-64 flex-col border-r bg-muted/40">
+    <aside className="flex h-screen w-56 flex-col border-r bg-card shrink-0">
       <SidebarContent />
     </aside>
   );
@@ -206,7 +169,7 @@ export function MobileSidebar({
   const t = useTranslations("sidebar");
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-64 p-0">
+      <SheetContent side="left" className="w-56 p-0">
         <SheetHeader className="sr-only">
           <SheetTitle>{t("navigation")}</SheetTitle>
         </SheetHeader>

@@ -25,13 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -39,9 +33,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -61,7 +53,6 @@ import {
 } from "@/components/ui/table";
 import {
   Save,
-  Bot,
   Upload,
   Trash2,
   FileText,
@@ -87,17 +78,44 @@ import {
   X,
   Tag,
   RotateCcw,
+  Activity,
+  Heart,
+  Zap,
+  SlidersHorizontal,
+  Keyboard,
+  Volume2,
+  Brain,
+  FileOutput,
+  ChevronDown,
+  MessageCircle,
+  Headphones,
+  Info,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const LAST_AGENT_KEY = "voice-platform:lastAgent";
 
+const CONFIG_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: "instructions", label: "Instructions", icon: MessageSquare },
+  { id: "model-voice", label: "Model & Voice", icon: Mic },
+  { id: "stt", label: "Speech-to-Text", icon: Headphones },
+  { id: "greeting", label: "Greeting", icon: MessageCircle },
+  { id: "turn-detection", label: "Turn Detection", icon: Activity },
+  { id: "interruption", label: "Interruptions", icon: Zap },
+  { id: "humanization", label: "Humanization", icon: Heart },
+  { id: "timeouts", label: "Timeouts", icon: Timer },
+  { id: "extraction", label: "Extraction", icon: FileText },
+  { id: "advanced", label: "Advanced", icon: SlidersHorizontal },
+];
+
 export default function AgentPage() {
   const [agents, setAgents] = useState<string[]>([]);
   const [selectedAgent, setSelectedAgent] = useState("");
   const [newAgentName, setNewAgentName] = useState("");
   const [showNewAgentInput, setShowNewAgentInput] = useState(false);
+  const [configSection, setConfigSection] = useState("instructions");
 
   const [instructionFields, setInstructionFields] = useState<InstructionFields>({ ...EMPTY_FIELDS, qualification: [] });
   const [loading, setLoading] = useState(true);
@@ -251,7 +269,9 @@ export default function AgentPage() {
   const [editingTool, setEditingTool] = useState<AgentTool | null>(null);
   const [savingTool, setSavingTool] = useState(false);
   const [deletingToolId, setDeletingToolId] = useState<string | null>(null);
-  const [seedingTools, setSeedingTools] = useState(false);  const TOOL_TYPES: { value: ToolType; label: string; desc: string }[] = [
+  const [seedingTools, setSeedingTools] = useState(false);
+  const [editExtractionIdx, setEditExtractionIdx] = useState<number | null>(null);
+  const TOOL_TYPES: { value: ToolType; label: string; desc: string }[] = [
     { value: "HTTP_REQUEST", label: t("toolTypeHttp"), desc: "Makes an HTTP request to an external API" },
     { value: "PRE_CALL", label: t("toolTypePreCall"), desc: "HTTP webhook executed before the call starts" },
     { value: "POST_CALL", label: t("toolTypePostCall"), desc: "HTTP webhook executed after the call ends" },
@@ -830,190 +850,176 @@ export default function AgentPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">{t("loadingConfig")}</p>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-5">
+      {/* ─── Page Header + Agent Selector ───────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3 sm:text-3xl">
-            <Bot className="h-7 w-7 sm:h-8 sm:w-8" />
-            {t("title")}
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {t("description")}
-          </p>
+          <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{t("description")}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {showNewAgentInput ? (
+            <div className="flex items-center gap-2">
+              <Input
+                value={newAgentName}
+                onChange={(e) => setNewAgentName(e.target.value)}
+                placeholder={t("agentNamePlaceholder")}
+                className="h-8 w-[180px] text-xs"
+                onKeyDown={(e) => e.key === "Enter" && handleCreateAgent()}
+              />
+              <Button size="sm" className="h-8 text-xs" onClick={handleCreateAgent}>
+                {tc("create")}
+              </Button>
+              <button
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                onClick={() => { setShowNewAgentInput(false); setNewAgentName(""); }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <Select value={selectedAgent} onValueChange={handleAgentChange}>
+                <SelectTrigger className="h-8 min-w-[160px] text-xs">
+                  <SelectValue placeholder={t("selectAnAgent")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {agents.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                  <SelectItem value="__new__">
+                    <span className="flex items-center gap-2">
+                      <Plus className="h-3 w-3" />
+                      {t("createNewAgent")}
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <button
+                className="p-1.5 rounded-md border bg-card text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-colors"
+                onClick={() => setDeleteAgentConfirm(true)}
+                title={t("deleteAgent")}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">{t("selectAgent")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Select value={selectedAgent} onValueChange={handleAgentChange}>
-              <SelectTrigger className="w-full sm:w-[280px]">
-                <SelectValue placeholder={t("selectAnAgent")} />
-              </SelectTrigger>
-              <SelectContent>
-                {agents.map((name) => (
-                  <SelectItem key={name} value={name}>
-                    {name}
-                  </SelectItem>
+      {/* ─── Tabs ───────────────────────────────────────────────── */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="border-b">
+          <TabsList className="h-auto p-0 bg-transparent rounded-none w-full justify-start gap-0">
+            <TabsTrigger value="config" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2.5 pt-2 text-xs font-medium gap-1.5">
+              <Settings2 className="h-3.5 w-3.5" />
+              {t("tabConfiguration")}
+            </TabsTrigger>
+            <TabsTrigger value="knowledge" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2.5 pt-2 text-xs font-medium gap-1.5">
+              <BookOpen className="h-3.5 w-3.5" />
+              {t("tabKnowledge")}
+            </TabsTrigger>
+            <TabsTrigger value="tools" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2.5 pt-2 text-xs font-medium gap-1.5">
+              <Wrench className="h-3.5 w-3.5" />
+              {t("tabTools")}
+            </TabsTrigger>
+            <TabsTrigger value="versions" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2.5 pt-2 text-xs font-medium gap-1.5">
+              <Tag className="h-3.5 w-3.5" />
+              {t("tabVersions")}
+              {versions.length > 0 && (
+                <span className="ml-1 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">{versions.length}</span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="config" className="pt-5 pb-20">
+          <div className="flex gap-6">
+            {/* ─── Left Sidebar Navigation ─── */}
+            <div className="w-48 flex-shrink-0 hidden md:block">
+              <nav className="sticky top-6 space-y-0.5">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">Sections</p>
+                {CONFIG_SECTIONS.map((section) => (
+                  <button
+                    key={section.id}
+                    onClick={() => setConfigSection(section.id)}
+                    className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      configSection === section.id
+                        ? "text-foreground bg-muted"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    }`}
+                  >
+                    <section.icon className="h-3.5 w-3.5" />
+                    {section.label}
+                  </button>
                 ))}
-                <SelectItem value="__new__">
-                  <span className="flex items-center gap-2">
-                    <Plus className="h-3 w-3" />
-                    {t("createNewAgent")}
-                  </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+              </nav>
+            </div>
 
-            {showNewAgentInput && (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={newAgentName}
-                  onChange={(e) => setNewAgentName(e.target.value)}
-                  placeholder={t("agentNamePlaceholder")}
-                  className="w-[200px]"
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateAgent()}
-                />
-                <Button size="sm" onClick={handleCreateAgent}>
-                  {tc("create")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowNewAgentInput(false);
-                    setNewAgentName("");
-                  }}
-                >
-                  {tc("cancel")}
-                </Button>
-              </div>
-            )}
+            {/* ─── Right Content ─── */}
+            <div className="flex-1 min-w-0">
 
-            {!showNewAgentInput && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive"
-                onClick={() => setDeleteAgentConfirm(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                {t("deleteAgent")}
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="config">
-            <Settings2 className="h-4 w-4" />
-            {t("tabConfiguration")}
-          </TabsTrigger>
-          <TabsTrigger value="knowledge">
-            <BookOpen className="h-4 w-4" />
-            {t("tabKnowledge")}
-          </TabsTrigger>
-          <TabsTrigger value="tools">
-            <Wrench className="h-4 w-4" />
-            {t("tabTools")}
-          </TabsTrigger>
-          <TabsTrigger value="versions">
-            <Tag className="h-4 w-4" />
-            {t("tabVersions")}
-            {versions.length > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
-                {versions.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="config" className="space-y-4 pb-16">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle>{t("instructions")}</CardTitle>
-              <CardDescription>
-                {t("instructionsDescription")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <StructuredInstructionsForm
-                value={instructionFields}
-                onChange={setInstructionFields}
-              />
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-sm text-muted-foreground">
-                  {lastUpdated && (
-                    <span>
-                      {t("lastUpdated", { date: new Date(lastUpdated).toLocaleString() })}
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="autoStart"
-                      checked={autoStart}
-                      onChange={(e) => setAutoStart(e.target.checked)}
-                      className="h-4 w-4 rounded border-border"
+              {/* ════ INSTRUCTIONS SECTION ════ */}
+              {configSection === "instructions" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-semibold flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                          {t("instructions")}
+                        </h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">{t("instructionsDescription")}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {lastUpdated && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {t("lastUpdated", { date: new Date(lastUpdated).toLocaleString() })}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="autoStart"
+                            checked={autoStart}
+                            onChange={(e) => setAutoStart(e.target.checked)}
+                            className="h-3.5 w-3.5 rounded border-border"
+                          />
+                          <Label htmlFor="autoStart" className="text-xs cursor-pointer text-muted-foreground">
+                            {t("autoStartWorker")}
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <StructuredInstructionsForm
+                      value={instructionFields}
+                      onChange={setInstructionFields}
                     />
-                    <Label htmlFor="autoStart" className="text-sm cursor-pointer">
-                      {t("autoStartWorker")}
-                    </Label>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              )}
 
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings2 className="h-5 w-5" />
-                    {t("runtimeConfig")}
-                  </CardTitle>
-                  <CardDescription>
-                    {t("runtimeConfigDescription")}
-                  </CardDescription>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setRuntimeExpanded((v) => !v)}
-                  className="h-7 px-2 text-xs text-muted-foreground"
-                >
-                  <ChevronsUpDown className="mr-1 h-3 w-3" />
-                  {runtimeExpanded ? t("collapse") : t("expand")}
-                </Button>
-              </div>
-            </CardHeader>
-            {runtimeExpanded && (
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    <Mic className="h-4 w-4" /> {t("modelAndVoice")}
-                  </Label>
-                  <p className="text-xs text-muted-foreground -mt-1">
-                    {t("modelAndVoiceDescription")}
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* ════ MODEL & VOICE SECTION ════ */}
+              {configSection === "model-voice" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <Mic className="h-4 w-4 text-muted-foreground" />
+                      {t("modelAndVoice")}
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("modelAndVoiceDescription")}</p>
+                  </div>
+                  <div className="p-5 space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Selector 1 — LLM Model */}
                     <div className="space-y-1">
                       <Label htmlFor="rt-model" className="text-xs text-muted-foreground">
@@ -1514,18 +1520,30 @@ export default function AgentPage() {
                       </Select>
                     </div>
                   )}
+                  </div>
                 </div>
+              )}
 
-                {/* STT Configuration - Pipeline Mode Only */}
+              {/* ════ STT SECTION ════ */}
+              {configSection === "stt" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-semibold flex items-center gap-2">
+                          <Headphones className="h-4 w-4 text-muted-foreground" />
+                          STT — Speech-to-Text
+                        </h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">Configure speech recognition for voice input</p>
+                      </div>
+                      {isPipelineMode && (
+                        <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">Pipeline Only</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-4">
                 {isPipelineMode && (
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold flex items-center gap-2">
-                      STT — Speech-to-Text
-                    </Label>
-                    <p className="text-xs text-muted-foreground -mt-1">
-                      Em pipeline mode, o agente usa um STT externo para transcrição. Configure o provedor e modelo.
-                    </p>
-                    <div className="space-y-4 rounded-lg border p-4 bg-muted/30">
+                  <div className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <Label htmlFor="rt-stt-provider" className="text-xs text-muted-foreground">
@@ -1669,9 +1687,21 @@ export default function AgentPage() {
                           </p>
                         </div>
                       )}
-                    </div>
                   </div>
                 )}
+                  </div>
+                </div>
+              )}
+              {configSection === "advanced" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                      Advanced Settings
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">Temperature, tokens, persona, and other advanced options</p>
+                  </div>
+                  <div className="p-5 space-y-5">
 
                 {/* Temperature & Max Tokens */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1746,12 +1776,17 @@ export default function AgentPage() {
                   </p>
                 </div>
 
-                {/* Noise Cancellation */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                {/* Noise Cancellation & Inject Session Context */}
+                <div className="border-t pt-4 space-y-3">
+                  <label className="flex items-center justify-between rounded-lg border px-3 py-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                    <div>
+                      <span className="text-xs font-medium">Noise Cancellation</span>
+                      <p className="text-[11px] text-muted-foreground">
+                        Filters background noise from the caller&apos;s audio for clearer speech recognition.
+                      </p>
+                    </div>
                     <input
                       type="checkbox"
-                      id="rt-noise"
                       checked={runtimeConfig.noiseCancellation ?? true}
                       onChange={(e) =>
                         setRuntimeConfig((prev) => ({
@@ -1759,23 +1794,18 @@ export default function AgentPage() {
                           noiseCancellation: e.target.checked,
                         }))
                       }
-                      className="h-4 w-4 rounded border-border"
+                      className="h-4 w-4 rounded border-border ml-4 flex-shrink-0"
                     />
-                    <Label htmlFor="rt-noise" className="text-sm cursor-pointer">
-                      Noise Cancellation
-                    </Label>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Filters background noise from the caller&apos;s audio for clearer speech recognition.
-                  </p>
-                </div>
-
-                {/* Inject Session Context */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  </label>
+                  <label className="flex items-center justify-between rounded-lg border px-3 py-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                    <div>
+                      <span className="text-xs font-medium">Inject Session Context</span>
+                      <p className="text-[11px] text-muted-foreground">
+                        Append room metadata (channel, from_number, customer_name, etc.) to the agent&apos;s instructions.
+                      </p>
+                    </div>
                     <input
                       type="checkbox"
-                      id="rt-inject-session"
                       checked={runtimeConfig.injectSessionContext ?? false}
                       onChange={(e) =>
                         setRuntimeConfig((prev) => ({
@@ -1783,25 +1813,27 @@ export default function AgentPage() {
                           injectSessionContext: e.target.checked,
                         }))
                       }
-                      className="h-4 w-4 rounded border-border"
+                      className="h-4 w-4 rounded border-border ml-4 flex-shrink-0"
                     />
-                    <Label htmlFor="rt-inject-session" className="text-sm cursor-pointer">
-                      Inject Session Context
-                    </Label>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    When enabled, room metadata (channel, from_number, customer_name, etc.) is automatically appended to the agent&apos;s instructions so the LLM knows who is calling and from which channel.
-                  </p>
+                  </label>
                 </div>
 
-                {/* Greeting Message */}
+                  </div>
+                </div>
+              )}
+
+              {/* ════ GREETING SECTION ════ */}
+              {configSection === "greeting" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                      Greeting Message
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">The first message the agent speaks when a call starts</p>
+                  </div>
+                  <div className="p-5 space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" /> Greeting Message
-                  </Label>
-                  <p className="text-xs text-muted-foreground -mt-1">
-                    The first message the agent speaks when a call starts. Leave empty to let the agent decide.
-                  </p>
                   <Textarea
                     value={runtimeConfig.greetingMessage ?? ""}
                     onChange={(e) =>
@@ -1850,22 +1882,38 @@ export default function AgentPage() {
                   </div>
                 </div>
 
-                {/* Turn Detection (VAD) */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">{t("turnDetection")}</Label>
-                  <p className="text-xs text-muted-foreground -mt-1">
-                    {isPipelineMode
-                      ? t("turnDetectionPipelineDescription")
-                      : t("turnDetectionDescription")}
-                  </p>
+                  </div>
+                </div>
+              )}
 
-                  {/* Pipeline mode: turn detection strategy */}
-                  {isPipelineMode && (
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="rt-pipeline-td" className="text-xs text-muted-foreground">
+              {/* ════ TURN DETECTION SECTION ════ */}
+              {configSection === "turn-detection" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <Activity className="h-4 w-4 text-muted-foreground" />
+                      {t("turnDetection")}
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {isPipelineMode
+                        ? t("turnDetectionPipelineDescription")
+                        : t("turnDetectionDescription")}
+                    </p>
+                  </div>
+                  <div className="p-5 space-y-5">
+
+                {/* Pipeline mode panel */}
+                {isPipelineMode && (
+                  <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pipeline Mode</span>
+                      <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">Pipeline Only</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium">
                           {t("turnDetector")}
-                        </Label>
+                        </label>
                         <Select
                           value={runtimeConfig.pipelineTurnDetector ?? "turn_detector_model"}
                           onValueChange={(v) =>
@@ -1875,7 +1923,7 @@ export default function AgentPage() {
                             }))
                           }
                         >
-                          <SelectTrigger id="rt-pipeline-td">
+                          <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1885,17 +1933,14 @@ export default function AgentPage() {
                             <SelectItem value="manual">{t("turnDetectorManual")}</SelectItem>
                           </SelectContent>
                         </Select>
-                        <p className="text-[11px] text-muted-foreground">
-                          {t("turnDetectorModelHelp")}{" "}
-                          {t("turnDetectorSttHelp")}{" "}
-                          {t("turnDetectorVadHelp")}
-                        </p>
                       </div>
-
-                      <div className="flex items-center gap-2">
+                      <label className="flex items-center justify-between rounded-lg border px-3 py-3 cursor-pointer hover:bg-muted/30 transition-colors col-span-1 sm:col-span-2">
+                        <div>
+                          <span className="text-xs font-medium">Silero VAD</span>
+                          <p className="text-[11px] text-muted-foreground">Detecção de atividade vocal — recomendado para interrupções responsivas</p>
+                        </div>
                         <input
                           type="checkbox"
-                          id="rt-silero-vad"
                           checked={runtimeConfig.useSileroVad ?? true}
                           onChange={(e) =>
                             setRuntimeConfig((prev) => ({
@@ -1903,24 +1948,24 @@ export default function AgentPage() {
                               useSileroVad: e.target.checked,
                             }))
                           }
-                          className="h-4 w-4 rounded border-gray-300"
+                          className="h-4 w-4 rounded border-border ml-4 flex-shrink-0"
                         />
-                        <Label htmlFor="rt-silero-vad" className="text-xs">
-                          Silero VAD — Detecção de atividade vocal (recomendado para interrupções responsivas)
-                        </Label>
-                      </div>
+                      </label>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* Realtime mode: server_vad / semantic_vad */}
+                  {/* Realtime mode panel */}
                   {!isPipelineMode && (
-                  <>
+                  <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Realtime Mode</span>
+                      <span className="inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700">Realtime Only</span>
+                    </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {/* Type selector */}
-                    <div className="space-y-1">
-                      <Label htmlFor="rt-vad-type" className="text-xs text-muted-foreground">
-                        Type
-                      </Label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium">Type</label>
                       <Select
                         value={runtimeConfig.turnDetection?.type ?? "server_vad"}
                         onValueChange={(v) => {
@@ -1944,7 +1989,7 @@ export default function AgentPage() {
                           }));
                         }}
                       >
-                        <SelectTrigger id="rt-vad-type">
+                        <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1957,12 +2002,9 @@ export default function AgentPage() {
                     {/* === server_vad fields === */}
                     {(runtimeConfig.turnDetection?.type ?? "server_vad") === "server_vad" && (
                       <>
-                        <div className="space-y-1">
-                          <Label htmlFor="rt-vad-threshold" className="text-xs text-muted-foreground">
-                            Threshold
-                          </Label>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium">Threshold</label>
                           <Input
-                            id="rt-vad-threshold"
                             type="number"
                             step={0.05}
                             min={0}
@@ -1982,12 +2024,9 @@ export default function AgentPage() {
                             Voice activation threshold (0.0–1.0).
                           </p>
                         </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="rt-vad-prefix" className="text-xs text-muted-foreground">
-                            Prefix Padding (ms)
-                          </Label>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium">Prefix Padding (ms)</label>
                           <Input
-                            id="rt-vad-prefix"
                             type="number"
                             step={50}
                             min={0}
@@ -2007,12 +2046,9 @@ export default function AgentPage() {
                             Audio before speech detection to include.
                           </p>
                         </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="rt-vad-silence" className="text-xs text-muted-foreground">
-                            Silence (ms)
-                          </Label>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium">Silence (ms)</label>
                           <Input
-                            id="rt-vad-silence"
                             type="number"
                             step={50}
                             min={100}
@@ -2037,10 +2073,8 @@ export default function AgentPage() {
 
                     {/* === semantic_vad fields === */}
                     {runtimeConfig.turnDetection?.type === "semantic_vad" && (
-                      <div className="space-y-1">
-                        <Label htmlFor="rt-vad-eagerness" className="text-xs text-muted-foreground">
-                          Eagerness
-                        </Label>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium">Eagerness</label>
                         <Select
                           value={runtimeConfig.turnDetection?.eagerness ?? "auto"}
                           onValueChange={(v) =>
@@ -2053,7 +2087,7 @@ export default function AgentPage() {
                             }))
                           }
                         >
-                          <SelectTrigger id="rt-vad-eagerness">
+                          <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -2070,12 +2104,15 @@ export default function AgentPage() {
                     )}
                   </div>
 
-                  {/* Shared fields: create_response & interrupt_response */}
-                  <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
-                    <div className="flex items-center gap-2">
+                  {/* Shared toggles */}
+                  <div className="space-y-3 pt-1">
+                    <label className="flex items-center justify-between rounded-lg border px-3 py-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                      <div>
+                        <span className="text-xs font-medium">Create Response</span>
+                        <p className="text-[11px] text-muted-foreground">Gera resposta automaticamente quando detecta fim do turno</p>
+                      </div>
                       <input
                         type="checkbox"
-                        id="rt-vad-create-response"
                         checked={runtimeConfig.turnDetection?.create_response ?? true}
                         onChange={(e) =>
                           setRuntimeConfig((prev) => ({
@@ -2086,16 +2123,16 @@ export default function AgentPage() {
                             },
                           }))
                         }
-                        className="h-4 w-4 rounded border-gray-300"
+                        className="h-4 w-4 rounded border-border ml-4 flex-shrink-0"
                       />
-                      <Label htmlFor="rt-vad-create-response" className="text-xs">
-                        Create Response
-                      </Label>
-                    </div>
-                    <div className="flex items-center gap-2">
+                    </label>
+                    <label className="flex items-center justify-between rounded-lg border px-3 py-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                      <div>
+                        <span className="text-xs font-medium">Interrupt Response</span>
+                        <p className="text-[11px] text-muted-foreground">Permite que fala do usuário interrompa a resposta do agente</p>
+                      </div>
                       <input
                         type="checkbox"
-                        id="rt-vad-interrupt-response"
                         checked={runtimeConfig.turnDetection?.interrupt_response ?? true}
                         onChange={(e) =>
                           setRuntimeConfig((prev) => ({
@@ -2106,26 +2143,22 @@ export default function AgentPage() {
                             },
                           }))
                         }
-                        className="h-4 w-4 rounded border-gray-300"
+                        className="h-4 w-4 rounded border-border ml-4 flex-shrink-0"
                       />
-                      <Label htmlFor="rt-vad-interrupt-response" className="text-xs">
-                        Interrupt Response
-                      </Label>
-                    </div>
+                    </label>
                   </div>
-                  {/* Input Audio Transcription — Realtime Mode Only */}
-                  <div className="space-y-3 pt-2">
-                    <Label className="text-sm font-semibold flex items-center gap-2">
-                      Input Audio Transcription
-                    </Label>
-                    <p className="text-xs text-muted-foreground -mt-1">
-                      Modelo usado para transcrição do áudio de entrada em sessões realtime.
-                    </p>
+
+                  {/* Input Audio Transcription */}
+                  <div className="border-t pt-4 space-y-3">
+                    <div>
+                      <span className="text-xs font-semibold">Input Audio Transcription</span>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Modelo usado para transcrição do áudio de entrada em sessões realtime.
+                      </p>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <Label htmlFor="rt-iat-model" className="text-xs text-muted-foreground">
-                          Transcription Model
-                        </Label>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium">Transcription Model</label>
                         <Select
                           value={runtimeConfig.inputAudioTranscription?.model ?? "gpt-4o-mini-transcribe"}
                           onValueChange={(v) =>
@@ -2152,10 +2185,8 @@ export default function AgentPage() {
                         </p>
                       </div>
 
-                      <div className="space-y-1">
-                        <Label htmlFor="rt-iat-lang" className="text-xs text-muted-foreground">
-                          Idioma Transcrição
-                        </Label>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium">Idioma Transcrição</label>
                         <Select
                           value={runtimeConfig.inputAudioTranscription?.language ?? "pt"}
                           onValueChange={(v) =>
@@ -2168,7 +2199,7 @@ export default function AgentPage() {
                             }))
                           }
                         >
-                          <SelectTrigger id="rt-iat-lang">
+                          <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -2187,22 +2218,20 @@ export default function AgentPage() {
                       </div>
                     </div>
                   </div>
-                  </> )} {/* end !isPipelineMode */}
-                </div>
+                  </div> )} {/* end !isPipelineMode / realtime panel */}
 
                 {/* Endpointing */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Endpointing</Label>
-                  <p className="text-xs text-muted-foreground -mt-1">
-                    Controla quanto tempo o agente espera após o silêncio antes de considerar que o turno do usuário acabou.
-                  </p>
+                <div className="border-t pt-4 space-y-3">
+                  <div>
+                    <span className="text-xs font-semibold">Endpointing</span>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Controla quanto tempo o agente espera após o silêncio antes de considerar que o turno do usuário acabou.
+                    </p>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label htmlFor="rt-ep-min" className="text-xs text-muted-foreground">
-                        Min Delay (ms)
-                      </Label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium">Min Delay (ms)</label>
                       <Input
-                        id="rt-ep-min"
                         type="number"
                         step={100}
                         min={100}
@@ -2222,12 +2251,9 @@ export default function AgentPage() {
                         Tempo mínimo de silêncio para encerrar o turno. (default: 500ms)
                       </p>
                     </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="rt-ep-max" className="text-xs text-muted-foreground">
-                        Max Delay (ms)
-                      </Label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium">Max Delay (ms)</label>
                       <Input
-                        id="rt-ep-max"
                         type="number"
                         step={100}
                         min={500}
@@ -2250,68 +2276,96 @@ export default function AgentPage() {
                   </div>
                 </div>
 
-                {/* Interruption Handling */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Interruption Handling</Label>
-                  <p className="text-xs text-muted-foreground -mt-1">
-                    Configura como o agente reage quando o usuário fala enquanto o agente está respondendo.
-                  </p>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="rt-int-enabled"
-                        checked={runtimeConfig.interruption?.enabled ?? true}
-                        onChange={(e) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            interruption: {
-                              ...prev.interruption,
-                              enabled: e.target.checked,
-                            },
-                          }))
-                        }
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                      <Label htmlFor="rt-int-enabled" className="text-xs">
-                        Permitir interrupções pelo usuário
-                      </Label>
-                    </div>
+                </div>
+                </div>
+              )}
 
+              {/* ════ INTERRUPTION SECTION ════ */}
+              {configSection === "interruption" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-semibold flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-muted-foreground" />
+                          Interruption Handling
+                        </h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">Configure how the agent reacts when users interrupt</p>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={runtimeConfig.interruption?.enabled ?? true}
+                          onChange={(e) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              interruption: {
+                                ...prev.interruption,
+                                enabled: e.target.checked,
+                              },
+                            }))
+                          }
+                          className="h-4 w-4 rounded border-border"
+                        />
+                        <span className="text-xs font-medium">Enabled</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-4">
                     {(runtimeConfig.interruption?.enabled ?? true) && (
                       <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <Label htmlFor="rt-int-mode" className="text-xs text-muted-foreground">
-                              Modo de Detecção
-                            </Label>
-                            <Select
-                              value={runtimeConfig.interruption?.mode ?? "adaptive"}
-                              onValueChange={(v) =>
+                        {/* Detection Mode — card selector */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium mb-1 block">Modo de Detecção</label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() =>
                                 setRuntimeConfig((prev) => ({
                                   ...prev,
-                                  interruption: {
-                                    ...prev.interruption,
-                                    mode: v as "adaptive" | "vad",
-                                  },
+                                  interruption: { ...prev.interruption, mode: "adaptive" as const },
                                 }))
                               }
+                              className={`rounded-lg p-3 text-left transition-colors ${
+                                (runtimeConfig.interruption?.mode ?? "adaptive") === "adaptive"
+                                  ? "border-2 border-foreground bg-muted/50"
+                                  : "border bg-card hover:border-foreground/20"
+                              }`}
                             >
-                              <SelectTrigger id="rt-int-mode">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="adaptive">Adaptive — Distingue interrupção real de &quot;uhum&quot; (Recomendado)</SelectItem>
-                                <SelectItem value="vad">VAD — Qualquer fala interrompe</SelectItem>
-                              </SelectContent>
-                            </Select>
+                              <div className="flex items-center gap-2 mb-1">
+                                <Brain className="h-3.5 w-3.5" />
+                                <span className="text-xs font-semibold">Adaptive</span>
+                                <span className="ml-auto text-[10px] text-emerald-600 font-medium">Recomendado</span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">Distingue interrupções reais de backchannel (&quot;uhum&quot;, &quot;ok&quot;)</p>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  interruption: { ...prev.interruption, mode: "vad" as const },
+                                }))
+                              }
+                              className={`rounded-lg p-3 text-left transition-colors ${
+                                runtimeConfig.interruption?.mode === "vad"
+                                  ? "border-2 border-foreground bg-muted/50"
+                                  : "border bg-card hover:border-foreground/20"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <Activity className="h-3.5 w-3.5" />
+                                <span className="text-xs font-semibold">VAD</span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">Qualquer fala detectada interrompe o agente imediatamente</p>
+                            </button>
                           </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="rt-int-min-dur" className="text-xs text-muted-foreground">
-                              Min Duration (ms)
-                            </Label>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">Min Duration (ms)</label>
                             <Input
-                              id="rt-int-min-dur"
                               type="number"
                               step={100}
                               min={0}
@@ -2331,14 +2385,9 @@ export default function AgentPage() {
                               Duração mínima de fala para ser considerada interrupção.
                             </p>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <Label htmlFor="rt-int-min-words" className="text-xs text-muted-foreground">
-                              Min Words
-                            </Label>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">Min Words</label>
                             <Input
-                              id="rt-int-min-words"
                               type="number"
                               step={1}
                               min={0}
@@ -2355,15 +2404,15 @@ export default function AgentPage() {
                               }
                             />
                             <p className="text-[11px] text-muted-foreground">
-                              Mínimo de palavras transcritas para considerar interrupção. (0 = qualquer som)
+                              Mínimo de palavras transcritas para considerar interrupção.
                             </p>
                           </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="rt-int-false-timeout" className="text-xs text-muted-foreground">
-                              False Interruption Timeout (ms)
-                            </Label>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium">False Interruption Timeout (ms)</label>
                             <Input
-                              id="rt-int-false-timeout"
                               type="number"
                               step={500}
                               min={500}
@@ -2383,109 +2432,134 @@ export default function AgentPage() {
                               Tempo de silêncio após interrupção para considerar falso positivo.
                             </p>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id="rt-int-resume"
-                            checked={runtimeConfig.interruption?.resumeFalseInterruption ?? true}
-                            onChange={(e) =>
-                              setRuntimeConfig((prev) => ({
-                                ...prev,
-                                interruption: {
-                                  ...prev.interruption,
-                                  resumeFalseInterruption: e.target.checked,
-                                },
-                              }))
-                            }
-                            className="h-4 w-4 rounded border-gray-300"
-                          />
-                          <Label htmlFor="rt-int-resume" className="text-xs">
-                            Retomar fala após falsa interrupção
-                          </Label>
+                          <div className="flex items-center gap-3 self-end pb-1">
+                            <input
+                              type="checkbox"
+                              id="rt-int-resume"
+                              checked={runtimeConfig.interruption?.resumeFalseInterruption ?? true}
+                              onChange={(e) =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  interruption: {
+                                    ...prev.interruption,
+                                    resumeFalseInterruption: e.target.checked,
+                                  },
+                                }))
+                              }
+                              className="h-4 w-4 rounded border-border"
+                            />
+                            <div>
+                              <span className="text-xs font-medium">Retomar fala após falsa interrupção</span>
+                              <p className="text-[11px] text-muted-foreground">Continue previous speech if interruption was false</p>
+                            </div>
+                          </div>
                         </div>
                       </>
                     )}
                   </div>
                 </div>
+              )}
 
-                {/* Humanization */}
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground -mt-1">
-                    {t("humanizationDescription")}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="rt-fillers"
-                        checked={runtimeConfig.humanization?.fillersEnabled ?? false}
-                        onChange={(e) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            humanization: {
-                              ...prev.humanization,
-                              fillersEnabled: e.target.checked,
-                            },
-                          }))
-                        }
-                        className="h-4 w-4 rounded border-border"
-                      />
-                      <Label htmlFor="rt-fillers" className="text-sm cursor-pointer">
-                        {t("fillers")} <span className="text-[10px] text-muted-foreground">{t("fillersHint")}</span>
-                      </Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="rt-typing"
-                        checked={runtimeConfig.humanization?.typingSounds ?? false}
-                        onChange={(e) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            humanization: {
-                              ...prev.humanization,
-                              typingSounds: e.target.checked,
-                            },
-                          }))
-                        }
-                        className="h-4 w-4 rounded border-border"
-                      />
-                      <Label htmlFor="rt-typing" className="text-sm cursor-pointer">
-                        {t("typingSounds")} <span className="text-[10px] text-muted-foreground">{t("typingSoundsHint")}</span>
-                      </Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="rt-ambience"
-                        checked={runtimeConfig.humanization?.ambience ?? false}
-                        onChange={(e) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            humanization: {
-                              ...prev.humanization,
-                              ambience: e.target.checked,
-                            },
-                          }))
-                        }
-                        className="h-4 w-4 rounded border-border"
-                      />
-                      <Label htmlFor="rt-ambience" className="text-sm cursor-pointer">
-                        {t("officeAmbience")} <span className="text-[10px] text-muted-foreground">{t("officeAmbienceHint")}</span>
-                      </Label>
+              {/* ════ HUMANIZATION SECTION ════ */}
+              {configSection === "humanization" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <Heart className="h-4 w-4 text-muted-foreground" />
+                      Humanization
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("humanizationDescription")}</p>
+                  </div>
+                  <div className="p-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Fillers card */}
+                      <label className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors cursor-pointer block">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50">
+                            <MessageCircle className="h-4 w-4 text-amber-600" />
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={runtimeConfig.humanization?.fillersEnabled ?? false}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                humanization: {
+                                  ...prev.humanization,
+                                  fillersEnabled: e.target.checked,
+                                },
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-border"
+                          />
+                        </div>
+                        <h3 className="text-xs font-semibold mb-0.5">{t("fillers")}</h3>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">{t("fillersHint")}</p>
+                      </label>
+                      {/* Typing Sounds card */}
+                      <label className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors cursor-pointer block">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50">
+                            <Keyboard className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={runtimeConfig.humanization?.typingSounds ?? false}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                humanization: {
+                                  ...prev.humanization,
+                                  typingSounds: e.target.checked,
+                                },
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-border"
+                          />
+                        </div>
+                        <h3 className="text-xs font-semibold mb-0.5">{t("typingSounds")}</h3>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">{t("typingSoundsHint")}</p>
+                      </label>
+                      {/* Office Ambience card */}
+                      <label className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors cursor-pointer block">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50">
+                            <Volume2 className="h-4 w-4 text-emerald-600" />
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={runtimeConfig.humanization?.ambience ?? false}
+                            onChange={(e) =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                humanization: {
+                                  ...prev.humanization,
+                                  ambience: e.target.checked,
+                                },
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-border"
+                          />
+                        </div>
+                        <h3 className="text-xs font-semibold mb-0.5">{t("officeAmbience")}</h3>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">{t("officeAmbienceHint")}</p>
+                      </label>
                     </div>
                   </div>
                 </div>
+              )}
 
-                {/* Timeouts */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    <Timer className="h-4 w-4" /> {t("timeouts")}
-                  </Label>
-                  <p className="text-xs text-muted-foreground -mt-1">
-                    {t("timeoutsDescription")}
-                  </p>
+              {/* ════ TIMEOUTS SECTION ════ */}
+              {configSection === "timeouts" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <Timer className="h-4 w-4 text-muted-foreground" />
+                      {t("timeouts")}
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("timeoutsDescription")}</p>
+                  </div>
+                  <div className="p-5 space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <Label
@@ -2669,414 +2743,483 @@ export default function AgentPage() {
                   </p>
                 </div>
 
-                {/* ── Extraction Fields (Ticket) ── */}
-                <div className="space-y-3 border-t pt-4 mt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-medium">Campos de Extração (Ticket)</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Campos extraídos automaticamente da conversa ao final da chamada.
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setRuntimeConfig((prev) => ({
-                          ...prev,
-                          extractionFields: [
-                            ...(prev.extractionFields ?? []),
-                            {
-                              key: "",
-                              label: "",
-                              type: "string" as const,
-                              description: "",
-                            },
-                          ],
+                </div>
+              )}
+
+              {/* ════ EXTRACTION SECTION ════ */}
+              {configSection === "extraction" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-semibold flex items-center gap-2">
+                          <FileOutput className="h-4 w-4 text-muted-foreground" />
+                          Campos de Extração (Ticket)
+                        </h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">Campos extraídos automaticamente da conversa ao final da chamada</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5 text-xs"
+                        onClick={() =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            extractionFields: [
+                              ...(prev.extractionFields ?? []),
+                              {
+                                key: "",
+                                label: "",
+                                type: "string" as const,
+                                description: "",
+                              },
+                            ],
                         }))
                       }
                     >
-                      + Adicionar Campo
+                      <Plus className="h-3.5 w-3.5" />
+                      Adicionar Campo
                     </Button>
+                    </div>
                   </div>
+                  <div className="p-5 space-y-3">
 
                   {(runtimeConfig.extractionFields ?? []).length === 0 && (
-                    <p className="text-xs text-muted-foreground italic">
+                    <p className="text-xs text-muted-foreground italic text-center py-6">
                       Nenhum campo de extração configurado. Adicione campos para gerar tickets automaticamente.
                     </p>
                   )}
 
-                  {(runtimeConfig.extractionFields ?? []).map((field, idx) => (
+                  {(runtimeConfig.extractionFields ?? []).map((field, idx) => {
+                    const typeColorMap: Record<string, { bg: string; text: string; label: string }> = {
+                      string: { bg: "bg-blue-50", text: "text-blue-700", label: "Texto" },
+                      enum: { bg: "bg-amber-50", text: "text-amber-700", label: "Enum" },
+                      number: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Número" },
+                      boolean: { bg: "bg-purple-50", text: "text-purple-700", label: "Sim/Não" },
+                    };
+                    const typeInfo = typeColorMap[field.type] ?? typeColorMap.string;
+                    return (
                     <div
                       key={idx}
-                      className="rounded-md border p-3 space-y-2"
+                      className="group rounded-lg border p-3 hover:border-foreground/20 transition-colors"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Campo {idx + 1}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-destructive"
-                          onClick={() =>
-                            setRuntimeConfig((prev) => ({
-                              ...prev,
-                              extractionFields: (prev.extractionFields ?? []).filter(
-                                (_, i) => i !== idx
-                              ),
-                            }))
-                          }
-                        >
-                          ×
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs">Key</Label>
-                          <Input
-                            value={field.key}
-                            onChange={(e) =>
-                              setRuntimeConfig((prev) => {
-                                const fields = [...(prev.extractionFields ?? [])];
-                                fields[idx] = { ...fields[idx], key: e.target.value };
-                                return { ...prev, extractionFields: fields };
-                              })
-                            }
-                            placeholder="ex: customer_name"
-                            className="h-8 text-xs"
-                          />
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0 space-y-2">
+                          {/* Top row: type badge + key + required */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${typeInfo.bg} ${typeInfo.text}`}>
+                              {typeInfo.label}
+                            </span>
+                            {field.key ? (
+                              <span className="text-xs font-semibold font-mono">{field.key}</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">Campo sem nome</span>
+                            )}
+                            {field.required && (
+                              <span className="inline-flex items-center rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600">Obrigatório</span>
+                            )}
+                          </div>
+                          {/* Label + description */}
+                          {field.label && <p className="text-xs text-foreground">{field.label}</p>}
+                          {field.description && <p className="text-[11px] text-muted-foreground">{field.description}</p>}
+                          {/* Enum options as chips */}
+                          {field.type === "enum" && (field.options ?? []).length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {(field.options ?? []).map((opt, oi) => (
+                                <span key={oi} className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">
+                                  {opt}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <Label className="text-xs">Label</Label>
-                          <Input
-                            value={field.label}
-                            onChange={(e) =>
-                              setRuntimeConfig((prev) => {
-                                const fields = [...(prev.extractionFields ?? [])];
-                                fields[idx] = { ...fields[idx], label: e.target.value };
-                                return { ...prev, extractionFields: fields };
-                              })
-                            }
-                            placeholder="ex: Nome do Cliente"
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs">Tipo</Label>
-                          <select
-                            value={field.type}
-                            onChange={(e) =>
-                              setRuntimeConfig((prev) => {
-                                const fields = [...(prev.extractionFields ?? [])];
-                                fields[idx] = {
-                                  ...fields[idx],
-                                  type: e.target.value as ExtractionField["type"],
-                                  options: e.target.value === "enum" ? (fields[idx].options ?? []) : undefined,
-                                };
-                                return { ...prev, extractionFields: fields };
-                              })
-                            }
-                            className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm"
+                        {/* Edit / Delete — hover only */}
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => setEditExtractionIdx(idx)}
                           >
-                            <option value="string">Texto</option>
-                            <option value="enum">Enum (Opções)</option>
-                            <option value="number">Número</option>
-                            <option value="boolean">Sim/Não</option>
-                          </select>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                            onClick={() =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                extractionFields: (prev.extractionFields ?? []).filter(
+                                  (_, i) => i !== idx
+                                ),
+                              }))
+                            }
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                        <div className="flex items-end gap-2">
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={field.required ?? false}
+                      </div>
+
+                      {/* Inline edit form when editing */}
+                      {editExtractionIdx === idx && (
+                        <div className="mt-3 pt-3 border-t space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Key</label>
+                              <Input
+                                value={field.key}
+                                onChange={(e) =>
+                                  setRuntimeConfig((prev) => {
+                                    const fields = [...(prev.extractionFields ?? [])];
+                                    fields[idx] = { ...fields[idx], key: e.target.value };
+                                    return { ...prev, extractionFields: fields };
+                                  })
+                                }
+                                placeholder="ex: customer_name"
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Label</label>
+                              <Input
+                                value={field.label}
+                                onChange={(e) =>
+                                  setRuntimeConfig((prev) => {
+                                    const fields = [...(prev.extractionFields ?? [])];
+                                    fields[idx] = { ...fields[idx], label: e.target.value };
+                                    return { ...prev, extractionFields: fields };
+                                  })
+                                }
+                                placeholder="ex: Nome do Cliente"
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tipo</label>
+                              <select
+                                value={field.type}
+                                onChange={(e) =>
+                                  setRuntimeConfig((prev) => {
+                                    const fields = [...(prev.extractionFields ?? [])];
+                                    fields[idx] = {
+                                      ...fields[idx],
+                                      type: e.target.value as ExtractionField["type"],
+                                      options: e.target.value === "enum" ? (fields[idx].options ?? []) : undefined,
+                                    };
+                                    return { ...prev, extractionFields: fields };
+                                  })
+                                }
+                                className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm"
+                              >
+                                <option value="string">Texto</option>
+                                <option value="enum">Enum (Opções)</option>
+                                <option value="number">Número</option>
+                                <option value="boolean">Sim/Não</option>
+                              </select>
+                            </div>
+                            <div className="flex items-end gap-2 pb-1">
+                              <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={field.required ?? false}
+                                  onChange={(e) =>
+                                    setRuntimeConfig((prev) => {
+                                      const fields = [...(prev.extractionFields ?? [])];
+                                      fields[idx] = { ...fields[idx], required: e.target.checked };
+                                      return { ...prev, extractionFields: fields };
+                                    })
+                                  }
+                                  className="rounded"
+                                />
+                                Obrigatório
+                              </label>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Descrição (usada no prompt)</label>
+                            <Input
+                              value={field.description}
                               onChange={(e) =>
                                 setRuntimeConfig((prev) => {
                                   const fields = [...(prev.extractionFields ?? [])];
-                                  fields[idx] = { ...fields[idx], required: e.target.checked };
+                                  fields[idx] = { ...fields[idx], description: e.target.value };
                                   return { ...prev, extractionFields: fields };
                                 })
                               }
-                              className="rounded"
+                              placeholder="ex: Nome completo do cliente que está ligando"
+                              className="h-8 text-xs"
                             />
-                            Obrigatório
-                          </label>
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-xs">Descrição (usada no prompt)</Label>
-                        <Input
-                          value={field.description}
-                          onChange={(e) =>
-                            setRuntimeConfig((prev) => {
-                              const fields = [...(prev.extractionFields ?? [])];
-                              fields[idx] = { ...fields[idx], description: e.target.value };
-                              return { ...prev, extractionFields: fields };
-                            })
-                          }
-                          placeholder="ex: Nome completo do cliente que está ligando"
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      {field.type === "enum" && (
-                        <div>
-                          <Label className="text-xs">Opções (separadas por vírgula)</Label>
-                          <Input
-                            value={field._optionsText ?? (field.options ?? []).join(", ")}
-                            onChange={(e) =>
-                              setRuntimeConfig((prev) => {
-                                const fields = [...(prev.extractionFields ?? [])];
-                                fields[idx] = {
-                                  ...fields[idx],
-                                  _optionsText: e.target.value,
-                                };
-                                return { ...prev, extractionFields: fields };
-                              })
-                            }
-                            onBlur={(e) =>
-                              setRuntimeConfig((prev) => {
-                                const fields = [...(prev.extractionFields ?? [])];
-                                const parsed = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
-                                fields[idx] = {
-                                  ...fields[idx],
-                                  options: parsed,
-                                  _optionsText: undefined,
-                                };
-                                return { ...prev, extractionFields: fields };
-                              })
-                            }
-                            placeholder="ex: satisfeito, neutro, insatisfeito"
-                            className="h-8 text-xs"
-                          />
+                          </div>
+                          {field.type === "enum" && (
+                            <div>
+                              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Opções (separadas por vírgula)</label>
+                              <Input
+                                value={field._optionsText ?? (field.options ?? []).join(", ")}
+                                onChange={(e) =>
+                                  setRuntimeConfig((prev) => {
+                                    const fields = [...(prev.extractionFields ?? [])];
+                                    fields[idx] = {
+                                      ...fields[idx],
+                                      _optionsText: e.target.value,
+                                    };
+                                    return { ...prev, extractionFields: fields };
+                                  })
+                                }
+                                onBlur={(e) =>
+                                  setRuntimeConfig((prev) => {
+                                    const fields = [...(prev.extractionFields ?? [])];
+                                    const parsed = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                                    fields[idx] = {
+                                      ...fields[idx],
+                                      options: parsed,
+                                      _optionsText: undefined,
+                                    };
+                                    return { ...prev, extractionFields: fields };
+                                  })
+                                }
+                                placeholder="ex: satisfeito, neutro, insatisfeito"
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          )}
+                          <div className="flex justify-end">
+                            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditExtractionIdx(null)}>
+                              Fechar
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
-                  ))}
+                  )})}
                 </div>
 
-              </CardContent>
-            )}
-          </Card>
+                </div>
+              )}
+
+            </div>
+          </div>
         </TabsContent>
 
-        <TabsContent value="knowledge" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="h-5 w-5" />
-                    {t("knowledgeBase")}
-                  </CardTitle>
-                  <CardDescription>
-                    {t("knowledgeBaseDescription")}
-                  </CardDescription>
-                </div>
-                <Badge variant="secondary">
-                  {knowledgeItems.length}{" "}
-                  {knowledgeItems.length === 1 ? t("file") : t("files")}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border border-dashed p-4 space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <div className="flex-1">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".txt,.pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      id="knowledge-file"
-                    />
-                    <Label
-                      htmlFor="knowledge-file"
-                      className="cursor-pointer inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
-                    >
-                      <Upload className="h-4 w-4" />
-                      {uploading ? t("uploading") : t("chooseFile")}
-                    </Label>
+        <TabsContent value="knowledge" className="pt-5 pb-20">
+          <div className="space-y-5">
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="px-5 py-4 border-b bg-muted/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-muted-foreground" />
+                      {t("knowledgeBase")}
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("knowledgeBaseDescription")}</p>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="summarize"
-                      checked={summarize}
-                      onChange={(e) => setSummarize(e.target.checked)}
-                      className="h-4 w-4 rounded border-border"
-                    />
-                    <Label htmlFor="summarize" className="text-sm cursor-pointer">
-                      {t("summarizeBeforeSaving")}
-                    </Label>
+                  <span className="text-xs text-muted-foreground">
+                    {knowledgeItems.length} {knowledgeItems.length === 1 ? t("file") : t("files")}
+                  </span>
+                </div>
+              </div>
+              <div className="p-5 space-y-5">
+                {/* Upload Area */}
+                <div className="rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/20 p-6 text-center hover:border-muted-foreground/30 transition-colors cursor-pointer">
+                  <div className="flex justify-center mb-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+                      <Upload className="h-5 w-5 text-blue-500" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".txt,.pdf"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="knowledge-file"
+                      />
+                      <Label
+                        htmlFor="knowledge-file"
+                        className="cursor-pointer inline-flex items-center gap-2 rounded-md border bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploading ? t("uploading") : t("chooseFile")}
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">PDF, TXT — Max 10MB per file</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="checkbox"
+                        id="summarize"
+                        checked={summarize}
+                        onChange={(e) => setSummarize(e.target.checked)}
+                        className="h-4 w-4 rounded border-border"
+                      />
+                      <Label htmlFor="summarize" className="text-xs cursor-pointer text-muted-foreground">
+                        {t("summarizeBeforeSaving")}
+                      </Label>
+                    </div>
                   </div>
                 </div>
 
                 {summarize && (
-                  <div className="flex items-start gap-2 rounded-md bg-yellow-500/10 border border-yellow-500/20 p-3 text-sm text-yellow-700 dark:text-yellow-400">
+                  <div className="flex items-start gap-2 rounded-md bg-yellow-500/10 border border-yellow-500/20 p-3 text-sm text-yellow-700">
                     <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span>
-                      {t("summarizeWarning")}
-                    </span>
+                    <span>{t("summarizeWarning")}</span>
+                  </div>
+                )}
+
+                {/* Files Table */}
+                {knowledgeItems.length > 0 ? (
+                  <div className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/40 hover:bg-muted/40">
+                          <TableHead className="text-xs font-medium">{t("fileHeader")}</TableHead>
+                          <TableHead className="w-[100px] text-xs font-medium">{t("size")}</TableHead>
+                          <TableHead className="w-[100px] text-xs font-medium">{t("type")}</TableHead>
+                          <TableHead className="w-[140px] text-xs font-medium">{t("date")}</TableHead>
+                          <TableHead className="w-[50px]" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {knowledgeItems.map((item) => (
+                          <TableRow key={item.id} className="group">
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span className="truncate max-w-[200px] text-xs font-medium">
+                                  {item.file_name}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-xs">
+                              {item.char_count.toLocaleString()} {t("chars")}
+                            </TableCell>
+                            <TableCell>
+                              {item.summarized ? (
+                                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                                  {t("summarized")}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                  {t("original")}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-xs">
+                              {new Date(item.created_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setPendingDeleteKnowledgeId(item.id)}
+                                  disabled={deletingId === item.id}
+                                  className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <div className="border-t px-4 py-2.5 bg-muted/20 text-xs text-muted-foreground">
+                      {knowledgeItems.length} {knowledgeItems.length === 1 ? t("file") : t("files")}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <BookOpen className="h-10 w-10 mx-auto mb-2 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">{t("noKnowledge")}</p>
                   </div>
                 )}
               </div>
-
-              {knowledgeItems.length > 0 ? (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t("fileHeader")}</TableHead>
-                        <TableHead className="w-[100px]">{t("size")}</TableHead>
-                        <TableHead className="w-[100px]">{t("type")}</TableHead>
-                        <TableHead className="w-[140px]">{t("date")}</TableHead>
-                        <TableHead className="w-[50px]" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {knowledgeItems.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                              <span className="truncate max-w-[200px]">
-                                {item.file_name}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-xs">
-                            {item.char_count.toLocaleString()} {t("chars")}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={item.summarized ? "default" : "outline"}
-                              className="text-xs"
-                            >
-                              {item.summarized ? t("summarized") : t("original")}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-xs">
-                            {new Date(item.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setPendingDeleteKnowledgeId(item.id)}
-                              disabled={deletingId === item.id}
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center py-6 text-sm text-muted-foreground">
-                  {t("noKnowledge")}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* ─── Tools Tab ──────────────────────────────────────── */}
-        <TabsContent value="tools" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Wrench className="h-5 w-5" />
-                    {t("agentTools")}
-                  </CardTitle>
-                  <CardDescription>
-                    {t("agentToolsDescription")}
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSeedTools}
-                    disabled={seedingTools}
-                  >
-                    {seedingTools ? (
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="mr-1 h-3 w-3" />
-                    )}
-                    {t("seedDefaults")}
-                  </Button>
-                  <Button size="sm" onClick={openToolDialogForCreate}>
-                    <Plus className="mr-1 h-3 w-3" />
-                    {t("addTool")}
-                  </Button>
-                </div>
+        <TabsContent value="tools" className="pt-5 pb-20">
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold">{t("agentTools")}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("agentToolsDescription")}</p>
               </div>
-            </CardHeader>
-            <CardContent>
-              {loadingTools ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : agentTools.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Wrench className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">{t("noToolsConfigured")}</p>
-                  <p className="text-xs mt-1">
-                    {t("noToolsHint")}
-                  </p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[40px]">#</TableHead>
-                      <TableHead>{tc("name")}</TableHead>
-                      <TableHead>{t("type")}</TableHead>
-                      <TableHead className="hidden md:table-cell">{t("descriptionLabel")}</TableHead>
-                      <TableHead className="w-[80px]">{t("enabled")}</TableHead>
-                      <TableHead className="w-[100px] text-right">{tc("actions")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {agentTools.map((tool, idx) => (
-                      <TableRow key={tool.id}>
-                        <TableCell className="text-muted-foreground text-xs">{idx + 1}</TableCell>
-                        <TableCell className="font-mono text-sm">{tool.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {tool.type === "TRANSFER_CALL" && "Transfer"}
-                            {tool.type === "END_CALL" && "End Call"}
-                            {tool.type === "HTTP_REQUEST" && (
-                              <span className="flex items-center gap-1">
-                                <Globe className="h-3 w-3" /> HTTP
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={handleSeedTools}
+                  disabled={seedingTools}
+                >
+                  {seedingTools ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                  {t("seedDefaults")}
+                </Button>
+                <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={openToolDialogForCreate}>
+                  <Plus className="h-3 w-3" />
+                  {t("addTool")}
+                </Button>
+              </div>
+            </div>
+
+            {loadingTools ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : agentTools.length === 0 ? (
+              <div className="text-center py-16">
+                <Wrench className="h-10 w-10 mx-auto mb-2 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">{t("noToolsConfigured")}</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("noToolsHint")}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {agentTools.map((tool) => {
+                  const typeColors: Record<string, { bg: string; icon: string; border: string; text: string }> = {
+                    HTTP_REQUEST: { bg: "bg-blue-50", icon: "text-blue-600", border: "border-blue-200", text: "text-blue-700" },
+                    TRANSFER_CALL: { bg: "bg-amber-50", icon: "text-amber-600", border: "border-amber-200", text: "text-amber-700" },
+                    END_CALL: { bg: "bg-red-50", icon: "text-red-600", border: "border-red-200", text: "text-red-700" },
+                    PRE_CALL: { bg: "bg-violet-50", icon: "text-violet-600", border: "border-violet-200", text: "text-violet-700" },
+                    POST_CALL: { bg: "bg-emerald-50", icon: "text-emerald-600", border: "border-emerald-200", text: "text-emerald-700" },
+                  };
+                  const colors = typeColors[tool.type] ?? typeColors.HTTP_REQUEST;
+                  return (
+                    <div key={tool.id} className="rounded-lg border bg-card p-4 group hover:border-foreground/20 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colors.bg} flex-shrink-0 mt-0.5`}>
+                            <Globe className={`h-4 w-4 ${colors.icon}`} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-semibold font-mono">{tool.name}</span>
+                              <span className={`inline-flex items-center rounded-full border ${colors.border} ${colors.bg} px-2 py-0.5 text-[10px] font-medium ${colors.text}`}>
+                                {tool.type === "TRANSFER_CALL" && "Transfer"}
+                                {tool.type === "END_CALL" && "End Call"}
+                                {tool.type === "HTTP_REQUEST" && "HTTP"}
+                                {tool.type === "PRE_CALL" && "Pre-Call"}
+                                {tool.type === "POST_CALL" && "Post-Call"}
                               </span>
-                            )}
-                            {tool.type === "PRE_CALL" && (
-                              <span className="flex items-center gap-1">
-                                <Globe className="h-3 w-3" /> Pre-Call
-                              </span>
-                            )}
-                            {tool.type === "POST_CALL" && (
-                              <span className="flex items-center gap-1">
-                                <Globe className="h-3 w-3" /> Post-Call
-                              </span>
-                            )}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground max-w-[300px] truncate">
-                          {tool.description}
-                        </TableCell>
-                        <TableCell>
+                              {!tool.enabled && (
+                                <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                  Disabled
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{tool.description}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleToggleTool(tool)}
                             className="text-muted-foreground hover:text-foreground transition-colors"
@@ -3088,9 +3231,7 @@ export default function AgentPage() {
                               <ToggleLeft className="h-5 w-5" />
                             )}
                           </button>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Button
                               variant="ghost"
                               size="sm"
@@ -3102,7 +3243,7 @@ export default function AgentPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-red-50"
                               onClick={() => setPendingDeleteToolId(tool.id)}
                               disabled={deletingToolId === tool.id}
                             >
@@ -3113,29 +3254,41 @@ export default function AgentPage() {
                               )}
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {agentTools.length > 0 && (
+              <p className="text-xs text-muted-foreground text-center">
+                {agentTools.length} {agentTools.length === 1 ? "tool" : "tools"} configured
+              </p>
+            )}
+          </div>
 
           {/* Tool Create/Edit Dialog */}
           <Dialog open={toolDialogOpen} onOpenChange={(open) => { setToolDialogOpen(open); if (!open) resetToolForm(); }}>
-            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingTool ? t("editTool") : t("addTool")}</DialogTitle>
-                <DialogDescription>
+            <DialogContent className="p-0 gap-0 sm:max-w-2xl" showCloseButton={false}>
+              <DialogHeader className="border-b px-5 py-4">
+                <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
+                    <Wrench className="h-3.5 w-3.5 text-violet-600" />
+                  </span>
+                  {editingTool ? t("editTool") : t("addTool")}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-1">
                   {editingTool
                     ? "Update the tool configuration."
                     : "Define a new tool that the agent can call during conversations."}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-1">
-                  <Label htmlFor="tool-name" className="text-sm">{t("name")}</Label>
+              <div className="p-5 space-y-5 max-h-[65vh] overflow-y-auto">
+                {/* Identity section */}
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Identity</div>
+                <div>
+                  <label htmlFor="tool-name" className="text-xs font-medium mb-1 block">{t("name")}</label>
                   <Input
                     id="tool-name"
                     value={toolForm.name}
@@ -3149,20 +3302,20 @@ export default function AgentPage() {
                       setToolForm((p) => ({ ...p, name: sanitized }));
                     }}
                     placeholder="e.g. check_availability"
-                    className="font-mono"
+                    className="h-8 font-mono text-xs"
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground mt-1">
                     Only letters, numbers, underscores and hyphens allowed (pattern: ^[a-zA-Z0-9_-]+$).
                   </p>
                 </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="tool-type" className="text-sm">{t("type")}</Label>
+                <div>
+                  <label htmlFor="tool-type" className="text-xs font-medium mb-1 block">{t("type")}</label>
                   <Select
                     value={toolForm.type}
                     onValueChange={(v) => setToolForm((p) => ({ ...p, type: v as ToolType }))}
                   >
-                    <SelectTrigger id="tool-type">
+                    <SelectTrigger id="tool-type" className="h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3178,8 +3331,8 @@ export default function AgentPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="tool-desc" className="text-sm">{t("descriptionLabel")}</Label>
+                <div>
+                  <label htmlFor="tool-desc" className="text-xs font-medium mb-1 block">{t("descriptionLabel")}</label>
                   <Textarea
                     id="tool-desc"
                     value={toolForm.description}
@@ -3191,8 +3344,9 @@ export default function AgentPage() {
 
                 {toolForm.type !== "PRE_CALL" && toolForm.type !== "POST_CALL" && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm">{t("parameters")}</Label>
+                  <div className="border-t" />
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("parameters")}</div>
+                  <div className="flex items-center justify-end">
                     <div className="flex items-center gap-1">
                       {paramsMode === "json" && (
                         <Button
@@ -3377,8 +3531,9 @@ export default function AgentPage() {
                 )}
 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm">{t("config")}</Label>
+                  <div className="border-t" />
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("config")}</div>
+                  <div className="flex items-center justify-end">
                     <div className="flex items-center gap-1">
                       {configMode === "json" && (
                         <Button
@@ -3671,41 +3826,43 @@ export default function AgentPage() {
                   </div>
                 </div>
 
+                <div className="border-t" />
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Options</div>
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
+                  <label htmlFor="tool-enabled" className="flex items-center justify-between rounded-lg border px-3 py-3 cursor-pointer hover:bg-muted/30 transition-colors flex-1">
+                    <div>
+                      <span className="text-xs font-medium">{t("enabled")}</span>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Tool is available for the agent to use</p>
+                    </div>
                     <input
-                      type="checkbox"
                       id="tool-enabled"
+                      type="checkbox"
                       checked={toolForm.enabled}
                       onChange={(e) => setToolForm((p) => ({ ...p, enabled: e.target.checked }))}
-                      className="h-4 w-4 rounded border-border"
+                      className="h-4 w-4 rounded border-gray-300 accent-foreground"
                     />
-                    <Label htmlFor="tool-enabled" className="text-sm cursor-pointer">{t("enabled")}</Label>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="tool-order" className="text-sm">{t("order")}</Label>
-                      <Input
-                        id="tool-order"
-                        type="number"
-                        min={0}
-                        value={toolForm.sort_order}
-                        onChange={(e) => setToolForm((p) => ({ ...p, sort_order: parseInt(e.target.value) || 0 }))}
-                        className="w-20"
-                      />
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">Display order. Tools with lower numbers appear first in the agent&apos;s tool list.</p>
+                  </label>
+                  <div className="shrink-0">
+                    <label htmlFor="tool-order" className="text-xs font-medium mb-1 block">{t("order")}</label>
+                    <Input
+                      id="tool-order"
+                      type="number"
+                      min={0}
+                      value={toolForm.sort_order}
+                      onChange={(e) => setToolForm((p) => ({ ...p, sort_order: parseInt(e.target.value) || 0 }))}
+                      className="w-20 h-8 text-xs"
+                    />
                   </div>
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => { setToolDialogOpen(false); resetToolForm(); }}>
+              <DialogFooter className="border-t px-5 py-3">
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setToolDialogOpen(false); resetToolForm(); }}>
                   {tc("cancel")}
                 </Button>
-                <Button onClick={handleSaveTool} disabled={savingTool || !toolForm.name || !toolForm.description}>
+                <Button size="sm" className="h-8 text-xs" onClick={handleSaveTool} disabled={savingTool || !toolForm.name || !toolForm.description}>
                   {savingTool ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
                       {t("savingTool")}
                     </>
                   ) : editingTool ? (
@@ -3720,194 +3877,197 @@ export default function AgentPage() {
         </TabsContent>
 
         {/* ─── Versions Tab ─────────────────────────────────────────────── */}
-        <TabsContent value="versions" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Tag className="h-5 w-5" />
-                    {t("publishedVersions")}
-                  </CardTitle>
-                  <CardDescription>
-                    {t("publishedVersionsDescription")}
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => loadVersions(selectedAgent)}
-                    disabled={loadingVersions}
-                  >
-                    <RefreshCw className={`h-4 w-4 mr-1 ${loadingVersions ? "animate-spin" : ""}`} />
-                    {tc("refresh")}
-                  </Button>
-                  <Button size="sm" onClick={() => { setPublishDescription(""); setPublishDialogOpen(true); }}>
-                    <Tag className="h-4 w-4 mr-1" />
-                    {t("publishVersion")}
-                  </Button>
+        <TabsContent value="versions" className="pt-5 pb-20">
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold">{t("publishedVersions")}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("publishedVersionsDescription")}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={() => loadVersions(selectedAgent)}
+                  disabled={loadingVersions}
+                >
+                  <RefreshCw className={`h-3 w-3 ${loadingVersions ? "animate-spin" : ""}`} />
+                  {tc("refresh")}
+                </Button>
+                <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setPublishDescription(""); setPublishDialogOpen(true); }}>
+                  <Tag className="h-3 w-3" />
+                  {t("publishVersion")}
+                </Button>
+              </div>
+            </div>
+
+            {loadingVersions ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : versions.length === 0 ? (
+              <div className="text-center py-16">
+                <Tag className="h-10 w-10 mx-auto mb-2 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">{t("noVersions")}</p>
+              </div>
+            ) : (
+              <div className="rounded-lg border bg-card overflow-hidden">
+                <Table className="table-fixed">
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="w-[80px] text-xs font-medium">{t("versionHeader")}</TableHead>
+                      <TableHead className="text-xs font-medium">{t("descriptionLabel")}</TableHead>
+                      <TableHead className="w-[180px] text-xs font-medium">{t("published")}</TableHead>
+                      <TableHead className="w-[100px]" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {versions.map((v, idx) => (
+                      <TableRow key={v.id} className="group">
+                        <TableCell>
+                          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono font-medium ${idx === 0 ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
+                            v{v.version}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                          {v.description || <span className="italic">{t("noDescription")}</span>}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(v.created_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              title={t("viewDetails")}
+                              onClick={async () => {
+                                try {
+                                  const detail = await agentVersionApi.get(selectedAgent, v.version);
+                                  setViewingVersion(detail);
+                                } catch (err) {
+                                  toast.error(err instanceof Error ? err.message : t("failedToLoadVersion"));
+                                }
+                              }}
+                            >
+                              <Code className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 hover:bg-blue-50"
+                              title={t("restoreToDraft")}
+                              onClick={() => setRestoreConfirmVersion(v)}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5 text-blue-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-red-50"
+                              title={t("deleteVersion")}
+                              disabled={deletingVersionNum === v.version}
+                              onClick={async () => {
+                                setDeletingVersionNum(v.version);
+                                try {
+                                  await agentVersionApi.delete(selectedAgent, v.version);
+                                  toast.success(t("versionDeleted", { version: v.version }));
+                                  loadVersions(selectedAgent);
+                                } catch (err) {
+                                  toast.error(err instanceof Error ? err.message : t("failedToDeleteVersion"));
+                                } finally {
+                                  setDeletingVersionNum(null);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="border-t px-4 py-2.5 bg-muted/20 text-xs text-muted-foreground">
+                  {versions.length} {versions.length === 1 ? "version" : "versions"}
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              {loadingVersions ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : versions.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  {t("noVersions")}
-                </div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[80px]">{t("versionHeader")}</TableHead>
-                        <TableHead>{t("descriptionLabel")}</TableHead>
-                        <TableHead className="w-[180px]">{t("published")}</TableHead>
-                        <TableHead className="w-[120px] text-right">{tc("actions")}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {versions.map((v) => (
-                        <TableRow key={v.id}>
-                          <TableCell>
-                            <Badge variant="secondary" className="font-mono">
-                              v{v.version}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {v.description || <span className="italic">{t("noDescription")}</span>}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {new Date(v.created_at).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title={t("viewDetails")}
-                                onClick={async () => {
-                                  try {
-                                    const detail = await agentVersionApi.get(selectedAgent, v.version);
-                                    setViewingVersion(detail);
-                                  } catch (err) {
-                                    toast.error(err instanceof Error ? err.message : t("failedToLoadVersion"));
-                                  }
-                                }}
-                              >
-                                <Code className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title={t("restoreToDraft")}
-                                onClick={() => setRestoreConfirmVersion(v)}
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:text-destructive"
-                                title={t("deleteVersion")}
-                                disabled={deletingVersionNum === v.version}
-                                onClick={async () => {
-                                  setDeletingVersionNum(v.version);
-                                  try {
-                                    await agentVersionApi.delete(selectedAgent, v.version);
-                                    toast.success(t("versionDeleted", { version: v.version }));
-                                    loadVersions(selectedAgent);
-                                  } catch (err) {
-                                    toast.error(err instanceof Error ? err.message : t("failedToDeleteVersion"));
-                                  } finally {
-                                    setDeletingVersionNum(null);
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            )}
+          </div>
 
           {/* Version detail dialog */}
           <Dialog open={!!viewingVersion} onOpenChange={(open) => { if (!open) setViewingVersion(null); }}>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Tag className="h-5 w-5" />
+            <DialogContent className="p-0 gap-0 sm:max-w-2xl" showCloseButton={false}>
+              <DialogHeader className="border-b px-5 py-4">
+                <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
+                    <Tag className="h-3.5 w-3.5 text-blue-600" />
+                  </span>
                   Version v{viewingVersion?.version}
                   {viewingVersion?.description && (
-                    <span className="text-sm font-normal text-muted-foreground">— {viewingVersion.description}</span>
+                    <span className="text-xs font-normal text-muted-foreground">— {viewingVersion.description}</span>
                   )}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-xs text-muted-foreground mt-1">
                   {t("published")} {viewingVersion?.created_at ? new Date(viewingVersion.created_at).toLocaleString() : ""}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-sm font-medium">{t("instructionsLabel")}</Label>
-                  <pre className="mt-1 p-3 bg-muted rounded-md text-xs whitespace-pre-wrap max-h-[200px] overflow-y-auto">
-                    {viewingVersion?.instructions || t("empty")}
-                  </pre>
+              <div className="p-5 space-y-5 max-h-[65vh] overflow-y-auto">
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("instructionsLabel")}</div>
+                <pre className="p-3 bg-muted/50 rounded-lg text-xs whitespace-pre-wrap max-h-[200px] overflow-y-auto border">
+                  {viewingVersion?.instructions || t("empty")}
+                </pre>
+
+                <div className="border-t" />
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{t("runtimeConfigLabel")}</div>
+                <pre className="p-3 bg-muted/50 rounded-lg text-xs whitespace-pre-wrap max-h-[200px] overflow-y-auto font-mono border">
+                  {viewingVersion?.runtime_config
+                    ? JSON.stringify(
+                        typeof viewingVersion.runtime_config === "string"
+                          ? JSON.parse(viewingVersion.runtime_config)
+                          : viewingVersion.runtime_config,
+                        null,
+                        2
+                      )
+                    : t("default")}
+                </pre>
+
+                <div className="border-t" />
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {t("toolsCount", { count: viewingVersion?.tools_snapshot?.length ?? 0 })}
                 </div>
-                <div>
-                  <Label className="text-sm font-medium">{t("runtimeConfigLabel")}</Label>
-                  <pre className="mt-1 p-3 bg-muted rounded-md text-xs whitespace-pre-wrap max-h-[200px] overflow-y-auto">
-                    {viewingVersion?.runtime_config
-                      ? JSON.stringify(
-                          typeof viewingVersion.runtime_config === "string"
-                            ? JSON.parse(viewingVersion.runtime_config)
-                            : viewingVersion.runtime_config,
-                          null,
-                          2
-                        )
-                      : t("default")}
-                  </pre>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">
-                    {t("toolsCount", { count: viewingVersion?.tools_snapshot?.length ?? 0 })}
-                  </Label>
-                  {viewingVersion?.tools_snapshot?.length > 0 ? (
-                    <div className="mt-1 space-y-2">
-                      {viewingVersion.tools_snapshot.map((tool: any, i: number) => (
-                        <div key={i} className="p-2 bg-muted rounded-md text-xs">
-                          <span className="font-medium">{tool.name}</span>
-                          <Badge variant="outline" className="ml-2 text-xs">{tool.type}</Badge>
-                          <p className="text-muted-foreground mt-0.5">{tool.description}</p>
+                {viewingVersion?.tools_snapshot?.length > 0 ? (
+                  <div className="space-y-2">
+                    {viewingVersion.tools_snapshot.map((tool: any, i: number) => (
+                      <div key={i} className="rounded-lg border px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium">{tool.name}</span>
+                          <Badge variant="outline" className="text-[10px] h-4">{tool.type}</Badge>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-sm text-muted-foreground">{t("noTools")}</p>
-                  )}
-                </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{tool.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t("noTools")}</p>
+                )}
               </div>
             </DialogContent>
           </Dialog>
 
           {/* Restore confirmation dialog */}
           <Dialog open={!!restoreConfirmVersion} onOpenChange={(open) => { if (!open) setRestoreConfirmVersion(null); }}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+            <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+              <DialogHeader className="border-b px-5 py-4">
+                <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                  </span>
                   {t("restoreVersionTitle", { version: restoreConfirmVersion?.version ?? 0 })}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-xs text-muted-foreground mt-1">
                   {t("restoreDescription")}
                   <strong> v{restoreConfirmVersion?.version}</strong>
                   {restoreConfirmVersion?.description && (
@@ -3915,15 +4075,18 @@ export default function AgentPage() {
                   )}.
                 </DialogDescription>
               </DialogHeader>
-              <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-3 text-sm text-amber-800 dark:text-amber-200">
-                <strong>{t("warning")}</strong> {t("restoreWarning")}
+              <div className="p-5">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <strong>{t("warning")}</strong> {t("restoreWarning")}
+                </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setRestoreConfirmVersion(null)}>
+              <DialogFooter className="border-t px-5 py-3">
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setRestoreConfirmVersion(null)}>
                   {tc("cancel")}
                 </Button>
                 <Button
-                  variant="default"
+                  size="sm"
+                  className="h-8 text-xs"
                   disabled={restoring}
                   onClick={async () => {
                     if (!restoreConfirmVersion) return;
@@ -3932,7 +4095,6 @@ export default function AgentPage() {
                       await agentVersionApi.restore(selectedAgent, restoreConfirmVersion.version);
                       toast.success(t("draftRestored", { version: restoreConfirmVersion.version }));
                       setRestoreConfirmVersion(null);
-                      // Reload all agent data to reflect restored config
                       loadConfig(selectedAgent);
                       loadTools(selectedAgent);
                     } catch (err) {
@@ -3944,12 +4106,12 @@ export default function AgentPage() {
                 >
                   {restoring ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                       {t("restoring")}
                     </>
                   ) : (
                     <>
-                      <RotateCcw className="h-4 w-4 mr-1" />
+                      <RotateCcw className="h-3 w-3 mr-1" />
                       {t("restoreVersion", { version: restoreConfirmVersion?.version ?? 0 })}
                     </>
                   )}
@@ -3962,48 +4124,68 @@ export default function AgentPage() {
 
       {/* ─── Floating Action Bar (config tab only) ──────────────── */}
       {selectedAgent && activeTab === "config" && (
-        <div className="fixed bottom-0 left-0 md:left-64 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <div className="mx-auto max-w-5xl flex items-center justify-end gap-3 px-6 py-3">
-            <Button
-              variant="outline"
-              onClick={() => { setPublishDescription(""); setPublishDialogOpen(true); }}
-              disabled={publishing}
-            >
-              <Tag className="h-4 w-4 mr-2" />
-              {t("publishVersion")}
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? tc("saving") : tc("save")}
-            </Button>
+        <div className="fixed bottom-0 left-0 md:left-64 right-0 z-50 border-t bg-background/80 backdrop-blur-md">
+          <div className="mx-auto max-w-5xl flex items-center justify-between px-6 py-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5" />
+              <span>Editing <strong className="text-foreground">{selectedAgent}</strong> — unsaved changes</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => { setPublishDescription(""); setPublishDialogOpen(true); }}
+                disabled={publishing}
+              >
+                <Tag className="h-3 w-3" />
+                {t("publishVersion")}
+              </Button>
+              <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={handleSave} disabled={saving}>
+                <Save className="h-3 w-3" />
+                {saving ? tc("saving") : tc("save")}
+              </Button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ─── Publish Version Dialog ────────────────────────────────────── */}
       <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("publishNewVersion")}</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50">
+                <Tag className="h-3.5 w-3.5 text-emerald-600" />
+              </span>
+              {t("publishNewVersion")}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
               {t("publishNewVersionDescription", { version: (versions[0]?.version ?? 0) + 1 })}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="version-desc">{t("descriptionOptional")}</Label>
-            <Textarea
-              id="version-desc"
-              placeholder={t("publishPlaceholder")}
-              value={publishDescription}
-              onChange={(e) => setPublishDescription(e.target.value)}
-              rows={3}
-            />
+          <div className="p-5 space-y-4">
+            <div>
+              <label htmlFor="version-desc" className="text-xs font-medium mb-1 block">
+                {t("descriptionOptional")}
+              </label>
+              <Textarea
+                id="version-desc"
+                placeholder={t("publishPlaceholder")}
+                value={publishDescription}
+                onChange={(e) => setPublishDescription(e.target.value)}
+                rows={3}
+                className="text-xs"
+              />
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPublishDialogOpen(false)}>
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPublishDialogOpen(false)}>
               {tc("cancel")}
             </Button>
             <Button
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
               onClick={async () => {
                 setPublishing(true);
                 try {
@@ -4024,12 +4206,12 @@ export default function AgentPage() {
             >
               {publishing ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin" />
                   {t("publishing")}
                 </>
               ) : (
                 <>
-                  <Tag className="h-4 w-4 mr-1" />
+                  <Tag className="h-3 w-3" />
                   {t("publishVersionNumber", { version: (versions[0]?.version ?? 0) + 1 })}
                 </>
               )}
@@ -4040,19 +4222,26 @@ export default function AgentPage() {
 
       {/* ─── Delete Agent Confirmation ─────────────────────────────── */}
       <Dialog open={deleteAgentConfirm} onOpenChange={setDeleteAgentConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("deleteAgent")}</DialogTitle>
-            <DialogDescription>
-              {t("deleteAgentConfirm", { name: selectedAgent })}
-            </DialogDescription>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50">
+                <Trash2 className="h-3.5 w-3.5 text-red-600" />
+              </span>
+              {t("deleteAgent")}
+            </DialogTitle>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteAgentConfirm(false)} disabled={deletingAgent}>
+          <div className="p-5">
+            <p className="text-sm text-muted-foreground">
+              {t("deleteAgentConfirm", { name: selectedAgent })}
+            </p>
+          </div>
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setDeleteAgentConfirm(false)} disabled={deletingAgent}>
               {tc("cancel")}
             </Button>
-            <Button variant="destructive" onClick={handleDeleteAgent} disabled={deletingAgent}>
-              {deletingAgent ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={handleDeleteAgent} disabled={deletingAgent}>
+              {deletingAgent ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               {t("deleteAgent")}
             </Button>
           </DialogFooter>
@@ -4061,19 +4250,28 @@ export default function AgentPage() {
 
       {/* ─── Delete Knowledge Confirmation ─────────────────────────── */}
       <Dialog open={!!pendingDeleteKnowledgeId} onOpenChange={() => setPendingDeleteKnowledgeId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("deleteKnowledgeItem")}</DialogTitle>
-            <DialogDescription>
-              {t("deleteKnowledgeConfirm")}
-            </DialogDescription>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50">
+                <Trash2 className="h-3.5 w-3.5 text-red-600" />
+              </span>
+              {t("deleteKnowledgeItem")}
+            </DialogTitle>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingDeleteKnowledgeId(null)}>
+          <div className="p-5">
+            <p className="text-sm text-muted-foreground">
+              {t("deleteKnowledgeConfirm")}
+            </p>
+          </div>
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPendingDeleteKnowledgeId(null)}>
               {tc("cancel")}
             </Button>
             <Button
               variant="destructive"
+              size="sm"
+              className="h-8 text-xs"
               onClick={() => pendingDeleteKnowledgeId && handleDeleteKnowledge(pendingDeleteKnowledgeId)}
             >
               {tc("delete")}
@@ -4084,23 +4282,32 @@ export default function AgentPage() {
 
       {/* ─── Delete Tool Confirmation ───────────────────────────────── */}
       <Dialog open={!!pendingDeleteToolId} onOpenChange={() => setPendingDeleteToolId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("deleteTool")}</DialogTitle>
-            <DialogDescription>
-              {t("deleteToolConfirm")}
-            </DialogDescription>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50">
+                <Trash2 className="h-3.5 w-3.5 text-red-600" />
+              </span>
+              {t("deleteTool")}
+            </DialogTitle>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingDeleteToolId(null)}>
+          <div className="p-5">
+            <p className="text-sm text-muted-foreground">
+              {t("deleteToolConfirm")}
+            </p>
+          </div>
+          <DialogFooter className="border-t px-5 py-3">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPendingDeleteToolId(null)}>
               {tc("cancel")}
             </Button>
             <Button
               variant="destructive"
+              size="sm"
+              className="h-8 text-xs"
               onClick={() => pendingDeleteToolId && handleDeleteTool(pendingDeleteToolId)}
               disabled={!!deletingToolId}
             >
-              {deletingToolId ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {deletingToolId ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               {tc("delete")}
             </Button>
           </DialogFooter>

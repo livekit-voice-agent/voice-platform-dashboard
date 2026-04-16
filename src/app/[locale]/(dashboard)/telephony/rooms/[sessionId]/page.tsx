@@ -13,13 +13,6 @@ import { Button } from "@/components/ui/button";
 import { AutoRefreshSelector } from "@/components/auto-refresh-selector";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -28,7 +21,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +48,8 @@ import {
   Hash,
   Phone,
   Timer,
+  FileText,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -155,6 +149,23 @@ function EventBadge({ eventType }: { eventType: string }) {
   );
 }
 
+// ─── Status Badge ───────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; text: string }> = {
+    active: { bg: "bg-emerald-50", text: "text-emerald-700" },
+    completed: { bg: "bg-blue-50", text: "text-blue-700" },
+    created: { bg: "bg-amber-50", text: "text-amber-700" },
+    error: { bg: "bg-red-50", text: "text-red-700" },
+  };
+  const s = map[status] ?? { bg: "bg-muted", text: "text-muted-foreground" };
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${s.bg} ${s.text}`}>
+      {status}
+    </span>
+  );
+}
+
 // ─── Event payload preview ──────────────────────────────────
 
 function EventPayloadPreview({ event }: { event: SessionEvent }) {
@@ -167,13 +178,9 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
         <div className="flex items-center gap-2">
           <span className="text-sm">&ldquo;{p.transcript}&rdquo;</span>
           {p.isFinal ? (
-            <Badge variant="default" className="text-[10px] px-1.5 py-0">
-              {t("final")}
-            </Badge>
+            <span className="inline-flex items-center rounded-full bg-foreground/10 px-1.5 py-0 text-[10px] font-medium">{t("final")}</span>
           ) : (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              {t("partial")}
-            </Badge>
+            <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0 text-[10px] font-medium text-muted-foreground">{t("partial")}</span>
           )}
           {p.language && (
             <span className="text-xs text-muted-foreground">
@@ -199,12 +206,9 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
             )}
           </span>
           {p.interrupted && (
-            <Badge
-              variant="destructive"
-              className="text-[10px] px-1.5 py-0 shrink-0"
-            >
+            <span className="inline-flex items-center rounded-full bg-red-50 px-1.5 py-0 text-[10px] font-medium text-red-600 shrink-0">
               {t("interrupted")}
-            </Badge>
+            </span>
           )}
         </div>
       );
@@ -289,9 +293,9 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
     case "DTMF":
       return (
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-sm font-mono font-bold px-2">
+          <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-sm font-mono font-bold">
             {p.digit}
-          </Badge>
+          </span>
           {p.participant_identity && (
             <span className="text-xs text-muted-foreground">
               {t("fromParticipant", { identity: p.participant_identity })}
@@ -310,12 +314,9 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
                 ? t("attemptWithMax", { count: p.count, max: p.max })
                 : t("attempt", { count: p.count })}
           </span>
-          <Badge
-            variant={p.action === "end_call" ? "destructive" : "secondary"}
-            className="text-[10px] px-1.5 py-0"
-          >
+          <span className={`inline-flex items-center rounded-full px-1.5 py-0 text-[10px] font-medium ${p.action === "end_call" ? "bg-red-50 text-red-600" : "bg-muted text-muted-foreground"}`}>
             {p.action === "end_call" ? t("closed") : t("asked")}
-          </Badge>
+          </span>
           <span className="text-xs text-muted-foreground">
             {t("afterSilence", { seconds: p.timeoutSeconds })}
           </span>
@@ -341,15 +342,15 @@ function ConversationTimeline({ events }: { events: SessionEvent[] }) {
 
   if (filtered.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <MessageSquare className="h-10 w-10 text-muted-foreground mb-3" />
-        <p className="text-muted-foreground">{t("noConversationItems")}</p>
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <MessageSquare className="h-10 w-10 text-muted-foreground/40 mb-3" />
+        <p className="text-sm text-muted-foreground">{t("noConversationItems")}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 p-5">
       {filtered.map((ev) => {
         const isUser = ev.payload.role === "user";
         const text = ev.payload.textContent;
@@ -365,7 +366,7 @@ function ConversationTimeline({ events }: { events: SessionEvent[] }) {
               className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                 isUser
                   ? "bg-muted text-foreground rounded-bl-sm"
-                  : "bg-primary text-primary-foreground rounded-br-sm"
+                  : "bg-foreground text-background rounded-br-sm"
               }`}
             >
               <p className="text-sm whitespace-pre-wrap">{text}</p>
@@ -373,7 +374,7 @@ function ConversationTimeline({ events }: { events: SessionEvent[] }) {
                 className={`text-[10px] mt-1 ${
                   isUser
                     ? "text-muted-foreground"
-                    : "text-primary-foreground/70"
+                    : "text-background/70"
                 }`}
               >
                 {formatTime(ev.occurred_at)}
@@ -411,9 +412,9 @@ function MetricCard({
   unit: string;
 }) {
   return (
-    <div className="rounded-md border bg-muted/50 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-bold">
+    <div className="rounded-lg border bg-card p-3 hover:border-foreground/20 transition-colors">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-lg font-semibold tracking-tight mt-0.5">
         {isNaN(value) ? "—" : value.toFixed(0)}
         {unit && (
           <span className="text-xs font-normal text-muted-foreground ml-1">
@@ -432,9 +433,9 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
 
   if (metricsEvents.length === 0 && dtmfEvents.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-center">
-        <Activity className="h-10 w-10 text-muted-foreground mb-3" />
-        <p className="text-muted-foreground">{t("noMetrics")}</p>
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Activity className="h-10 w-10 text-muted-foreground/40 mb-3" />
+        <p className="text-sm text-muted-foreground">{t("noMetrics")}</p>
       </div>
     );
   }
@@ -458,10 +459,10 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
   const dtmfSequence = dtmfEvents.map((e) => e.payload.digit).join(" → ");
 
   return (
-    <div className="space-y-6">
+    <div className="p-5 space-y-6">
       {dtmfEvents.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold mb-3">
+          <h4 className="text-xs font-semibold mb-3">
             {t("dtmfTitle", { count: dtmfEvents.length })}
           </h4>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -476,8 +477,8 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
               unit=""
             />
           </div>
-          <div className="mt-3 rounded-md border bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground mb-1">{t("sequence")}</p>
+          <div className="mt-3 rounded-lg border bg-card p-3">
+            <p className="text-[11px] text-muted-foreground mb-1">{t("sequence")}</p>
             <p className="text-sm font-mono font-bold tracking-wider">
               {dtmfSequence}
             </p>
@@ -487,7 +488,7 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
 
       {Object.entries(byType).map(([type, items]) => (
         <div key={type}>
-          <h4 className="text-sm font-semibold mb-3">
+          <h4 className="text-xs font-semibold mb-3">
             {metricTypeLabels[type] ? t(metricTypeLabels[type]) : type}{" "}
             <span className="text-muted-foreground font-normal">
               ({items.length} {t("samples")})
@@ -496,76 +497,28 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {type === "tts_metrics" && (
               <>
-                <MetricCard
-                  label={t("avgTtfb")}
-                  value={avg(items, "ttfbMs")}
-                  unit="ms"
-                />
-                <MetricCard
-                  label={t("avgDuration")}
-                  value={avg(items, "durationMs")}
-                  unit="ms"
-                />
-                <MetricCard
-                  label="Áudio médio"
-                  value={avg(items, "audioDurationMs")}
-                  unit="ms"
-                />
-                <MetricCard
-                  label={t("totalCharacters")}
-                  value={sum(items, "charactersCount")}
-                  unit=""
-                />
+                <MetricCard label={t("avgTtfb")} value={avg(items, "ttfbMs")} unit="ms" />
+                <MetricCard label={t("avgDuration")} value={avg(items, "durationMs")} unit="ms" />
+                <MetricCard label="Áudio médio" value={avg(items, "audioDurationMs")} unit="ms" />
+                <MetricCard label={t("totalCharacters")} value={sum(items, "charactersCount")} unit="" />
               </>
             )}
             {(type === "realtime_model_metrics" || type === "llm_metrics") && (
               <>
-                <MetricCard
-                  label={t("avgTtft")}
-                  value={avg(items, "ttftMs")}
-                  unit="ms"
-                />
-                <MetricCard
-                  label={t("avgDuration")}
-                  value={avg(items, "durationMs")}
-                  unit="ms"
-                />
-                <MetricCard
-                  label={t("tokensIn")}
-                  value={sum(items, "inputTokens")}
-                  unit=""
-                />
-                <MetricCard
-                  label={t("tokensOut")}
-                  value={sum(items, "outputTokens")}
-                  unit=""
-                />
-                <MetricCard
-                  label={t("avgSpeed")}
-                  value={avg(items, "tokensPerSecond")}
-                  unit="tok/s"
-                />
+                <MetricCard label={t("avgTtft")} value={avg(items, "ttftMs")} unit="ms" />
+                <MetricCard label={t("avgDuration")} value={avg(items, "durationMs")} unit="ms" />
+                <MetricCard label={t("tokensIn")} value={sum(items, "inputTokens")} unit="" />
+                <MetricCard label={t("tokensOut")} value={sum(items, "outputTokens")} unit="" />
+                <MetricCard label={t("avgSpeed")} value={avg(items, "tokensPerSecond")} unit="tok/s" />
               </>
             )}
             {type === "stt_metrics" && (
-              <MetricCard
-                label={t("avgDuration")}
-                value={avg(items, "durationMs")}
-                unit="ms"
-              />
+              <MetricCard label={t("avgDuration")} value={avg(items, "durationMs")} unit="ms" />
             )}
             {type === "eou_metrics" && (
               <>
-                <MetricCard
-                  label={t("avgEouDelay")}
-                  value={avg(items, "endOfUtteranceDelayMs")}
-                  unit="ms"
-                />
-                <MetricCard
-                  label="Transc. delay médio"
-                  value={avg(items, "transcriptionDelayMs")}
-                  unit="ms"
-                />
+                <MetricCard label={t("avgEouDelay")} value={avg(items, "endOfUtteranceDelayMs")} unit="ms" />
+                <MetricCard label="Transc. delay médio" value={avg(items, "transcriptionDelayMs")} unit="ms" />
               </>
             )}
           </div>
@@ -579,9 +532,9 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
 
 function ConfigField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-md border bg-muted/50 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium mt-0.5">{value ?? "—"}</p>
+    <div className="rounded-lg border bg-card p-3">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-xs font-medium mt-0.5">{value ?? "—"}</p>
     </div>
   );
 }
@@ -590,159 +543,120 @@ function AgentConfigPanel({ snapshot }: { snapshot: AgentConfigSnapshot }) {
   const [open, setOpen] = useState(false);
 
   const isElevenLabs = snapshot.tts?.provider === "elevenlabs";
-  const effectiveVoice = isElevenLabs
-    ? snapshot.tts?.voiceId ?? snapshot.voice
-    : snapshot.voice;
   const voiceLabel = isElevenLabs
     ? `${snapshot.tts?.voiceId ?? "—"} (ElevenLabs)`
     : snapshot.voice ?? "—";
 
   return (
-    <Card>
-      <CardContent className="pt-4 pb-4">
-        <button
-          onClick={() => setOpen(!open)}
-          className="flex items-center gap-2 w-full text-left"
-        >
-          {open ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          )}
-          <Settings className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground font-medium">
-            Configuração do Agent na Chamada
-          </span>
-          {!open && snapshot.model && (
-            <span className="text-xs text-muted-foreground ml-auto">
-              {snapshot.model} · {isElevenLabs ? "ElevenLabs" : (snapshot.voice ?? "—")}
-            </span>
-          )}
-        </button>
-
-        {open && (
-          <div className="mt-4 space-y-4">
-            {/* Core Settings */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <ConfigField label="Model" value={snapshot.model} />
-              <ConfigField label="Voice" value={voiceLabel} />
-              <ConfigField label="Temperature" value={snapshot.temperature?.toString()} />
-              <ConfigField label="Max Tokens" value={snapshot.maxTokens?.toString()} />
-            </div>
-
-            {/* TTS / STT */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <ConfigField
-                label="TTS Provider"
-                value={snapshot.tts?.provider ?? "OpenAI Realtime"}
-              />
-              <ConfigField
-                label="TTS Model"
-                value={snapshot.tts?.model ?? "—"}
-              />
-              <ConfigField
-                label="TTS Voice ID"
-                value={
-                  snapshot.tts?.voiceId
-                    ? `${String(snapshot.tts.voiceId).substring(0, 12)}…`
-                    : "—"
-                }
-              />
-              <ConfigField
-                label="STT Provider"
-                value={snapshot.stt?.provider ?? "built-in"}
-              />
-            </div>
-
-            {/* Turn Detection & Session */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <ConfigField
-                label="Turn Detection"
-                value={snapshot.turnDetection?.type ?? "—"}
-              />
-              <ConfigField
-                label="Session Turn Detection"
-                value={snapshot.sessionTurnDetection ?? "auto"}
-              />
-              <ConfigField
-                label="Noise Cancellation"
-                value={snapshot.noiseCancellation ? "Sim" : "Não"}
-              />
-              <ConfigField label="Persona" value={snapshot.persona} />
-            </div>
-
-            {/* Timeouts & Greeting */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <ConfigField
-                label="Timeout"
-                value={snapshot.timeoutSeconds != null ? `${snapshot.timeoutSeconds}s` : "Sem limite"}
-              />
-              <ConfigField
-                label="Duração Máx."
-                value={snapshot.maxCallDurationSeconds != null ? `${snapshot.maxCallDurationSeconds}s` : "Sem limite"}
-              />
-              <ConfigField
-                label="Greeting Mode"
-                value={snapshot.greetingMode ?? "—"}
-              />
-              <ConfigField
-                label="Greeting"
-                value={
-                  snapshot.greetingMessage
-                    ? snapshot.greetingMessage.length > 50
-                      ? `${snapshot.greetingMessage.substring(0, 50)}…`
-                      : snapshot.greetingMessage
-                    : "—"
-                }
-              />
-            </div>
-
-            {/* Humanization */}
-            {snapshot.humanization && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <ConfigField
-                  label="Fillers"
-                  value={snapshot.humanization.fillersEnabled ? "Sim" : "Não"}
-                />
-                <ConfigField
-                  label="Typing Sounds"
-                  value={snapshot.humanization.typingSounds ? "Sim" : "Não"}
-                />
-                <ConfigField
-                  label="Ambience"
-                  value={snapshot.humanization.ambience ? "Sim" : "Não"}
-                />
-              </div>
-            )}
-
-            {/* Tools */}
-            {snapshot.tools && snapshot.tools.length > 0 && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">
-                  Tools ({snapshot.tools.length})
-                </p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {snapshot.tools.map((tool) => (
-                    <div
-                      key={tool.name}
-                      className="rounded-md border bg-muted/50 p-2 flex items-center gap-2"
-                    >
-                      <Wrench className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{tool.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {tool.type} — {tool.description}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2.5 w-full text-left px-5 py-3.5 hover:bg-muted/30 transition-colors"
+      >
+        {open ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
         )}
-      </CardContent>
-    </Card>
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
+          <Settings className="h-3.5 w-3.5 text-violet-600" />
+        </div>
+        <span className="text-xs font-medium">Configuração do Agent na Chamada</span>
+        {!open && snapshot.model && (
+          <span className="text-[11px] text-muted-foreground ml-auto">
+            {snapshot.model} · {isElevenLabs ? "ElevenLabs" : (snapshot.voice ?? "—")}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="border-t px-5 py-4 space-y-4">
+          {/* Core Settings */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <ConfigField label="Model" value={snapshot.model} />
+            <ConfigField label="Voice" value={voiceLabel} />
+            <ConfigField label="Temperature" value={snapshot.temperature?.toString()} />
+            <ConfigField label="Max Tokens" value={snapshot.maxTokens?.toString()} />
+          </div>
+
+          {/* TTS / STT */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <ConfigField label="TTS Provider" value={snapshot.tts?.provider ?? "OpenAI Realtime"} />
+            <ConfigField label="TTS Model" value={snapshot.tts?.model ?? "—"} />
+            <ConfigField
+              label="TTS Voice ID"
+              value={
+                snapshot.tts?.voiceId
+                  ? `${String(snapshot.tts.voiceId).substring(0, 12)}…`
+                  : "—"
+              }
+            />
+            <ConfigField label="STT Provider" value={snapshot.stt?.provider ?? "built-in"} />
+          </div>
+
+          {/* Turn Detection & Session */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <ConfigField label="Turn Detection" value={snapshot.turnDetection?.type ?? "—"} />
+            <ConfigField label="Session Turn Detection" value={snapshot.sessionTurnDetection ?? "auto"} />
+            <ConfigField label="Noise Cancellation" value={snapshot.noiseCancellation ? "Sim" : "Não"} />
+            <ConfigField label="Persona" value={snapshot.persona} />
+          </div>
+
+          {/* Timeouts & Greeting */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <ConfigField label="Timeout" value={snapshot.timeoutSeconds != null ? `${snapshot.timeoutSeconds}s` : "Sem limite"} />
+            <ConfigField label="Duração Máx." value={snapshot.maxCallDurationSeconds != null ? `${snapshot.maxCallDurationSeconds}s` : "Sem limite"} />
+            <ConfigField label="Greeting Mode" value={snapshot.greetingMode ?? "—"} />
+            <ConfigField
+              label="Greeting"
+              value={
+                snapshot.greetingMessage
+                  ? snapshot.greetingMessage.length > 50
+                    ? `${snapshot.greetingMessage.substring(0, 50)}…`
+                    : snapshot.greetingMessage
+                  : "—"
+              }
+            />
+          </div>
+
+          {/* Humanization */}
+          {snapshot.humanization && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <ConfigField label="Fillers" value={snapshot.humanization.fillersEnabled ? "Sim" : "Não"} />
+              <ConfigField label="Typing Sounds" value={snapshot.humanization.typingSounds ? "Sim" : "Não"} />
+              <ConfigField label="Ambience" value={snapshot.humanization.ambience ? "Sim" : "Não"} />
+            </div>
+          )}
+
+          {/* Tools */}
+          {snapshot.tools && snapshot.tools.length > 0 && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Tools ({snapshot.tools.length})
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {snapshot.tools.map((tool) => (
+                  <div
+                    key={tool.name}
+                    className="rounded-lg border bg-card p-2.5 flex items-center gap-2 hover:border-foreground/20 transition-colors"
+                  >
+                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50">
+                      <Wrench className="h-3 w-3 text-purple-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium truncate">{tool.name}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {tool.type} — {tool.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -815,179 +729,198 @@ export default function SessionDetailPage({
 
   if (!session) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <Link href="/telephony/rooms">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-2 h-4 w-4" />
+          <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+            <ArrowLeft className="h-3.5 w-3.5" />
             Voltar
           </Button>
         </Link>
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <AlertTriangle className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">Sessão não encontrada</p>
+          <AlertTriangle className="h-10 w-10 text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">Sessão não encontrada</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Link href="/telephony/rooms">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">
-            Sessão: {session.room_name}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight truncate">
+            {session.room_name}
           </h1>
-          <p className="text-muted-foreground text-sm">
-            {(session.agent_name || meta?.agent_name) && `Agente: ${session.agent_name || meta?.agent_name} · `}
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {(session.agent_name || meta?.agent_name) && `${session.agent_name || meta?.agent_name} · `}
             {formatDate(session.created_at)}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setLoadingEvents(true);
-            fetchEvents();
-          }}
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Atualizar
-        </Button>
-        <AutoRefreshSelector
-          value={autoRefreshInterval}
-          onChange={setAutoRefreshInterval}
-        />
+        <div className="flex items-center gap-2">
+          <AutoRefreshSelector
+            value={autoRefreshInterval}
+            onChange={setAutoRefreshInterval}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => {
+              setLoadingEvents(true);
+              fetchEvents();
+            }}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
-      {/* Session Info Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Status</p>
-            <Badge
-              variant={
-                session.status === "active"
-                  ? "default"
-                  : session.status === "completed"
-                    ? "secondary"
-                    : session.status === "created"
-                      ? "outline"
-                      : "outline"
-              }
-              className="mt-1"
-            >
-              {session.status}
-            </Badge>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Agente</p>
-            <p className="text-sm font-medium mt-1">
-              {session.agent_name || meta?.agent_name || "—"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Direção</p>
-            <div className="mt-1">
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50">
+              <Zap className="h-3.5 w-3.5 text-emerald-600" />
+            </div>
+            <span className="text-[11px] text-muted-foreground">Status</span>
+          </div>
+          <StatusBadge status={session.status} />
+        </div>
+
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
+              <Bot className="h-3.5 w-3.5 text-blue-600" />
+            </div>
+            <span className="text-[11px] text-muted-foreground">Agente</span>
+          </div>
+          <p className="text-sm font-medium truncate">
+            {session.agent_name || meta?.agent_name || "—"}
+          </p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
               {(() => {
                 const dir = session.direction || meta?.direction;
-                if (!dir) return <span className="text-sm text-muted-foreground">—</span>;
                 const isInbound = dir === "inbound";
-                return (
-                  <Badge variant={isInbound ? "default" : "secondary"} className="gap-1">
-                    {isInbound ? (
-                      <ArrowDownLeft className="h-3 w-3" />
-                    ) : (
-                      <ArrowUpRight className="h-3 w-3" />
-                    )}
-                    {dir}
-                  </Badge>
+                return isInbound ? (
+                  <ArrowDownLeft className="h-3.5 w-3.5 text-violet-600" />
+                ) : (
+                  <ArrowUpRight className="h-3.5 w-3.5 text-violet-600" />
                 );
               })()}
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Canal</p>
-            <p className="text-sm font-medium mt-1">
-              {session.channel || meta?.channel || "—"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Timer className="h-3 w-3" /> Duração
-            </p>
-            <p className="text-sm font-medium mt-1">
-              {formatDuration(session.duration_seconds)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground">Total Eventos</p>
-            <p className="text-2xl font-bold">{events.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Phone className="h-3 w-3" /> De
-            </p>
-            <p className="text-sm font-medium mt-1">
-              {session.phone_number || meta?.from_number || "—"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Phone className="h-3 w-3" /> Para
-            </p>
-            <p className="text-sm font-medium mt-1">
-              {meta?.to_number || "—"}
-            </p>
-          </CardContent>
-        </Card>
+            <span className="text-[11px] text-muted-foreground">Direção</span>
+          </div>
+          <p className="text-sm font-medium">
+            {session.direction || meta?.direction || "—"}
+          </p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50">
+              <Timer className="h-3.5 w-3.5 text-amber-600" />
+            </div>
+            <span className="text-[11px] text-muted-foreground">Duração</span>
+          </div>
+          <p className="text-sm font-semibold">
+            {formatDuration(session.duration_seconds)}
+          </p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50">
+              <Activity className="h-3.5 w-3.5 text-sky-600" />
+            </div>
+            <span className="text-[11px] text-muted-foreground">Eventos</span>
+          </div>
+          <p className="text-xl font-semibold tracking-tight">{events.length}</p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-50">
+              <Phone className="h-3.5 w-3.5 text-orange-600" />
+            </div>
+            <span className="text-[11px] text-muted-foreground">De</span>
+          </div>
+          <p className="text-sm font-medium truncate">
+            {session.phone_number || meta?.from_number || "—"}
+          </p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50">
+              <Phone className="h-3.5 w-3.5 text-cyan-600" />
+            </div>
+            <span className="text-[11px] text-muted-foreground">Para</span>
+          </div>
+          <p className="text-sm font-medium truncate">
+            {meta?.to_number || "—"}
+          </p>
+        </div>
+
+        <div className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-pink-50">
+              <Hash className="h-3.5 w-3.5 text-pink-600" />
+            </div>
+            <span className="text-[11px] text-muted-foreground">Canal</span>
+          </div>
+          <p className="text-sm font-medium truncate">
+            {session.channel || meta?.channel || "—"}
+          </p>
+        </div>
       </div>
 
       {/* Call Summary */}
       {session.summary && (
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground mb-2">Resumo da Chamada</p>
-            <p className="text-sm whitespace-pre-wrap">
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="px-5 py-3.5 border-b bg-muted/40">
+            <h2 className="text-xs font-semibold flex items-center gap-2">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              Resumo da Chamada
+            </h2>
+          </div>
+          <div className="p-5">
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">
               {typeof session.summary === 'object' && 'text' in session.summary
                 ? (session.summary as { text: string }).text
                 : JSON.stringify(session.summary)}
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Ticket - Extracted Fields */}
       {session.ticket && typeof session.ticket === 'object' && Object.keys(session.ticket).length > 0 && (
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground mb-3">Ticket — Campos Extraídos</p>
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <div className="px-5 py-3.5 border-b bg-muted/40">
+            <h2 className="text-xs font-semibold flex items-center gap-2">
+              <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+              Ticket — Campos Extraídos
+            </h2>
+          </div>
+          <div className="p-5">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {Object.entries(session.ticket as Record<string, any>).map(([key, value]) => (
-                <div key={key} className="rounded-md border bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground capitalize">
+                <div key={key} className="rounded-lg border bg-card p-3">
+                  <p className="text-[11px] text-muted-foreground capitalize">
                     {key.replace(/_/g, ' ')}
                   </p>
-                  <p className="text-sm font-medium mt-0.5">
+                  <p className="text-xs font-medium mt-0.5">
                     {value === null || value === undefined
                       ? '—'
                       : typeof value === 'boolean'
@@ -997,8 +930,8 @@ export default function SessionDetailPage({
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Agent Config Snapshot */}
@@ -1025,86 +958,82 @@ export default function SessionDetailPage({
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="conversation" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
+        <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 gap-4">
+          <TabsTrigger value="conversation" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2.5 pt-1.5 gap-1.5 text-xs">
+            <MessageSquare className="h-3.5 w-3.5" />
             {t("conversation")}
           </TabsTrigger>
-          <TabsTrigger value="timeline" className="gap-2">
-            <Clock className="h-4 w-4" />
+          <TabsTrigger value="timeline" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2.5 pt-1.5 gap-1.5 text-xs">
+            <Clock className="h-3.5 w-3.5" />
             Timeline
           </TabsTrigger>
-          <TabsTrigger value="metrics" className="gap-2">
-            <Activity className="h-4 w-4" />
+          <TabsTrigger value="metrics" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2.5 pt-1.5 gap-1.5 text-xs">
+            <Activity className="h-3.5 w-3.5" />
             {t("metrics")}
           </TabsTrigger>
         </TabsList>
 
         {/* ─── Conversation (chat-style) ─── */}
-        <TabsContent value="conversation">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
+        <TabsContent value="conversation" className="mt-4">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b bg-muted/40">
+              <h2 className="text-xs font-semibold flex items-center gap-2">
+                <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
                 {t("conversation")}
-              </CardTitle>
-              <CardDescription>
+              </h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 Visualização estilo chat da interação entre usuário e agente.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingEvents ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <ConversationTimeline events={events} />
-              )}
-            </CardContent>
-          </Card>
+              </p>
+            </div>
+            {loadingEvents ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <ConversationTimeline events={events} />
+            )}
+          </div>
         </TabsContent>
 
         {/* ─── Full Timeline ─── */}
-        <TabsContent value="timeline">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
+        <TabsContent value="timeline" className="mt-4">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b bg-muted/40">
+              <h2 className="text-xs font-semibold flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                 Timeline Completa
-              </CardTitle>
-              <CardDescription>
+              </h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 Todos os eventos da sessão em ordem cronológica.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingEvents ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : events.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <Clock className="h-10 w-10 text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground">
-                    Nenhum evento registrado
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Eventos aparecem aqui conforme a sessão progride.
-                  </p>
-                </div>
-              ) : (
+              </p>
+            </div>
+            {loadingEvents ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : events.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Clock className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">Nenhum evento registrado</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Eventos aparecem aqui conforme a sessão progride.
+                </p>
+              </div>
+            ) : (
+              <>
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[100px]">Hora</TableHead>
-                      <TableHead className="w-[140px]">Tipo</TableHead>
-                      <TableHead>Conteúdo</TableHead>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="w-[90px] text-xs font-medium">Hora</TableHead>
+                      <TableHead className="w-[140px] text-xs font-medium">Tipo</TableHead>
+                      <TableHead className="text-xs font-medium">Conteúdo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {events.map((ev) => (
                       <TableRow
                         key={ev.id}
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="cursor-pointer hover:bg-muted/50 group"
                         onClick={() => setSelectedEvent(ev)}
                       >
                         <TableCell className="text-xs text-muted-foreground font-mono">
@@ -1120,33 +1049,34 @@ export default function SessionDetailPage({
                     ))}
                   </TableBody>
                 </Table>
-              )}
-            </CardContent>
-          </Card>
+                <div className="border-t px-4 py-2.5 bg-muted/20 text-xs text-muted-foreground">
+                  {events.length} {events.length === 1 ? "evento" : "eventos"}
+                </div>
+              </>
+            )}
+          </div>
         </TabsContent>
 
         {/* ─── Metrics ─── */}
-        <TabsContent value="metrics">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
+        <TabsContent value="metrics" className="mt-4">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b bg-muted/40">
+              <h2 className="text-xs font-semibold flex items-center gap-2">
+                <Activity className="h-3.5 w-3.5 text-muted-foreground" />
                 {t("metrics")}
-              </CardTitle>
-              <CardDescription>
+              </h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
                 TTS, LLM, STT e EOU métricas coletadas durante a sessão.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingEvents ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <MetricsView events={events} />
-              )}
-            </CardContent>
-          </Card>
+              </p>
+            </div>
+            {loadingEvents ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <MetricsView events={events} />
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -1155,20 +1085,22 @@ export default function SessionDetailPage({
         open={!!selectedEvent}
         onOpenChange={() => setSelectedEvent(null)}
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+        <DialogContent className="p-0 gap-0 sm:max-w-lg" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
               {selectedEvent && (
                 <EventBadge eventType={selectedEvent.event_type} />
               )}
-              <span className="text-muted-foreground text-sm font-normal">
+              <span className="text-xs font-normal text-muted-foreground">
                 {selectedEvent && formatTime(selectedEvent.occurred_at)}
               </span>
             </DialogTitle>
           </DialogHeader>
-          <pre className="rounded-md bg-muted p-4 text-xs overflow-auto max-h-96">
-            {selectedEvent && JSON.stringify(selectedEvent.payload, null, 2)}
-          </pre>
+          <div className="p-5 max-h-[60vh] overflow-y-auto">
+            <pre className="rounded-lg bg-muted p-4 text-xs overflow-auto">
+              {selectedEvent && JSON.stringify(selectedEvent.payload, null, 2)}
+            </pre>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
