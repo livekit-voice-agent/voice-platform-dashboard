@@ -1,18 +1,25 @@
 "use client";
 
+import React from "react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter, usePathname } from "@/i18n/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   agentConfigApi,
   agentKnowledgeApi,
   agentToolsApi,
   agentVersionApi,
+  deployApi,
   type AgentKnowledgeItem,
   type AgentTool,
   type ToolType,
   type RuntimeConfig,
   type ExtractionField,
   type AgentVersionSummary,
+  type AgentDeployment,
+  type DeploymentStatus,
+  type DeployHealthResponse,
 } from "@/lib/api";
 import {
   type InstructionFields,
@@ -90,12 +97,40 @@ import {
   MessageCircle,
   Headphones,
   Info,
+  CloudUpload,
+  HardDrive,
+  Server,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Square,
+  CircleStop,
+  Terminal,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const LAST_AGENT_KEY = "voice-platform:lastAgent";
+
+function DeployStatusBadge({ status }: { status: import("@/lib/api").DeploymentStatus }) {
+  const map: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
+    BUILDING: { label: "Building", className: "border-amber-200 bg-amber-50 text-amber-700", icon: <Loader2 className="h-2.5 w-2.5 animate-spin" /> },
+    PUSHING:  { label: "Pushing",  className: "border-blue-200 bg-blue-50 text-blue-700",   icon: <Loader2 className="h-2.5 w-2.5 animate-spin" /> },
+    DEPLOYING:{ label: "Deploying",className: "border-purple-200 bg-purple-50 text-purple-700", icon: <Loader2 className="h-2.5 w-2.5 animate-spin" /> },
+    RUNNING:  { label: "Running",  className: "border-emerald-200 bg-emerald-50 text-emerald-700", icon: <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> },
+    FAILED:   { label: "Failed",   className: "border-red-200 bg-red-50 text-red-700",      icon: <XCircle className="h-2.5 w-2.5" /> },
+    STOPPED:  { label: "Stopped",  className: "border-zinc-200 bg-zinc-50 text-zinc-500",   icon: null },
+  };
+  const s = map[status] ?? { label: status, className: "border-zinc-200 bg-zinc-50 text-zinc-500", icon: null };
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${s.className}`}>
+      {s.icon}
+      {s.label}
+    </span>
+  );
+}
 
 const CONFIG_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "instructions", label: "Instructions", icon: MessageSquare },
@@ -111,6 +146,10 @@ const CONFIG_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
 ];
 
 export default function AgentPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [agents, setAgents] = useState<string[]>([]);
   const [selectedAgent, setSelectedAgent] = useState("");
   const [newAgentName, setNewAgentName] = useState("");
@@ -126,6 +165,8 @@ export default function AgentPage() {
 
   const t = useTranslations("agent");
   const tc = useTranslations("common");
+  const truncateText = (text: string, max: number) =>
+    text.length > max ? `${text.slice(0, max)}...` : text;
 
   const ELEVENLABS_VOICES = [
     { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", desc: "Calm, warm female" },
@@ -312,7 +353,31 @@ export default function AgentPage() {
   const [viewingVersion, setViewingVersion] = useState<any | null>(null);
   const [restoreConfirmVersion, setRestoreConfirmVersion] = useState<AgentVersionSummary | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [activeTab, setActiveTab] = useState("config");
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") ?? "config");
+
+  // Sync URL when tab or agent changes
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`${pathname}?${params.toString()}` as any, { scroll: false });
+  }, [searchParams, pathname, router]);
+
+  // ─── Deploy tab state ────────────────────────────────────────
+  const [latestDeployment, setLatestDeployment] = useState<AgentDeployment | null>(null);
+  const [loadingDeploy, setLoadingDeploy] = useState(false);
+  const [deleteDeployLoading, setDeleteDeployLoading] = useState(false);
+  const [buildLoading, setBuildLoading] = useState(false);
+  const [prebuiltImage, setPrebuiltImage] = useState<string | null>(null);
+  const [prebuiltLoading, setPrebuiltLoading] = useState(false);
+  const [k8sDeployLoading, setK8sDeployLoading] = useState(false);
+  const [k8sStopLoading, setK8sStopLoading] = useState(false);
+  const [k8sHealth, setK8sHealth] = useState<DeployHealthResponse | null>(null);
+  const [k8sVersionDialogOpen, setK8sVersionDialogOpen] = useState(false);
+  const [k8sDialogVersions, setK8sDialogVersions] = useState<AgentVersionSummary[]>([]);
+  const [k8sDialogSelectedVersion, setK8sDialogSelectedVersion] = useState<string>("draft");
+  const buildPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const k8sPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ─── Form <-> JSON sync helpers ─────────────────────────────
   /** Safely parse a value that may be an object, a JSON string, or a double-encoded JSON string */
@@ -506,6 +571,8 @@ export default function AgentPage() {
         setAgents(list);
         setSelectedAgent((prev) => {
           if (prev) return prev;
+          const urlAgent = searchParams.get("agent");
+          if (urlAgent && list.includes(urlAgent)) return urlAgent;
           const stored = localStorage.getItem(LAST_AGENT_KEY);
           if (stored && list.includes(stored)) return stored;
           return list[0];
@@ -573,8 +640,60 @@ export default function AgentPage() {
     }
   }, []);
 
+  const loadDeployData = useCallback(async (agentName: string) => {
+    setLoadingDeploy(true);
+    try {
+      const [deployment, health] = await Promise.allSettled([
+        deployApi.getLatestDeployment(agentName),
+        deployApi.getHealth(agentName),
+      ]);
+      if (deployment.status === "fulfilled") setLatestDeployment(deployment.value);
+      if (health.status === "fulfilled") setK8sHealth(health.value);
+    } finally {
+      setLoadingDeploy(false);
+    }
+  }, []);
+
+  // Poll build progress while a deploy is in-flight
+  const startBuildPoll = useCallback((agentName: string, deploymentId: string) => {
+    if (buildPollRef.current) clearInterval(buildPollRef.current);
+    buildPollRef.current = setInterval(async () => {
+      try {
+        const d = await deployApi.getDeploymentById(deploymentId);
+        setLatestDeployment(d);
+        const inProgress: DeploymentStatus[] = ["BUILDING", "PUSHING", "DEPLOYING"];
+        if (!inProgress.includes(d.status)) {
+          clearInterval(buildPollRef.current!);
+          buildPollRef.current = null;
+          // Also refresh k8s health
+          deployApi.getHealth(agentName).then(setK8sHealth).catch(() => {});
+        }
+      } catch {
+        clearInterval(buildPollRef.current!);
+        buildPollRef.current = null;
+      }
+    }, 2000);
+  }, []);
+
+  // Poll K8s health every 10s
+  const startK8sPoll = useCallback((agentName: string) => {
+    if (k8sPollRef.current) clearInterval(k8sPollRef.current);
+    k8sPollRef.current = setInterval(() => {
+      deployApi.getHealth(agentName).then(setK8sHealth).catch(() => {});
+    }, 10000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (buildPollRef.current) clearInterval(buildPollRef.current);
+      if (k8sPollRef.current) clearInterval(k8sPollRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     loadAgents();
+    // Load prebuilt image config once on mount
+    deployApi.getPrebuiltImage().then((r) => setPrebuiltImage(r.image)).catch(() => {});
   }, [loadAgents]);
 
   useEffect(() => {
@@ -583,7 +702,9 @@ export default function AgentPage() {
     loadKnowledge(selectedAgent);
     loadTools(selectedAgent);
     loadVersions(selectedAgent);
-  }, [selectedAgent, loadConfig, loadKnowledge, loadTools, loadVersions]);
+    loadDeployData(selectedAgent);
+    startK8sPoll(selectedAgent);
+  }, [selectedAgent, loadConfig, loadKnowledge, loadTools, loadVersions, loadDeployData, startK8sPoll]);
 
   const handleAgentChange = (value: string) => {
     if (value === "__new__") {
@@ -593,6 +714,124 @@ export default function AgentPage() {
     setShowNewAgentInput(false);
     setSelectedAgent(value);
     localStorage.setItem(LAST_AGENT_KEY, value);
+    // Reset deploy state on agent switch
+    setLatestDeployment(null);
+    setK8sHealth(null);
+    if (buildPollRef.current) { clearInterval(buildPollRef.current); buildPollRef.current = null; }
+    if (k8sPollRef.current) { clearInterval(k8sPollRef.current); k8sPollRef.current = null; }
+    // Sync URL
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("agent", value);
+    router.replace(`${pathname}?${params.toString()}` as any, { scroll: false });
+  };
+
+  const handleBuildImage = async () => {
+    if (!selectedAgent) return;
+    setBuildLoading(true);
+    try {
+      const result = await deployApi.triggerDeploy(selectedAgent);
+      toast.success(t("deployBuildStarted", { version: result.version }));
+      setLatestDeployment((prev) => prev ? { ...prev, status: "BUILDING", build_logs: null } : {
+        id: result.deploymentId,
+        agent_name: result.agent_name,
+        version: result.version,
+        image_tag: result.image_tag,
+        status: result.status,
+        build_logs: null,
+        pod_name: null,
+        error_message: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      startBuildPoll(selectedAgent, result.deploymentId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("deployBuildError"));
+    } finally {
+      setBuildLoading(false);
+    }
+  };
+
+  const handleUsePrebuilt = async () => {
+    if (!selectedAgent) return;
+    setPrebuiltLoading(true);
+    try {
+      const result = await deployApi.usePrebuiltImage(selectedAgent);
+      toast.success(t("deployPrebuiltSet", { image: result.image_tag }));
+      setLatestDeployment({
+        id: result.deploymentId,
+        agent_name: result.agent_name,
+        version: result.version,
+        image_tag: result.image_tag,
+        status: result.status,
+        build_logs: null,
+        pod_name: null,
+        error_message: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("deployPrebuiltError"));
+    } finally {
+      setPrebuiltLoading(false);
+    }
+  };
+
+  const openK8sVersionDialog = async () => {
+    if (!selectedAgent) return;
+    try {
+      const versions = await agentVersionApi.list(selectedAgent);
+      setK8sDialogVersions(versions);
+    } catch {
+      setK8sDialogVersions([]);
+    }
+    setK8sDialogSelectedVersion("draft");
+    setK8sVersionDialogOpen(true);
+  };
+
+  const handleDeployToK8s = async (configVersion?: number) => {
+    if (!selectedAgent) return;
+    setK8sVersionDialogOpen(false);
+    setK8sDeployLoading(true);
+    try {
+      await deployApi.deployToK8s(selectedAgent, configVersion);
+      toast.success(t("deployK8sDeployed", { name: selectedAgent }));
+      deployApi.getHealth(selectedAgent).then(setK8sHealth).catch(() => {});
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("deployK8sError"));
+    } finally {
+      setK8sDeployLoading(false);
+    }
+  };
+
+  const handleStopK8s = async () => {
+    if (!selectedAgent) return;
+    setK8sStopLoading(true);
+    try {
+      await deployApi.stopDeployment(selectedAgent);
+      toast.success(t("deployK8sStopped", { name: selectedAgent }));
+      setK8sHealth((prev) => prev ? { ...prev, k8s: undefined, status: "STOPPED" } : { healthy: false, status: "STOPPED" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("deployK8sStopError"));
+    } finally {
+      setK8sStopLoading(false);
+    }
+  };
+
+  const handleDeleteDeployment = async () => {
+    if (!selectedAgent) return;
+    setDeleteDeployLoading(true);
+    try {
+      await deployApi.deleteDeployment(selectedAgent);
+      toast.success(t("deployDeleted", { name: selectedAgent }));
+      setLatestDeployment(null);
+      setK8sHealth(null);
+      if (buildPollRef.current) { clearInterval(buildPollRef.current); buildPollRef.current = null; }
+      if (k8sPollRef.current) { clearInterval(k8sPollRef.current); k8sPollRef.current = null; }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("deployDeleteError"));
+    } finally {
+      setDeleteDeployLoading(false);
+    }
   };
 
   const handleCreateAgent = async () => {
@@ -903,6 +1142,15 @@ export default function AgentPage() {
                 </SelectContent>
               </Select>
               <button
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-violet-200 bg-card text-xs text-violet-600 hover:bg-violet-50 hover:border-violet-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => router.push(`/agent/test?agent=${encodeURIComponent(selectedAgent)}`)}
+                title={t("testAgent")}
+                disabled={!selectedAgent}
+              >
+                <FlaskConical className="h-3.5 w-3.5" />
+                {t("testAgent")}
+              </button>
+              <button
                 className="p-1.5 rounded-md border bg-card text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-colors"
                 onClick={() => setDeleteAgentConfirm(true)}
                 title={t("deleteAgent")}
@@ -915,7 +1163,7 @@ export default function AgentPage() {
       </div>
 
       {/* ─── Tabs ───────────────────────────────────────────────── */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="border-b">
           <TabsList className="h-auto p-0 bg-transparent rounded-none w-full justify-start gap-0">
             <TabsTrigger value="config" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2.5 pt-2 text-xs font-medium gap-1.5">
@@ -936,6 +1184,10 @@ export default function AgentPage() {
               {versions.length > 0 && (
                 <span className="ml-1 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">{versions.length}</span>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="deploy" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 pb-2.5 pt-2 text-xs font-medium gap-1.5">
+              <CloudUpload className="h-3.5 w-3.5" />
+              {t("tabDeploy")}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -4120,6 +4372,256 @@ export default function AgentPage() {
             </DialogContent>
           </Dialog>
         </TabsContent>
+
+        {/* ─── Deploy Tab ──────────────────────────────────────────── */}
+        <TabsContent value="deploy" className="pt-5 pb-20">
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-sm font-semibold">{t("deployTitle")}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("deployDescription")}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => selectedAgent && loadDeployData(selectedAgent)}
+                disabled={loadingDeploy}
+              >
+                <RefreshCw className={`h-3 w-3 ${loadingDeploy ? "animate-spin" : ""}`} />
+                {tc("refresh")}
+              </Button>
+            </div>
+
+            {/* Info banner */}
+            <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+              <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-blue-700">{t("deployImageNote")}</p>
+            </div>
+
+            {/* Step 1 — Image */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background text-[10px] font-bold flex-shrink-0">1</span>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Image</h3>
+                <div className="flex-1 border-t" />
+              </div>
+
+              <div className="rounded-lg border bg-card p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+                      <HardDrive className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{t("deployBuildSection")}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {prebuiltImage
+                          ? t("deployPrebuiltConfigured", { image: prebuiltImage })
+                          : t("deployPrebuiltNotConfigured")}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={handleUsePrebuilt}
+                    disabled={prebuiltLoading || !prebuiltImage || !!latestDeployment}
+                  >
+                    {prebuiltLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <HardDrive className="h-3 w-3" />
+                    )}
+                    {t("deployPrebuiltBtn")}
+                  </Button>
+                </div>
+
+                {/* Current deployment status */}
+                {latestDeployment && (
+                  <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <DeployStatusBadge status={latestDeployment.status} />
+                        <span className="text-xs font-mono text-muted-foreground">
+                          {latestDeployment.image_tag.split("/").pop()}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">v{latestDeployment.version}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(latestDeployment.updated_at).toLocaleString()}
+                        </span>
+                        {latestDeployment && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                            onClick={handleDeleteDeployment}
+                            disabled={deleteDeployLoading || k8sStopLoading || k8sDeployLoading || buildLoading}
+                            title={t("deployDelete")}
+                          >
+                            {deleteDeployLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {latestDeployment.build_logs && (
+                      <div className="rounded-md bg-zinc-950 p-3 font-mono text-[11px] leading-relaxed overflow-auto max-h-72">
+                        <div className="flex items-center gap-1.5 mb-2 text-zinc-500">
+                          <Terminal className="h-3 w-3" />
+                          <span>build log</span>
+                          {["BUILDING", "PUSHING", "DEPLOYING"].includes(latestDeployment.status) && (
+                            <span className="flex items-center gap-1 ml-1 text-amber-400">
+                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                              live
+                            </span>
+                          )}
+                        </div>
+                        <pre className="whitespace-pre-wrap text-zinc-300 text-[10px]">{latestDeployment.build_logs}</pre>
+                      </div>
+                    )}
+
+                    {latestDeployment.error_message && (
+                      <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                        <XCircle className="h-3.5 w-3.5 text-red-500 mt-0.5 flex-shrink-0" />
+                        <p className="text-[11px] text-red-700">{latestDeployment.error_message}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!latestDeployment && !loadingDeploy && (
+                  <div className="rounded-md border-2 border-dashed p-8 flex flex-col items-center justify-center text-center">
+                    <HardDrive className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                    <p className="text-xs text-muted-foreground">{t("deployNoBuilds")}</p>
+                  </div>
+                )}
+                {loadingDeploy && !latestDeployment && (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Step 2 — Kubernetes */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold flex-shrink-0 ${latestDeployment?.status === "RUNNING" || k8sHealth ? "bg-foreground text-background" : "bg-muted text-muted-foreground border"}`}>2</span>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kubernetes</h3>
+                <div className="flex-1 border-t" />
+              </div>
+
+              {/* K8s: RUNNING state */}
+              {k8sHealth?.k8s ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
+                        <Server className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-emerald-800">{t("deployK8sSection")}</p>
+                        <p className="text-xs text-emerald-700/70">{t("deployK8sSectionDesc")}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs text-red-600 hover:text-red-600 hover:border-red-200 border-red-200 bg-white"
+                      onClick={handleStopK8s}
+                      disabled={k8sStopLoading || deleteDeployLoading}
+                    >
+                      {k8sStopLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Square className="h-3 w-3" />}
+                      {t("deployK8sStop")}
+                    </Button>
+                  </div>
+                  <div className="rounded-md border border-emerald-200 bg-white/60 p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const s = k8sHealth.k8s.status ?? "deployed";
+                          const isRunning = s === "running";
+                          const isPending = s === "pending";
+                          return (
+                            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                              isRunning
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : isPending
+                                ? "border-yellow-200 bg-yellow-50 text-yellow-700"
+                                : "border-blue-200 bg-blue-50 text-blue-700"
+                            }`}>
+                              {isRunning && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                              {s}
+                            </span>
+                          );
+                        })()}
+                        <span className="text-xs font-mono text-muted-foreground">{k8sHealth.k8s.id}</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{t("deployPolling")}</span>
+                    </div>
+                    {k8sHealth.k8s.image && (
+                      <p className="text-[11px] font-mono text-muted-foreground truncate" title={k8sHealth.k8s.image}>
+                        {k8sHealth.k8s.image}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : k8sHealth?.status === "STOPPED" ? (
+                /* K8s: STOPPED state */
+                <div className="rounded-lg border border-orange-200 bg-orange-50/30 p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100">
+                        <CircleStop className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-orange-800">{t("deployK8sStopped2")}</p>
+                        <p className="text-xs text-orange-700/70">{t("deployK8sStoppedDesc")}</p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs bg-orange-600 hover:bg-orange-700 text-white border-none"
+                      onClick={openK8sVersionDialog}
+                      disabled={k8sDeployLoading || deleteDeployLoading}
+                    >
+                      {k8sDeployLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CloudUpload className="h-3 w-3" />}
+                      {t("deployK8sRedeploy")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* K8s: NEVER DEPLOYED state */
+                <div className={`rounded-lg border-2 ${latestDeployment?.status === "RUNNING" ? "border-dashed border-foreground/20 bg-card" : "border-dashed border-muted"} p-8 flex flex-col items-center justify-center text-center space-y-3`}>
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${latestDeployment?.status === "RUNNING" ? "bg-muted" : "bg-muted/40"}`}>
+                    <Server className={`h-6 w-6 ${latestDeployment?.status === "RUNNING" ? "text-foreground/50" : "text-muted-foreground/30"}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">{t("deployNotDeployed")}</p>
+                    {(!latestDeployment || latestDeployment.status !== "RUNNING") && (
+                      <p className="mt-1 text-xs text-muted-foreground/60">{t("deployNeedsBuild")}</p>
+                    )}
+                  </div>
+                  {latestDeployment?.status === "RUNNING" && (
+                    <Button
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs mt-1"
+                      onClick={openK8sVersionDialog}
+                      disabled={k8sDeployLoading || deleteDeployLoading}
+                    >
+                      {k8sDeployLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CloudUpload className="h-3 w-3" />}
+                      {t("deployK8sBtn")}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
       </Tabs>
 
       {/* ─── Floating Action Bar (config tab only) ──────────────── */}
@@ -4309,6 +4811,69 @@ export default function AgentPage() {
             >
               {deletingToolId ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               {tc("delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* K8s version picker dialog */}
+      <Dialog open={k8sVersionDialogOpen} onOpenChange={setK8sVersionDialogOpen}>
+        <DialogContent className="p-0 gap-0 sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader className="border-b px-5 py-4">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <CloudUpload className="h-4 w-4 text-muted-foreground" />
+              {t("deployK8sVersionTitle")}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              {t("deployK8sVersionDesc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-5 py-4 space-y-3">
+            <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+              <label
+                key="draft"
+                className={`flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer transition-colors overflow-hidden ${k8sDialogSelectedVersion === "draft" ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}
+                onClick={() => setK8sDialogSelectedVersion("draft")}
+              >
+                <div className={`h-2 w-2 rounded-full border-2 shrink-0 ${k8sDialogSelectedVersion === "draft" ? "border-primary bg-primary" : "border-muted-foreground/40"}`} />
+                <div className="min-w-0 overflow-hidden">
+                  <p className="text-xs font-medium truncate">Draft (current)</p>
+                  <p className="text-[10px] text-muted-foreground truncate">Unsaved changes</p>
+                </div>
+              </label>
+              {k8sDialogVersions.map((v) => (
+                <label
+                  key={v.version}
+                  className={`flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer transition-colors overflow-hidden ${k8sDialogSelectedVersion === String(v.version) ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}
+                  onClick={() => setK8sDialogSelectedVersion(String(v.version))}
+                >
+                  <div className={`h-2 w-2 rounded-full border-2 shrink-0 ${k8sDialogSelectedVersion === String(v.version) ? "border-primary bg-primary" : "border-muted-foreground/40"}`} />
+                  <div className="min-w-0 overflow-hidden">
+                    <p className="text-xs font-medium">v{v.version}</p>
+                    {v.description && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {truncateText(v.description, 40)}
+                      </p>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="border-t px-5 py-3 gap-2">
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setK8sVersionDialogOpen(false)}>
+              {tc("cancel")}
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => {
+                const v = k8sDialogSelectedVersion === "draft" ? undefined : Number(k8sDialogSelectedVersion);
+                handleDeployToK8s(v);
+              }}
+            >
+              <CloudUpload className="h-3 w-3" />
+              {k8sHealth?.status === "STOPPED" ? t("deployK8sRedeploy") : t("deployK8sBtn")}
             </Button>
           </DialogFooter>
         </DialogContent>

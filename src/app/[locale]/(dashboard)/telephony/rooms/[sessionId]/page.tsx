@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState, use } from "react";
+import { useCallback, useEffect, useState, use, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   conversationEventsApi,
   roomApi,
   type SessionEvent,
   type CallSession,
   type AgentConfigSnapshot,
+  type LiveKitRoom,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -50,9 +52,13 @@ import {
   Timer,
   FileText,
   Zap,
+  PanelLeft,
+  Radio,
+  History,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -669,19 +675,28 @@ export default function SessionDetailPage({
 }) {
   const { sessionId } = use(params);
   const t = useTranslations("telephony.sessionDetail");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const originPage = parseInt(searchParams.get("page") ?? "1", 10) || 1;
+  const PAGE_SIZE = 30;
   const [session, setSession] = useState<CallSession | null>(null);
   const [events, setEvents] = useState<SessionEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<SessionEvent | null>(null);
   const [activeTab, setActiveTab] = useState("conversation");
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("room_sidebar_open") === "true" : false
+  );
+  const [sidebarRooms, setSidebarRooms] = useState<CallSession[]>([]);
+  const [sidebarLive, setSidebarLive] = useState<Array<LiveKitRoom>>([]);
 
   const fetchSession = useCallback(async () => {
     try {
-      const sessions = await roomApi.listSessions();
-      const found = sessions.find((s: CallSession) => s.id === sessionId);
-      setSession(found ?? null);
+      const found = await roomApi.getSession(sessionId);
+      setSession(found);
     } catch (err: any) {
+      setSession(null);
       toast.error(err.message || "Falha ao carregar sessão");
     } finally {
       setLoading(false);
@@ -702,6 +717,9 @@ export default function SessionDetailPage({
   useEffect(() => {
     fetchSession();
     fetchEvents();
+    // Fetch sidebar data
+    roomApi.listSessions({ limit: PAGE_SIZE, offset: (originPage - 1) * PAGE_SIZE }).then(r => setSidebarRooms(r.data)).catch(() => {});
+    roomApi.listLive().then(live => setSidebarLive(live.slice(0, 20))).catch(() => {});
   }, [fetchSession, fetchEvents]);
 
   const handleRefresh = useCallback(() => {
@@ -745,14 +763,103 @@ export default function SessionDetailPage({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex h-full min-h-0 gap-0">
+      {/* Collapsible Sidebar */}
+      <aside
+        className={`flex-shrink-0 flex flex-col border-r bg-card transition-all duration-200 ${sidebarOpen ? "w-64" : "w-12"}`}
+        style={{ minHeight: "calc(100vh - 64px)" }}
+      >
+        {/* Toggle button */}
+        <div className={`flex items-center border-b h-12 px-2 ${sidebarOpen ? "justify-between" : "justify-center"}`}>
+          {sidebarOpen && (
+            <span className="text-xs font-medium text-muted-foreground pl-1">Rooms</span>
+          )}
+          <button
+            onClick={() => {
+              const next = !sidebarOpen;
+              setSidebarOpen(next);
+              localStorage.setItem("room_sidebar_open", String(next));
+            }}
+            className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+          >
+            <PanelLeft className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {sidebarOpen ? (
+          <div className="flex flex-col flex-1 overflow-hidden">
+            {/* Back link — TOP */}
+            <div className="border-b px-2 py-1.5">
+              <button
+                onClick={() => router.push(`/telephony/rooms`)}
+                className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-xs hover:bg-accent transition-colors"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-muted-foreground">Voltar para Rooms</span>
+              </button>
+            </div>
+
+            {/* Live rooms */}
+            {sidebarLive.length > 0 && (
+              <div className="flex-shrink-0">
+                <div className="flex items-center gap-1.5 px-3 py-2">
+                  <Radio className="h-3 w-3 text-emerald-500" />
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Ao vivo</span>
+                </div>
+                {sidebarLive.slice(0, 5).map(r => (
+                  <div key={r.name} className="px-2 py-1">
+                    <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent cursor-pointer text-xs truncate">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                      <span className="truncate">{r.name}</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t mx-3 my-1" />
+              </div>
+            )}
+
+            {/* Recent sessions */}
+            <div className="flex items-center justify-between px-3 py-2">
+              <div className="flex items-center gap-1.5">
+                <History className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Recentes</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground/60 border rounded px-1.5 py-0.5">p.{originPage}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 pb-2">
+              {sidebarRooms.map(r => (
+                <div
+                  key={r.id}
+                  onClick={() => router.push(`/telephony/rooms/${r.id}?page=${originPage}`)}
+                  className={`flex items-start gap-2 rounded-md px-2 py-2 hover:bg-accent cursor-pointer transition-colors ${r.id === sessionId ? "bg-accent" : ""}`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 mt-1.5 ${r.status === "active" ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate leading-tight">{r.room_name}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{r.agent_name || "—"}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* Collapsed: icon-only navigation */
+          <div className="flex flex-col items-center gap-1 pt-2">
+            <button
+              onClick={() => router.push(`/telephony/rooms`)}
+              className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+              title="Voltar para Rooms"
+            >
+              <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+        )}
+      </aside>
+
+      {/* Main content */}
+      <div className="flex-1 min-w-0 space-y-5 p-5">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/telephony/rooms">
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-semibold tracking-tight truncate">
             {session.room_name}
@@ -1103,6 +1210,7 @@ export default function SessionDetailPage({
           </div>
         </DialogContent>
       </Dialog>
+      </div>{/* end main content */}
     </div>
   );
 }

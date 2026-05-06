@@ -464,6 +464,12 @@ export interface DeployHealthResponse {
   lastCheck?: string;
   message?: string;
   details?: Record<string, unknown>;
+  k8s?: {
+    id: string;
+    image: string;
+    config?: Record<string, string>;
+    status?: string;
+  };
 }
 
 export interface DeployConfig {
@@ -510,6 +516,24 @@ export const deployApi = {
       { method: "POST" }
     ),
 
+  deleteDeployment: (agentName: string) =>
+    request<{ success: boolean; message: string }>(
+      `/deploy/${encodeURIComponent(agentName)}`,
+      { method: "DELETE" }
+    ),
+
+  deployToK8s: (agentName: string, configVersion?: number) =>
+    request<{ success: boolean; agent_id: string; image: string; config_version: number }>(
+      `/deploy/${encodeURIComponent(agentName)}/k8s`,
+      {
+        method: "POST",
+        body: JSON.stringify({ configVersion }),
+      }
+    ),
+
+  getDeploymentById: (deploymentId: string) =>
+    request<AgentDeployment>(`/deploy/deployment/${encodeURIComponent(deploymentId)}`),
+
   getConfig: () => request<DeployConfig>("/deploy/config/settings"),
 
   updateConfig: (data: UpdateDeployConfigRequest) =>
@@ -517,6 +541,51 @@ export const deployApi = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  getPrebuiltImage: () =>
+    request<{ image: string | null }>("/deploy/config/prebuilt-image"),
+
+  usePrebuiltImage: (agentName: string) =>
+    request<TriggerDeployResponse>(
+      `/deploy/${encodeURIComponent(agentName)}/prebuilt`,
+      { method: "POST" }
+    ),
+};
+
+// ─── Test Session ─────────────────────────────────────────────
+
+export interface TestSessionStartResponse {
+  roomName: string;
+  token: string;
+  wsUrl: string;
+}
+
+export interface TestSessionStatus {
+  active: boolean;
+  roomName?: string;
+  startedAt?: string;
+}
+
+export const testSessionApi = {
+  start: (agentName: string, version?: string) =>
+    request<TestSessionStartResponse>(
+      `/test-session/${encodeURIComponent(agentName)}/start`,
+      {
+        method: "POST",
+        body: JSON.stringify({ version }),
+      }
+    ),
+
+  end: (agentName: string) =>
+    request<{ success: boolean }>(
+      `/test-session/${encodeURIComponent(agentName)}/end`,
+      { method: "DELETE" }
+    ),
+
+  status: (agentName: string) =>
+    request<TestSessionStatus>(
+      `/test-session/${encodeURIComponent(agentName)}/status`
+    ),
 };
 
 // ─── SIP Trunks ──────────────────────────────────────────────
@@ -750,6 +819,12 @@ export interface ListSessionsParams {
   agentName?: string;
   status?: string;
   limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedSessions {
+  data: CallSession[];
+  total: number;
 }
 
 export interface AgentConfigSnapshot {
@@ -819,11 +894,14 @@ export const roomApi = {
     if (params?.agentName) searchParams.set("agentName", params.agentName);
     if (params?.status) searchParams.set("status", params.status);
     if (params?.limit) searchParams.set("limit", String(params.limit));
+    if (params?.offset !== undefined) searchParams.set("offset", String(params.offset));
     const qs = searchParams.toString();
-    return request<CallSession[]>(`/rooms${qs ? `?${qs}` : ""}`);
+    return request<PaginatedSessions>(`/rooms${qs ? `?${qs}` : ""}`);
   },
 
   listLive: () => request<LiveKitRoom[]>("/rooms/live"),
+
+  getSession: (id: string) => request<CallSession>(`/rooms/${encodeURIComponent(id)}`),
 
   deleteLive: (roomName: string) =>
     request<{ success: boolean; message: string }>(

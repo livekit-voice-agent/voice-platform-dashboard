@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
@@ -9,6 +9,7 @@ import {
   type AgentDeployment,
   type DeploymentStatus,
   type DeployConfig,
+  type DeployHealthResponse,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,8 @@ import {
   RefreshCw,
   ArrowLeft,
   FileText,
+  CloudUpload,
+  Server,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -127,6 +130,11 @@ export default function DeploymentsPage() {
   });
   const [savingConfig, setSavingConfig] = useState(false);
 
+  // K8s health monitoring
+  const [k8sHealth, setK8sHealth] = useState<DeployHealthResponse | null>(null);
+  const [deployingToK8s, setDeployingToK8s] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const loadAgents = useCallback(async () => {
     try {
       const list = await agentConfigApi.listAgents();
@@ -170,6 +178,30 @@ export default function DeploymentsPage() {
     }
   }, []);
 
+  const pollK8sHealth = useCallback(async (agentName: string) => {
+    if (!agentName) return;
+    try {
+      const health = await deployApi.getHealth(agentName);
+      setK8sHealth(health);
+    } catch {
+      // silently ignore polling errors
+    }
+  }, []);
+
+  // Start/stop polling when selected agent changes
+  useEffect(() => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    if (selectedAgent) {
+      pollK8sHealth(selectedAgent);
+      pollingRef.current = setInterval(() => {
+        pollK8sHealth(selectedAgent);
+      }, 10_000);
+    }
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [selectedAgent, pollK8sHealth]);
+
   useEffect(() => {
     loadAgents();
     loadConfig();
@@ -200,10 +232,27 @@ export default function DeploymentsPage() {
       await deployApi.stopDeployment(agentName);
       toast.success(t("toastDeploymentStopped"));
       await loadDeployments(agentName);
+      await pollK8sHealth(agentName);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : t("toastStopError")
       );
+    }
+  };
+
+  const handleDeployToK8s = async (agentName: string) => {
+    setDeployingToK8s(true);
+    try {
+      await deployApi.deployToK8s(agentName);
+      toast.success(t("toastK8sDeployed"));
+      await loadDeployments(agentName);
+      await pollK8sHealth(agentName);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t("toastK8sDeployError")
+      );
+    } finally {
+      setDeployingToK8s(false);
     }
   };
 
@@ -340,6 +389,46 @@ export default function DeploymentsPage() {
         </div>
       </div>
 
+      {/* K8s Status Card */}
+      {selectedAgent && k8sHealth && (
+        <Card className="border-dashed">
+          <CardHeader className="pb-2 pt-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              {t("k8sStatus")}
+              {k8sHealth.healthy ? (
+                <Badge variant="default" className="text-xs">
+                  <Activity className="mr-1 h-3 w-3" />
+                  {t("k8sStatusRunning")}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs text-muted-foreground">
+                  {t("k8sStatusUnknown")}
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3 text-xs text-muted-foreground flex flex-wrap gap-4">
+            {k8sHealth.pod_name && (
+              <span>
+                Pod: <code>{k8sHealth.pod_name}</code>
+              </span>
+            )}
+            {k8sHealth.version && (
+              <span>Version: v{k8sHealth.version}</span>
+            )}
+            {k8sHealth.k8s?.status && (
+              <span>
+                K8s: <strong>{k8sHealth.k8s.status}</strong>
+              </span>
+            )}
+            {k8sHealth.message && (
+              <span className="italic">{k8sHealth.message}</span>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Deployments Table */}
       <Card>
         <CardHeader className="pb-3">
@@ -360,7 +449,7 @@ export default function DeploymentsPage() {
                     <TableHead className="w-[120px]">{t("tableStatus")}</TableHead>
                     <TableHead className="w-[120px]">{t("tablePod")}</TableHead>
                     <TableHead className="w-[160px]">{t("tableCreated")}</TableHead>
-                    <TableHead className="w-[120px]">{t("tableActions")}</TableHead>
+                    <TableHead className="w-[160px]">{t("tableActions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -393,6 +482,23 @@ export default function DeploymentsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          {/* Deploy to K8s — available for RUNNING (built+pushed) deployments */}
+                          {d.status === "RUNNING" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              disabled={deployingToK8s}
+                              onClick={() => handleDeployToK8s(d.agent_name)}
+                              title={t("deployToK8s")}
+                            >
+                              {deployingToK8s ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <CloudUpload className="h-3 w-3" />
+                              )}
+                            </Button>
+                          )}
                           {d.status === "RUNNING" && (
                             <Button
                               variant="ghost"

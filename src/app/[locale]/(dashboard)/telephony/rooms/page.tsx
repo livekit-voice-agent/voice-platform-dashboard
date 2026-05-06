@@ -9,6 +9,7 @@ import {
   type LiveKitRoom,
   type CallSession,
   type ListSessionsParams,
+  type PaginatedSessions,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -127,15 +128,40 @@ function StatusBadge({ status }: { status: string }) {
 export default function RoomsPage() {
   const [liveRooms, setLiveRooms] = useState<LiveKitRoom[]>([]);
   const [sessions, setSessions] = useState<CallSession[]>([]);
+  const [sessionsTotal, setSessionsTotal] = useState(0);
   const [loadingLive, setLoadingLive] = useState(true);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [deleteConfirmRoom, setDeleteConfirmRoom] = useState<string | null>(
     null
   );
-  const [activeTab, setActiveTab] = useState("live");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("rooms_active_tab") ?? "live";
+    }
+    return "live";
+  });
   const router = useRouter();
   const t = useTranslations("telephony.rooms");
   const tc = useTranslations("common");
+
+  // Pagination state
+  const PAGE_SIZE = 30;
+  const [sessionPage, setSessionPage] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("rooms_last_page");
+      if (saved) {
+        localStorage.removeItem("rooms_last_page");
+        return parseInt(saved, 10) || 1;
+      }
+    }
+    return 1;
+  });
+
+  const switchTab = useCallback((tab: string) => {
+    setActiveTab(tab);
+    localStorage.setItem("rooms_active_tab", tab);
+    if (tab === "history") setSessionPage(1);
+  }, []);
 
   // Filter state
   const [agents, setAgents] = useState<string[]>([]);
@@ -150,15 +176,18 @@ export default function RoomsPage() {
     agentConfigApi.listAgents().then(setAgents).catch(() => {});
   }, []);
 
-  const buildFilterParams = useCallback((): ListSessionsParams | undefined => {
-    const params: ListSessionsParams = {};
+  const buildFilterParams = useCallback((page = 1): ListSessionsParams => {
+    const params: ListSessionsParams = {
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    };
     if (filterTicketField) params.ticketField = filterTicketField;
     if (filterTicketValue) params.ticketValue = filterTicketValue;
     if (filterAgent) params.agentName = filterAgent;
     if (filterStatus) params.status = filterStatus;
     if (filterHasTicket) params.hasTicket = true;
 
-    return Object.keys(params).length > 0 ? params : undefined;
+    return params;
   }, [filterTicketField, filterTicketValue, filterAgent, filterStatus, filterHasTicket]);
 
   const fetchLiveRooms = useCallback(async () => {
@@ -172,18 +201,21 @@ export default function RoomsPage() {
     }
   }, []);
 
-  const fetchSessions = useCallback(async () => {
+  const fetchSessions = useCallback(async (page = sessionPage) => {
     try {
-      const params = buildFilterParams();
-      const data = await roomApi.listSessions(params);
-      setSessions(data);
-      setFiltersApplied(!!params);
+      const params = buildFilterParams(page);
+      const hasFilters = !!(filterTicketField || filterTicketValue || filterAgent || filterStatus || filterHasTicket);
+      const result = await roomApi.listSessions(params);
+      setSessions(result.data);
+      setSessionsTotal(result.total);
+      setFiltersApplied(hasFilters);
     } catch (err: any) {
       toast.error(err.message || t("toastSessionsError"));
     } finally {
       setLoadingSessions(false);
     }
-  }, [buildFilterParams]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildFilterParams, sessionPage]);
 
   const handleRefresh = useCallback(() => {
     if (activeTab === "live") fetchLiveRooms();
@@ -194,8 +226,15 @@ export default function RoomsPage() {
 
   useEffect(() => {
     fetchLiveRooms();
-    fetchSessions();
-  }, [fetchLiveRooms, fetchSessions]);
+    fetchSessions(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    setLoadingSessions(true);
+    fetchSessions(sessionPage);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionPage]);
 
   useEffect(() => {
     if (activeTab === "live") {
@@ -203,8 +242,9 @@ export default function RoomsPage() {
       fetchLiveRooms();
     } else {
       setLoadingSessions(true);
-      fetchSessions();
+      fetchSessions(sessionPage);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const handleDeleteRoom = async (roomName: string) => {
@@ -290,7 +330,7 @@ export default function RoomsPage() {
       <div>
         <div className="flex items-center gap-1 border-b">
           <button
-            onClick={() => setActiveTab("live")}
+            onClick={() => switchTab("live")}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
               activeTab === "live"
                 ? "border-foreground text-foreground"
@@ -306,7 +346,7 @@ export default function RoomsPage() {
             )}
           </button>
           <button
-            onClick={() => setActiveTab("history")}
+            onClick={() => switchTab("history")}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
               activeTab === "history"
                 ? "border-foreground text-foreground"
@@ -465,8 +505,9 @@ export default function RoomsPage() {
                     size="sm"
                     className="h-8 text-xs"
                     onClick={() => {
+                      setSessionPage(1);
                       setLoadingSessions(true);
-                      fetchSessions();
+                      fetchSessions(1);
                     }}
                   >
                     <Search className="mr-1 h-3 w-3" />
@@ -483,9 +524,9 @@ export default function RoomsPage() {
                         setFilterAgent("");
                         setFilterStatus("");
                         setFilterHasTicket(false);
-                        setFiltersApplied(false);
+                        setSessionPage(1);
                         setLoadingSessions(true);
-                        roomApi.listSessions().then(setSessions).catch(() => {}).finally(() => setLoadingSessions(false));
+                        roomApi.listSessions({ limit: PAGE_SIZE, offset: 0 }).then((r) => { setSessions(r.data); setSessionsTotal(r.total); setFiltersApplied(false); }).catch(() => {}).finally(() => setLoadingSessions(false));
                       }}
                     >
                       <X className="mr-1 h-3 w-3" />
@@ -540,7 +581,10 @@ export default function RoomsPage() {
                           <TableRow
                             key={session.id}
                             className="cursor-pointer hover:bg-muted/50"
-                            onClick={() => router.push(`/telephony/rooms/${session.id}`)}
+                            onClick={() => {
+                              localStorage.setItem("rooms_last_page", String(sessionPage));
+                              router.push(`/telephony/rooms/${session.id}?page=${sessionPage}`);
+                            }}
                           >
                             <TableCell className="font-medium text-sm">
                               {session.room_name}
@@ -565,10 +609,10 @@ export default function RoomsPage() {
                                         e.stopPropagation();
                                         setFilterTicketField(key);
                                         setFilterTicketValue("");
+                                        setSessionPage(1);
                                         setLoadingSessions(true);
-                                        roomApi.listSessions({ ticketField: key }).then(setSessions).catch(() => {}).finally(() => {
+                                        roomApi.listSessions({ ticketField: key, limit: PAGE_SIZE, offset: 0 }).then((r) => { setSessions(r.data); setSessionsTotal(r.total); setFiltersApplied(true); }).catch(() => {}).finally(() => {
                                           setLoadingSessions(false);
-                                          setFiltersApplied(true);
                                         });
                                       }}
                                     >
@@ -599,12 +643,54 @@ export default function RoomsPage() {
                       })}
                     </TableBody>
                   </Table>
-                  {/* Footer count */}
+                  {/* Pagination Footer */}
                   <div className="flex items-center justify-between border-t px-4 py-2.5 bg-muted/20">
                     <span className="text-xs text-muted-foreground">
-                      {sessions.length} {sessions.length === 1 ? "session" : "sessions"}
+                      {sessionsTotal === 0 ? "0 sessions" : `${(sessionPage - 1) * PAGE_SIZE + 1}–${Math.min(sessionPage * PAGE_SIZE, sessionsTotal)} of ${sessionsTotal} ${sessionsTotal === 1 ? "session" : "sessions"}`}
                       {filtersApplied && ` (${t("filterActive")})`}
                     </span>
+                    {sessionsTotal > PAGE_SIZE && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setSessionPage((p) => Math.max(1, p - 1))}
+                          disabled={sessionPage === 1}
+                          className="px-2 py-1 rounded border border-border text-[10px] text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Previous
+                        </button>
+                        {Array.from({ length: Math.ceil(sessionsTotal / PAGE_SIZE) }, (_, i) => i + 1)
+                          .filter((p) => p === 1 || p === Math.ceil(sessionsTotal / PAGE_SIZE) || Math.abs(p - sessionPage) <= 1)
+                          .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                            if (idx > 0 && typeof arr[idx - 1] === "number" && (p as number) - (arr[idx - 1] as number) > 1) acc.push("…");
+                            acc.push(p);
+                            return acc;
+                          }, [])
+                          .map((p, idx) =>
+                            p === "…" ? (
+                              <span key={`ellipsis-${idx}`} className="px-1 text-[10px] text-muted-foreground">…</span>
+                            ) : (
+                              <button
+                                key={p}
+                                onClick={() => setSessionPage(p as number)}
+                                className={`px-2 py-1 rounded border text-[10px] transition-colors ${
+                                  sessionPage === p
+                                    ? "border-foreground bg-foreground text-background font-medium"
+                                    : "border-border text-muted-foreground hover:bg-muted"
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            )
+                          )}
+                        <button
+                          onClick={() => setSessionPage((p) => Math.min(Math.ceil(sessionsTotal / PAGE_SIZE), p + 1))}
+                          disabled={sessionPage >= Math.ceil(sessionsTotal / PAGE_SIZE)}
+                          className="px-2 py-1 rounded border border-border text-[10px] text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
