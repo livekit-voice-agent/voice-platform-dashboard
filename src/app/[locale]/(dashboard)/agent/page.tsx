@@ -145,7 +145,7 @@ const CONFIG_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "advanced", label: "Advanced", icon: SlidersHorizontal },
 ];
 
-export default function AgentPage() {
+function AgentPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -4879,5 +4879,13 @@ export default function AgentPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function AgentPage() {
+  return (
+    <React.Suspense>
+      <AgentPageInner />
+    </React.Suspense>
   );
 }
