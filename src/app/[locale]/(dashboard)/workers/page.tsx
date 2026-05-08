@@ -416,7 +416,7 @@ export default function WorkersPage() {
           </DialogHeader>
           <div className="p-5 space-y-3">
             <label className="text-xs font-medium mb-1 block">{t("configVersion")}</label>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
               <label
                 className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors overflow-hidden ${deployK8sVersion === "draft" ? "border-foreground/30 bg-muted/40" : "hover:bg-muted/30"}`}
                 onClick={() => setDeployK8sVersion("draft")}
@@ -478,7 +478,7 @@ export default function WorkersPage() {
           </DialogHeader>
           <div className="p-5 space-y-3">
             <label className="text-xs font-medium mb-1 block">{t("configVersion")}</label>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
               <label
                 className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors overflow-hidden ${testDialogVersion === "draft" ? "border-foreground/30 bg-muted/40" : "hover:bg-muted/30"}`}
                 onClick={() => setTestDialogVersion("draft")}
