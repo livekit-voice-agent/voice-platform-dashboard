@@ -230,7 +230,10 @@ function AgentPageInner() {
     humanization: {
       fillersEnabled: false,
       typingSounds: false,
+      typingVolume: 0.4,
       ambience: false,
+      ambienceSource: "office_ambience_1",
+      ambienceVolume: 0.5,
     },
     persona: "sales",
     timeoutSeconds: null,
@@ -2771,6 +2774,33 @@ function AgentPageInner() {
                         </div>
                         <h3 className="text-xs font-semibold mb-0.5">{t("typingSounds")}</h3>
                         <p className="text-[11px] text-muted-foreground leading-relaxed">{t("typingSoundsHint")}</p>
+                        {runtimeConfig.humanization?.typingSounds && (
+                          <div className="mt-3 pt-3 border-t" onClick={(e) => e.preventDefault()}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] text-muted-foreground">{t("volume")}</span>
+                              <span className="text-[11px] font-medium tabular-nums">
+                                {Math.round((runtimeConfig.humanization?.typingVolume ?? 0.4) * 100)}%
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={runtimeConfig.humanization?.typingVolume ?? 0.4}
+                              onChange={(e) =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  humanization: {
+                                    ...prev.humanization,
+                                    typingVolume: parseFloat(e.target.value),
+                                  },
+                                }))
+                              }
+                              className="w-full h-1 accent-blue-600"
+                            />
+                          </div>
+                        )}
                       </label>
                       {/* Office Ambience card */}
                       <label className="rounded-lg border bg-card p-4 hover:border-foreground/20 transition-colors cursor-pointer block">
@@ -2795,6 +2825,55 @@ function AgentPageInner() {
                         </div>
                         <h3 className="text-xs font-semibold mb-0.5">{t("officeAmbience")}</h3>
                         <p className="text-[11px] text-muted-foreground leading-relaxed">{t("officeAmbienceHint")}</p>
+                        {runtimeConfig.humanization?.ambience && (
+                          <div className="mt-3 pt-3 border-t space-y-3" onClick={(e) => e.preventDefault()}>
+                            <div>
+                              <span className="text-[11px] text-muted-foreground block mb-1">{t("ambienceSource")}</span>
+                              <select
+                                value={runtimeConfig.humanization?.ambienceSource ?? "office_ambience_1"}
+                                onChange={(e) =>
+                                  setRuntimeConfig((prev) => ({
+                                    ...prev,
+                                    humanization: {
+                                      ...prev.humanization,
+                                      ambienceSource: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="w-full text-[11px] rounded border border-border bg-background px-2 py-1"
+                              >
+                                <option value="office_ambience_1">{t("officeAmbience1")}</option>
+                                <option value="office_ambience_2">{t("officeAmbience2")}</option>
+                                <option value="crowded_room">{t("crowdedRoom")}</option>
+                              </select>
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] text-muted-foreground">{t("volume")}</span>
+                                <span className="text-[11px] font-medium tabular-nums">
+                                  {Math.round((runtimeConfig.humanization?.ambienceVolume ?? 0.5) * 100)}%
+                                </span>
+                              </div>
+                              <input
+                                type="range"
+                                min={0}
+                                max={1}
+                                step={0.05}
+                                value={runtimeConfig.humanization?.ambienceVolume ?? 0.5}
+                                onChange={(e) =>
+                                  setRuntimeConfig((prev) => ({
+                                    ...prev,
+                                    humanization: {
+                                      ...prev.humanization,
+                                      ambienceVolume: parseFloat(e.target.value),
+                                    },
+                                  }))
+                                }
+                                className="w-full h-1 accent-emerald-600"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </label>
                     </div>
                   </div>

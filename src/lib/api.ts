@@ -130,7 +130,10 @@ export interface TurnDetectionConfig {
 export interface HumanizationConfig {
   fillersEnabled?: boolean;
   typingSounds?: boolean;
+  typingVolume?: number;
   ambience?: boolean;
+  ambienceSource?: string;
+  ambienceVolume?: number;
 }
 
 export interface TTSConfig {
