@@ -55,6 +55,8 @@ import {
   PanelLeft,
   Radio,
   History,
+  Download,
+  Volume2,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -530,6 +532,84 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Recording Player Card ───────────────────────────────────
+
+function RecordingPlayerCard({ sessionId, initialUrl }: { sessionId: string; initialUrl: string | null }) {
+  const [url, setUrl] = useState<string | null>(initialUrl);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const result = await roomApi.getRecordingUrl(sessionId);
+      setUrl(result?.url ?? null);
+    } catch {
+      toast.error("Falha ao renovar URL de gravação");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="px-5 py-3.5 border-b bg-muted/40 flex items-center justify-between">
+        <h2 className="text-xs font-semibold flex items-center gap-2">
+          <Mic className="h-3.5 w-3.5 text-muted-foreground" />
+          Gravação da Chamada
+        </h2>
+        {url && (
+          <div className="flex items-center gap-2">
+            <a
+              href={url}
+              download
+              className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-accent transition-colors"
+            >
+              <Download className="h-3 w-3" />
+              Baixar
+            </a>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Renovar URL (expira em 1h)"
+            >
+              <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+              Renovar URL
+            </Button>
+          </div>
+        )}
+      </div>
+      <div className="p-5">
+        {url ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <Volume2 className="h-3.5 w-3.5" />
+              <span>Áudio da chamada (URL válida por 1 hora)</span>
+            </div>
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <audio
+              controls
+              src={url}
+              className="w-full h-10 rounded-md"
+              preload="metadata"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Mic className="h-8 w-8 text-muted-foreground/30 mb-2" />
+            <p className="text-sm text-muted-foreground">Nenhuma gravação disponível</p>
+            <p className="text-[11px] text-muted-foreground/70 mt-1">
+              A gravação é gerada automaticamente ao encerrar a chamada.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1040,6 +1120,9 @@ export default function SessionDetailPage({
           </div>
         </div>
       )}
+
+      {/* Recording Player */}
+      <RecordingPlayerCard sessionId={session.id} initialUrl={session.recording_url ?? null} />
 
       {/* Agent Config Snapshot */}
       {session.agent_config_snapshot && (

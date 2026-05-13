@@ -620,7 +620,12 @@
       "tokensOut": "Tokens Out (total)",
       "avgSpeed": "Avg speed",
       "avgEouDelay": "Avg EOU delay",
-      "samples": "samples"
+      "samples": "samples",
+      "recording": "Call Recording",
+      "recordingNoAvailable": "No recording available",
+      "recordingAudioLabel": "Call audio (URL valid for 1 hour)",
+      "recordingRefreshUrl": "Refresh URL",
+      "recordingDownload": "Download"
     }
   },
   "autoRefresh": {

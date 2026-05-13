@@ -620,7 +620,12 @@
       "tokensOut": "Tokens Out (total)",
       "avgSpeed": "Velocidade média",
       "avgEouDelay": "EOU delay médio",
-      "samples": "amostras"
+      "samples": "amostras",
+      "recording": "Gravação da Chamada",
+      "recordingNoAvailable": "Nenhuma gravação disponível",
+      "recordingAudioLabel": "Áudio da chamada (URL válida por 1 hora)",
+      "recordingRefreshUrl": "Renovar URL",
+      "recordingDownload": "Baixar"
     }
   },
   "autoRefresh": {

@@ -813,6 +813,8 @@ export interface CallSession {
   duration_seconds: number | null;
   created_at: string;
   ended_at: string | null;
+  recording_path: string | null;
+  recording_url: string | null;
 }
 
 export interface ListSessionsParams {
@@ -905,6 +907,11 @@ export const roomApi = {
   listLive: () => request<LiveKitRoom[]>("/rooms/live"),
 
   getSession: (id: string) => request<CallSession>(`/rooms/${encodeURIComponent(id)}`),
+
+  getRecordingUrl: (id: string) =>
+    request<{ url: string; expires_in: number } | null>(
+      `/rooms/${encodeURIComponent(id)}/recording-url`
+    ),
 
   deleteLive: (roomName: string) =>
     request<{ success: boolean; message: string }>(
