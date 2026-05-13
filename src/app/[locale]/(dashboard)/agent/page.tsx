@@ -1571,14 +1571,14 @@ function AgentPageInner() {
                         </div>
                         <div className="space-y-1">
                           <Label htmlFor="rt-11l-speed" className="text-xs text-muted-foreground">
-                            {t("speed")} ({runtimeConfig.tts?.speed?.toFixed(1) ?? "1.0"})
+                            {t("speed")} ({runtimeConfig.tts?.speed?.toFixed(2) ?? "1.00"})
                           </Label>
                           <input
                             id="rt-11l-speed"
                             type="range"
                             min={0.5}
                             max={2}
-                            step={0.1}
+                            step={0.05}
                             value={runtimeConfig.tts?.speed ?? 1.0}
                             onChange={(e) =>
                               setRuntimeConfig((prev) => ({
