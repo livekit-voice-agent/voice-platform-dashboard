@@ -2504,10 +2504,14 @@ function AgentPageInner() {
                   </div>
                   </div> )} {/* end !isPipelineMode / realtime panel */}
 
-                {/* Endpointing */}
+                {/* Endpointing — Pipeline Only */}
+                {isPipelineMode && (
                 <div className="border-t pt-4 space-y-3">
                   <div>
-                    <span className="text-xs font-semibold">Endpointing</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold">Endpointing</span>
+                      <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">Pipeline Only</span>
+                    </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       Controla quanto tempo o agente espera após o silêncio antes de considerar que o turno do usuário acabou.
                     </p>
@@ -2559,6 +2563,7 @@ function AgentPageInner() {
                     </div>
                   </div>
                 </div>
+                )}
 
                 </div>
                 </div>
