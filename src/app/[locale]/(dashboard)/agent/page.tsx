@@ -182,9 +182,10 @@ function AgentPageInner() {
   ];
 
   const DEEPGRAM_STT_MODELS = [
-    { value: "nova-3-general", label: t("sttModelRecommended") },
-    { value: "nova-2-conversationalai", label: "Nova 2 ConversationalAI" },
-    { value: "nova-2-phonecall", label: "Nova 2 Phonecall" },
+    { value: "nova-3-general", label: "Nova 3 General (Recomendado — pt-BR)" },
+    { value: "nova-3", label: "Nova 3" },
+    { value: "nova-2-conversationalai", label: "Nova 2 ConversationalAI (EN only)" },
+    { value: "nova-2-phonecall", label: "Nova 2 Phonecall (EN only)" },
     { value: "nova-2-general", label: "Nova 2 General" },
     { value: "nova-3-medical", label: "Nova 3 Medical" },
   ];
@@ -240,6 +241,7 @@ function AgentPageInner() {
     maxCallDurationSeconds: null,
     greetingMessage: null,
     greetingMode: null,
+    greetingDelayMs: null,
     tts: {
       provider: "elevenlabs",
       model: "eleven_multilingual_v2",
@@ -277,6 +279,7 @@ function AgentPageInner() {
     followUpMessage: null,
     followUpMode: null,
     maxFollowUps: null,
+    followUpGracePeriodMs: null,
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [runtimeExpanded, setRuntimeExpanded] = useState(true);
@@ -2135,6 +2138,32 @@ function AgentPageInner() {
                       {t("greetingModeHelp")}
                     </p>
                   </div>
+
+                  {/* Greeting Delay */}
+                  <div className="space-y-1 pt-1">
+                    <Label htmlFor="rt-greeting-delay" className="text-xs text-muted-foreground">
+                      Delay antes da saudação (ms)
+                    </Label>
+                    <Input
+                      id="rt-greeting-delay"
+                      type="number"
+                      min={0}
+                      max={10000}
+                      step={100}
+                      placeholder="0 (sem delay)"
+                      value={runtimeConfig.greetingDelayMs ?? ""}
+                      onChange={(e) =>
+                        setRuntimeConfig((prev) => ({
+                          ...prev,
+                          greetingDelayMs: e.target.value ? Number(e.target.value) : null,
+                        }))
+                      }
+                      className="h-8 text-xs"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Aguarda N ms após conectar antes de iniciar a saudação. Útil para evitar corte das primeiras palavras.
+                    </p>
+                  </div>
                 </div>
 
                   </div>
@@ -2592,7 +2621,7 @@ function AgentPageInner() {
                                 <span className="text-xs font-semibold">Adaptive</span>
                                 <span className="ml-auto text-[10px] text-emerald-600 font-medium">Recomendado</span>
                               </div>
-                              <p className="text-[11px] text-muted-foreground">Distingue interrupções reais de backchannel (&quot;uhum&quot;, &quot;ok&quot;)</p>
+                              <p className="text-[11px] text-muted-foreground">Distingue interrupções reais de backchannel usando ML. Requer credenciais LiveKit Cloud (LIVEKIT_INFERENCE_API_KEY).</p>
                             </button>
                             <button
                               type="button"
@@ -2603,7 +2632,7 @@ function AgentPageInner() {
                                 }))
                               }
                               className={`rounded-lg p-3 text-left transition-colors ${
-                                runtimeConfig.interruption?.mode === "vad"
+                                (runtimeConfig.interruption?.mode ?? "adaptive") === "vad"
                                   ? "border-2 border-foreground bg-muted/50"
                                   : "border bg-card hover:border-foreground/20"
                               }`}
@@ -2612,7 +2641,7 @@ function AgentPageInner() {
                                 <Activity className="h-3.5 w-3.5" />
                                 <span className="text-xs font-semibold">VAD</span>
                               </div>
-                              <p className="text-[11px] text-muted-foreground">Qualquer fala detectada interrompe o agente imediatamente</p>
+                              <p className="text-[11px] text-muted-foreground">Qualquer fala detectada interrompe o agente. Fallback para self-hosted sem credenciais Cloud.</p>
                             </button>
                           </div>
                         </div>
@@ -2968,37 +2997,160 @@ function AgentPageInner() {
                     </div>
                     */}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-3">
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="rt-followup-timeout"
-                        className="text-xs text-muted-foreground"
-                      >
-                        Follow-up timeout (seconds)
-                      </Label>
-                      <Input
-                        id="rt-followup-timeout"
-                        type="number"
-                        min={5}
-                        max={300}
-                        value={runtimeConfig.followUpTimeoutSeconds ?? ""}
-                        onChange={(e) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            followUpTimeoutSeconds: e.target.value
-                              ? parseInt(e.target.value)
-                              : null,
-                          }))
-                        }
-                        placeholder={t("disabledPlaceholder")}
-                      />
+                  {/* ═══ Follow-up sub-section ═══ */}
+                  <div className="border-t pt-4">
+                    <div className="mb-3">
+                      <h3 className="text-xs font-semibold flex items-center gap-1.5">
+                        <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                        Reengajamento por Follow-up
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Envia uma mensagem quando o usuário fica em silêncio. Deixe o <strong>Timeout</strong> vazio para desativar.
+                      </p>
                     </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="rt-followup-message"
-                        className="text-xs text-muted-foreground"
-                      >
-                        Follow-up message
+
+                    {/* Timeline visual */}
+                    <div className="flex items-center flex-wrap gap-1.5 text-[10px] bg-muted/30 rounded-lg px-3 py-2.5 mb-4">
+                      <span className="bg-background border rounded px-1.5 py-0.5 font-medium text-foreground/70">Agente termina de falar</span>
+                      <span className="text-muted-foreground/50">→</span>
+                      <span className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-1.5 py-0.5 font-medium text-amber-700 dark:text-amber-400">Grace Period</span>
+                      <span className="text-muted-foreground/50">→</span>
+                      <span className="bg-background border rounded px-1.5 py-0.5 font-medium text-foreground/70">usuário fica mudo</span>
+                      <span className="text-muted-foreground/50">→</span>
+                      <span className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-1.5 py-0.5 font-medium text-blue-700 dark:text-blue-400">Timer (timeout s)</span>
+                      <span className="text-muted-foreground/50">→</span>
+                      <span className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded px-1.5 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">Agente fala mensagem</span>
+                      <span className="text-muted-foreground/50">↻</span>
+                      <span className="bg-background border rounded px-1.5 py-0.5 font-medium text-foreground/70">até max N×</span>
+                    </div>
+
+                    {/* Mode selector */}
+                    <div className="space-y-1.5 mb-4">
+                      <label className="text-xs font-medium block">Modo de Resposta</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              followUpMode: "say",
+                            }))
+                          }
+                          className={`rounded-lg p-3 text-left transition-colors ${
+                            (runtimeConfig.followUpMode ?? "say") === "say"
+                              ? "border-2 border-foreground bg-muted/50"
+                              : "border bg-card hover:border-foreground/20"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            <span className="text-xs font-semibold">Say (Literal)</span>
+                            <span className="ml-auto text-[10px] text-emerald-600 font-medium">Recomendado</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">TTS lê o texto abaixo exatamente como escrito. Consistente e sem variações entre tentativas.</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              followUpMode: "generateReply",
+                            }))
+                          }
+                          className={`rounded-lg p-3 text-left transition-colors ${
+                            (runtimeConfig.followUpMode ?? "say") === "generateReply"
+                              ? "border-2 border-foreground bg-muted/50"
+                              : "border bg-card hover:border-foreground/20"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Brain className="h-3.5 w-3.5" />
+                            <span className="text-xs font-semibold">Generate Reply</span>
+                            <span className="ml-auto text-[10px] text-amber-600 font-medium">⚠ pode variar</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">LLM gera resposta contextual. A mensagem abaixo serve como instrução/contexto para o LLM.</p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Parameters */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="rt-followup-timeout" className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Timeout de Silêncio (s)
+                        </Label>
+                        <Input
+                          id="rt-followup-timeout"
+                          type="number"
+                          min={5}
+                          max={300}
+                          value={runtimeConfig.followUpTimeoutSeconds ?? ""}
+                          onChange={(e) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              followUpTimeoutSeconds: e.target.value
+                                ? parseInt(e.target.value)
+                                : null,
+                            }))
+                          }
+                          placeholder={t("disabledPlaceholder")}
+                        />
+                        <p className="text-[11px] text-muted-foreground">Segundos de silêncio do usuário até disparar. <span className="font-medium text-foreground/60">Vazio = desativado.</span></p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="rt-followup-grace" className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Timer className="h-3 w-3" />
+                          Grace Period (ms)
+                        </Label>
+                        <Input
+                          id="rt-followup-grace"
+                          type="number"
+                          min={0}
+                          max={10000}
+                          step={100}
+                          value={runtimeConfig.followUpGracePeriodMs ?? ""}
+                          onChange={(e) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              followUpGracePeriodMs: e.target.value
+                                ? Number(e.target.value)
+                                : null,
+                            }))
+                          }
+                          placeholder="0 ms"
+                        />
+                        <p className="text-[11px] text-muted-foreground">Espera após Agente terminar de falar antes de armar o timer. Evita disparos logo após a fala.</p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="rt-max-followups" className="text-xs text-muted-foreground flex items-center gap-1">
+                          <RotateCcw className="h-3 w-3" />
+                          Máximo de Tentativas
+                        </Label>
+                        <Input
+                          id="rt-max-followups"
+                          type="number"
+                          min={0}
+                          max={10}
+                          value={runtimeConfig.maxFollowUps ?? ""}
+                          onChange={(e) =>
+                            setRuntimeConfig((prev) => ({
+                              ...prev,
+                              maxFollowUps: e.target.value
+                                ? parseInt(e.target.value)
+                                : null,
+                            }))
+                          }
+                          placeholder={t("unlimitedDefault")}
+                        />
+                        <p className="text-[11px] text-muted-foreground">Quantas vezes reengaja antes de desistir. Cada ciclo aguarda um novo timeout. <span className="font-medium text-foreground/60">Vazio = ilimitado.</span></p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 space-y-1">
+                      <Label htmlFor="rt-followup-message" className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <MessageSquare className="h-3 w-3" />
+                        {(runtimeConfig.followUpMode ?? "say") === "say" ? "Mensagem Falada" : "Instrução para o LLM"}
                       </Label>
                       <Input
                         id="rt-followup-message"
@@ -3012,66 +3164,13 @@ function AgentPageInner() {
                         }
                         placeholder={t("defaultFallback")}
                       />
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="rt-followup-mode"
-                        className="text-xs text-muted-foreground"
-                      >
-                        Follow-up mode
-                      </Label>
-                      <Select
-                        value={runtimeConfig.followUpMode ?? "generateReply"}
-                        onValueChange={(v) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            followUpMode: v as "say" | "generateReply",
-                          }))
-                        }
-                      >
-                        <SelectTrigger id="rt-followup-mode" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="say">
-                            Say — TTS reads text literally
-                          </SelectItem>
-                          <SelectItem value="generateReply">
-                            Generate Reply — LLM generates natural response
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="rt-max-followups"
-                        className="text-xs text-muted-foreground"
-                      >
-                        Max follow-ups
-                      </Label>
-                      <Input
-                        id="rt-max-followups"
-                        type="number"
-                        min={0}
-                        max={10}
-                        value={runtimeConfig.maxFollowUps ?? ""}
-                        onChange={(e) =>
-                          setRuntimeConfig((prev) => ({
-                            ...prev,
-                            maxFollowUps: e.target.value
-                              ? parseInt(e.target.value)
-                              : null,
-                          }))
-                        }
-                        placeholder={t("unlimitedDefault")}
-                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        {(runtimeConfig.followUpMode ?? "say") === "say"
+                          ? 'Texto exato que o Agente vai falar. Ex: "Olá, ainda está por aí?"'
+                          : 'Instrução para o LLM gerar a mensagem. Ex: "Pergunte educadamente se o usuário ainda está presente."'}
+                      </p>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Leave empty to disable. Follow-up sends a message after silence
-                    asking if the user is still there; Inactivity timeout ends the
-                    call after silence; max duration is a hard limit.
-                  </p>
                 </div>
 
                 </div>

@@ -192,6 +192,7 @@ export interface RuntimeConfig {
   maxCallDurationSeconds?: number | null;
   greetingMessage?: string | null;
   greetingMode?: 'say' | 'generateReply' | null;
+  greetingDelayMs?: number | null;
   tts?: TTSConfig;
   stt?: STTConfig | null;
   injectSessionContext?: boolean;
@@ -211,6 +212,7 @@ export interface RuntimeConfig {
   followUpMessage?: string | null;
   followUpMode?: 'say' | 'generateReply' | null;
   maxFollowUps?: number | null;
+  followUpGracePeriodMs?: number | null;
 }
 
 export interface AgentConfig {
