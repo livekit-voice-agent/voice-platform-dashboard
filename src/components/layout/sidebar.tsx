@@ -12,6 +12,7 @@ import {
   Activity,
   Users,
   FolderKanban,
+  BarChart3,
 } from "lucide-react";
 import { useIsSuperAdmin } from "@/lib/auth-utils";
 import { ProviderStatusWidget } from "./provider-status-widget";
@@ -36,6 +37,7 @@ const telephonyItems = [
 const infraItems = [
   { href: "/workers" as const, labelKey: "workers" as const, icon: Cpu },
   { href: "/providers" as const, labelKey: "providers" as const, icon: Activity },
+  { href: "/monitor" as const, labelKey: "monitor" as const, icon: BarChart3 },
 ];
 
 const adminItems = [

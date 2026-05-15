@@ -45,7 +45,8 @@
     "admin": "Admin",
     "adminUsers": "Users",
     "adminProjects": "Projects",
-    "infrastructure": "Infrastructure"
+    "infrastructure": "Infrastructure",
+    "monitor": "Monitor"
   },
   "providers": {
     "title": "Provider Status",

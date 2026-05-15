@@ -45,7 +45,8 @@
     "admin": "Admin",
     "adminUsers": "Usuários",
     "adminProjects": "Projetos",
-    "infrastructure": "Infraestrutura"
+    "infrastructure": "Infraestrutura",
+    "monitor": "Monitor"
   },
   "providers": {
     "title": "Status dos Provedores",
