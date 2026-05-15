@@ -15,6 +15,7 @@ import {
   type AgentTool,
   type ToolType,
   type RuntimeConfig,
+  type SileroVadConfig,
   type ExtractionField,
   type AgentVersionSummary,
   type AgentDeployment,
@@ -1915,35 +1916,93 @@ function AgentPageInner() {
                         </div>
                       </div>
 
-                      {/* Endpointing (Deepgram only) */}
+                      {/* Endpointing + Advanced options (Deepgram only) */}
                       {runtimeConfig.stt?.provider === 'deepgram' && (
-                        <div className="space-y-1">
-                          <Label htmlFor="rt-stt-endpointing" className="text-xs text-muted-foreground">
-                            Endpointing (ms)
-                          </Label>
-                          <Input
-                            id="rt-stt-endpointing"
-                            type="number"
-                            min={10}
-                            max={5000}
-                            step={10}
-                            placeholder="200"
-                            value={runtimeConfig.stt?.endpointing ?? ''}
-                            onChange={(e) =>
-                              setRuntimeConfig((prev) => ({
-                                ...prev,
-                                stt: {
-                                  ...prev.stt,
-                                  endpointing: e.target.value ? Number(e.target.value) : undefined,
-                                },
-                              }))
-                            }
-                            className="h-8 text-xs"
-                          />
-                          <p className="text-[11px] text-muted-foreground">
-                            Tempo de silêncio para considerar fim de fala. Menor = mais rápido, maior = mais paciência para pausas. Padrão: 200ms.
-                          </p>
-                        </div>
+                        <>
+                          <div className="space-y-1">
+                            <Label htmlFor="rt-stt-endpointing" className="text-xs text-muted-foreground">
+                              Endpointing (ms)
+                            </Label>
+                            <Input
+                              id="rt-stt-endpointing"
+                              type="number"
+                              min={10}
+                              max={5000}
+                              step={10}
+                              placeholder="200"
+                              value={runtimeConfig.stt?.endpointing ?? ''}
+                              onChange={(e) =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  stt: {
+                                    ...prev.stt,
+                                    endpointing: e.target.value ? Number(e.target.value) : undefined,
+                                  },
+                                }))
+                              }
+                              className="h-8 text-xs"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                              Tempo de silêncio para considerar fim de fala. Menor = mais rápido, maior = mais paciência para pausas. Padrão: 200ms.
+                            </p>
+                          </div>
+
+                          {/* Deepgram advanced options */}
+                          <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 space-y-4">
+                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Opções avançadas Deepgram</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                              <div className="space-y-1">
+                                <Label htmlFor="rt-stt-samplerate" className="text-xs text-muted-foreground">Sample Rate (Hz)</Label>
+                                <Input
+                                  id="rt-stt-samplerate"
+                                  type="number"
+                                  min={8000}
+                                  max={48000}
+                                  step={1000}
+                                  placeholder="16000"
+                                  value={runtimeConfig.stt?.sampleRate ?? ''}
+                                  onChange={(e) =>
+                                    setRuntimeConfig((prev) => ({
+                                      ...prev,
+                                      stt: { ...prev.stt, sampleRate: e.target.value ? Number(e.target.value) : undefined },
+                                    }))
+                                  }
+                                  className="h-8 text-xs"
+                                />
+                                <p className="text-[11px] text-muted-foreground">Taxa de amostragem do áudio. Padrão: 16000.</p>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {(
+                                [
+                                  { id: "rt-stt-interim", key: "interimResults", label: "Interim Results", desc: "Retorna transcrições parciais em tempo real antes do final da frase.", defaultVal: true },
+                                  { id: "rt-stt-punctuate", key: "punctuate", label: "Punctuate", desc: "Adiciona pontuação automática na transcrição.", defaultVal: true },
+                                  { id: "rt-stt-smartformat", key: "smartFormat", label: "Smart Format", desc: "Formata datas, horas e números automaticamente.", defaultVal: false },
+                                  { id: "rt-stt-numerals", key: "numerals", label: "Numerals", desc: "Converte números por extenso (\"dois\") para algarismos (\"2\").", defaultVal: true },
+                                ] as { id: string; key: keyof NonNullable<typeof runtimeConfig.stt>; label: string; desc: string; defaultVal: boolean }[]
+                              ).map(({ id, key, label, desc, defaultVal }) => (
+                                <label key={id} htmlFor={id} className="flex items-start gap-2 rounded-lg border px-3 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    id={id}
+                                    checked={(runtimeConfig.stt?.[key] as boolean | undefined) ?? defaultVal}
+                                    onChange={(e) =>
+                                      setRuntimeConfig((prev) => ({
+                                        ...prev,
+                                        stt: { ...prev.stt, [key]: e.target.checked },
+                                      }))
+                                    }
+                                    className="mt-0.5 rounded border-input accent-primary flex-shrink-0"
+                                  />
+                                  <div>
+                                    <span className="text-xs font-medium block">{label}</span>
+                                    <span className="text-[11px] text-muted-foreground">{desc}</span>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </>
                       )}
                   </div>
                 )}
@@ -2236,6 +2295,49 @@ function AgentPageInner() {
                         />
                       </label>
                     </div>
+
+                    {/* Silero VAD advanced config */}
+                    {(runtimeConfig.useSileroVad ?? true) && (
+                      <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 space-y-4">
+                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Configuração Silero VAD</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {(
+                            [
+                              { id: "silero-min-speech", key: "minSpeechDuration", label: "Min Speech (ms)", desc: "Duração mínima de fala para ativar o VAD. Padrão: 50ms.", step: 10, min: 10, max: 500, defaultVal: 50 },
+                              { id: "silero-min-silence", key: "minSilenceDuration", label: "Min Silence (ms)", desc: "Silêncio mínimo para considerar fim de fala. Padrão: 550ms.", step: 50, min: 100, max: 2000, defaultVal: 550 },
+                              { id: "silero-prefix-pad", key: "prefixPaddingDuration", label: "Prefix Padding (ms)", desc: "Áudio antes da fala incluído no chunk. Padrão: 500ms.", step: 50, min: 0, max: 2000, defaultVal: 500 },
+                              { id: "silero-max-buf", key: "maxBufferedSpeech", label: "Max Buffered (ms)", desc: "Máximo de fala em buffer antes de forçar o turno. Padrão: 60000ms.", step: 1000, min: 5000, max: 120000, defaultVal: 60000 },
+                              { id: "silero-threshold", key: "activationThreshold", label: "Activation Threshold", desc: "Sensibilidade de detecção de voz (0.0–1.0). Padrão: 0.5.", step: 0.05, min: 0, max: 1, defaultVal: 0.5 },
+                              { id: "silero-samplerate", key: "sampleRate", label: "Sample Rate (Hz)", desc: "Taxa de amostragem do modelo VAD. Padrão: 16000.", step: 1000, min: 8000, max: 48000, defaultVal: 16000 },
+                            ] as { id: string; key: keyof SileroVadConfig; label: string; desc: string; step: number; min: number; max: number; defaultVal: number }[]
+                          ).map(({ id, key, label, desc, step, min, max, defaultVal }) => (
+                            <div key={id} className="space-y-1">
+                              <Label htmlFor={id} className="text-xs text-muted-foreground">{label}</Label>
+                              <Input
+                                id={id}
+                                type="number"
+                                step={step}
+                                min={min}
+                                max={max}
+                                placeholder={String(defaultVal)}
+                                value={runtimeConfig.sileroVad?.[key] ?? ''}
+                                onChange={(e) =>
+                                  setRuntimeConfig((prev) => ({
+                                    ...prev,
+                                    sileroVad: {
+                                      ...prev.sileroVad,
+                                      [key]: e.target.value ? Number(e.target.value) : undefined,
+                                    },
+                                  }))
+                                }
+                                className="h-8 text-xs"
+                              />
+                              <p className="text-[11px] text-muted-foreground">{desc}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

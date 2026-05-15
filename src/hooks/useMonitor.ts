@@ -7,8 +7,10 @@ import { API_BASE_URL } from "@/lib/api";
 export interface AgentHealth {
   agent_name: string;
   status: "healthy" | "degraded" | "critical";
-  errors_1h: number;
+  errors_24h: number;
   avg_e2e_ms: number;
+  p95_e2e_ms: number;
+  sessions: number;
 }
 
 export interface ProviderHealth {
@@ -26,12 +28,33 @@ export interface LatencyBucket {
   avg_eou_ms: number;
   avg_llm_ms: number;
   avg_tts_ms: number;
+  avg_e2e_ms: number;
+  p95_e2e_ms: number;
+  max_e2e_ms: number;
+  stddev_e2e_ms: number;
+  turn_count: number;
+  has_anomaly: boolean;
 }
 
 export interface AgentError {
   error_type: string;
   component?: string;
   count: number;
+}
+
+export interface AnomalyTurn {
+  session_id: string;
+  time: string;
+  e2e_ms: number;
+  eou_delay_ms: number | null;
+  llm_ttft_ms: number | null;
+  tts_ttfb_ms: number | null;
+}
+
+export interface AnomalyResponse {
+  global_avg_ms: number;
+  threshold_ms: number;
+  turns: AnomalyTurn[];
 }
 
 // ── Fetcher ────────────────────────────────────────────────────────────────
@@ -148,6 +171,40 @@ export function useAgentErrors(name: string, hours = 24, refreshMs = 30_000) {
     try {
       const result = await fetchMonitor<AgentError[]>(
         `/monitor/agents/${encodeURIComponent(name)}/errors?hours=${hours}`,
+        signal,
+      );
+      setData(result);
+      setError(null);
+    } catch (e: any) {
+      if (e.name !== "AbortError") setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [name, hours]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load(ctrl.signal);
+    const id = refreshMs > 0 ? setInterval(() => load(ctrl.signal), refreshMs) : undefined;
+    return () => {
+      ctrl.abort();
+      if (id) clearInterval(id);
+    };
+  }, [load, refreshMs]);
+
+  return { data, loading, error };
+}
+
+export function useAgentAnomalies(name: string, hours = 24, refreshMs = 30_000) {
+  const [data, setData] = useState<AnomalyResponse>({ global_avg_ms: 0, threshold_ms: 0, turns: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (signal?: AbortSignal) => {
+    if (!name) return;
+    try {
+      const result = await fetchMonitor<AnomalyResponse>(
+        `/monitor/agents/${encodeURIComponent(name)}/anomalies?hours=${hours}`,
         signal,
       );
       setData(result);

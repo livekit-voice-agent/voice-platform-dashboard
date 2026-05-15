@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Voice Platform",
-  description: "Voice Agent Platform Dashboard",
+  title: "voxkit",
+  description: "voxkit — Voice Agent Platform",
 };
 
 export default function RootLayout({

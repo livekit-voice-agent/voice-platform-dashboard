@@ -152,6 +152,21 @@ export interface STTConfig {
   language?: string;
   detectLanguage?: boolean;
   endpointing?: number;
+  // Deepgram-specific
+  sampleRate?: number;
+  interimResults?: boolean;
+  punctuate?: boolean;
+  smartFormat?: boolean;
+  numerals?: boolean;
+}
+
+export interface SileroVadConfig {
+  minSpeechDuration?: number;      // ms, default 50
+  minSilenceDuration?: number;     // ms, default 550
+  prefixPaddingDuration?: number;  // ms, default 500
+  maxBufferedSpeech?: number;      // ms, default 60000
+  activationThreshold?: number;    // 0.0–1.0, default 0.5
+  sampleRate?: number;             // default 16000
 }
 
 export interface ExtractionField {
@@ -199,6 +214,7 @@ export interface RuntimeConfig {
   sessionTurnDetection?: 'stt' | 'vad' | 'realtime_llm' | 'manual' | null;
   pipelineTurnDetector?: 'turn_detector_model' | 'vad' | 'stt' | 'manual' | null;
   useSileroVad?: boolean;
+  sileroVad?: SileroVadConfig;
   endpointing?: EndpointingConfig;
   interruption?: InterruptionConfig;
   extractionFields?: ExtractionField[];
@@ -909,6 +925,20 @@ export const roomApi = {
   listLive: () => request<LiveKitRoom[]>("/rooms/live"),
 
   getSession: (id: string) => request<CallSession>(`/rooms/${encodeURIComponent(id)}`),
+
+  /** Look up a session by room_name (e.g. "call__...") when only room_name is known.
+   *  Fetches up to 500 sessions and finds the matching entry client-side,
+   *  since the backend does not support room_name filtering yet. */
+  getSessionByRoomName: async (roomName: string): Promise<CallSession | null> => {
+    const PAGE = 200;
+    for (let offset = 0; offset < 1000; offset += PAGE) {
+      const result = await request<PaginatedSessions>(`/rooms?limit=${PAGE}&offset=${offset}`);
+      const match = result.data.find((s) => s.room_name === roomName);
+      if (match) return match;
+      if (result.data.length < PAGE) break; // no more pages
+    }
+    return null;
+  },
 
   getRecordingUrl: (id: string) =>
     request<{ url: string; expires_in: number } | null>(

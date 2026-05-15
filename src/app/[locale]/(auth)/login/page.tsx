@@ -16,7 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Bot } from "lucide-react";
 
 function LoginForm() {
   const t = useTranslations("auth");
@@ -57,8 +56,9 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
-          <Bot className="h-6 w-6 text-primary-foreground" />
+        <div className="mx-auto mb-6">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="voxkit" className="h-8 w-auto mx-auto" />
         </div>
         <CardTitle className="text-2xl">{t("login")}</CardTitle>
         <CardDescription>{t("loginDescription")}</CardDescription>

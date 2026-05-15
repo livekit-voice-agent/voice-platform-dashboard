@@ -775,6 +775,7 @@ export default function SessionDetailPage({
     try {
       const found = await roomApi.getSession(sessionId);
       setSession(found);
+      if (!found) toast.error("Sessão não encontrada");
     } catch (err: any) {
       setSession(null);
       toast.error(err.message || "Falha ao carregar sessão");
@@ -783,29 +784,55 @@ export default function SessionDetailPage({
     }
   }, [sessionId]);
 
-  const fetchEvents = useCallback(async () => {
+  const fetchEvents = useCallback(async (uuid: string) => {
     try {
-      const data = await conversationEventsApi.bySession(sessionId);
+      const data = await conversationEventsApi.bySession(uuid);
       setEvents(data);
     } catch (err: any) {
       toast.error(err.message || "Falha ao carregar eventos");
     } finally {
       setLoadingEvents(false);
     }
-  }, [sessionId]);
+  }, []);
 
   useEffect(() => {
-    fetchSession();
-    fetchEvents();
-    // Fetch sidebar data
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
+
+    const init = async () => {
+      let uuid = sessionId;
+
+      if (!isUuid) {
+        const found = await roomApi.getSessionByRoomName(sessionId);
+        setSession(found);
+        setLoading(false);
+        if (found) {
+          uuid = found.id;
+          fetchEvents(uuid);
+        } else {
+          toast.error("Sessão não encontrada");
+          setLoadingEvents(false);
+        }
+      } else {
+        fetchSession();
+        fetchEvents(uuid);
+      }
+    };
+
+    init();
     roomApi.listSessions({ limit: PAGE_SIZE, offset: (originPage - 1) * PAGE_SIZE }).then(r => setSidebarRooms(r.data)).catch(() => {});
     roomApi.listLive().then(live => setSidebarLive(live.slice(0, 20))).catch(() => {});
-  }, [fetchSession, fetchEvents]);
+  }, [fetchSession, fetchEvents, sessionId, originPage]);
 
   const handleRefresh = useCallback(() => {
-    fetchSession();
-    fetchEvents();
-  }, [fetchSession, fetchEvents]);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
+    if (isUuid) {
+      fetchSession();
+      fetchEvents(sessionId);
+    } else if (session?.id) {
+      fetchSession();
+      fetchEvents(session.id);
+    }
+  }, [fetchSession, fetchEvents, sessionId, session]);
 
   const { autoRefreshInterval, setAutoRefreshInterval } = useAutoRefresh(handleRefresh);
 

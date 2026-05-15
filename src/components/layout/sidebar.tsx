@@ -114,11 +114,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="px-6 pt-5 pb-1">
         <Link
           href="/agent"
-          className="flex items-center gap-1.5"
+          className="flex items-center"
           onClick={onNavigate}
         >
-          <span className="text-base font-semibold tracking-tight">VP</span>
-          <span className="text-[10px] text-muted-foreground mt-0.5">dashboard</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="voxkit" className="h-5 w-auto" />
         </Link>
       </div>
 
