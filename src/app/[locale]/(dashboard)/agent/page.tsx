@@ -22,15 +22,9 @@ import {
   type DeploymentStatus,
   type DeployHealthResponse,
 } from "@/lib/api";
-import {
-  type InstructionFields,
-  EMPTY_FIELDS,
-  composeInstructions,
-  parseInstructions,
-} from "@/lib/instructions-serializer";
-import { StructuredInstructionsForm } from "@/components/structured-instructions-form";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ExpandableTextarea } from "@/components/ui/expandable-textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -157,12 +151,10 @@ function AgentPageInner() {
   const [showNewAgentInput, setShowNewAgentInput] = useState(false);
   const [configSection, setConfigSection] = useState("instructions");
 
-  const [instructionFields, setInstructionFields] = useState<InstructionFields>({ ...EMPTY_FIELDS, qualification: [] });
+  const [rawInstructions, setRawInstructions] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-
-  const [autoStart, setAutoStart] = useState(false);
 
   const t = useTranslations("agent");
   const tc = useTranslations("common");
@@ -597,14 +589,12 @@ function AgentPageInner() {
       setLoading(true);
       try {
         const config = await agentConfigApi.get(agentName);
-        const rawInstructions = config.raw_instructions ?? config.instructions;
-        setInstructionFields(parseInstructions(rawInstructions));
-        setAutoStart(config.auto_start ?? false);
+        const rawInstructionsStr = config.raw_instructions ?? config.instructions;
+        setRawInstructions(rawInstructionsStr ?? "");
         setRuntimeConfig({ ...DEFAULT_RUNTIME_CONFIG, ...config.runtime_config });
         setLastUpdated(config.updated_at);
       } catch {
-        setInstructionFields({ ...EMPTY_FIELDS, qualification: [] });
-        setAutoStart(false);
+      setRawInstructions("");
         setLastUpdated(null);
         toast.error(t("loadConfigError"));
       } finally {
@@ -878,7 +868,7 @@ function AgentPageInner() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const instructions = composeInstructions(instructionFields);
+      const instructions = rawInstructions;
       const sanitizedConfig = {
         ...runtimeConfig,
         extractionFields: (runtimeConfig.extractionFields ?? []).map(({ _optionsText, ...f }) => ({
@@ -890,7 +880,6 @@ function AgentPageInner() {
         })),
       };
       const config = await agentConfigApi.update(instructions, selectedAgent, {
-        auto_start: autoStart,
         runtime_config: sanitizedConfig,
       });
       setLastUpdated(config.updated_at);
@@ -1237,31 +1226,22 @@ function AgentPageInner() {
                         </h2>
                         <p className="text-xs text-muted-foreground mt-0.5">{t("instructionsDescription")}</p>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {lastUpdated && (
-                          <span className="text-[10px] text-muted-foreground">
-                            {t("lastUpdated", { date: new Date(lastUpdated).toLocaleString() })}
-                          </span>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id="autoStart"
-                            checked={autoStart}
-                            onChange={(e) => setAutoStart(e.target.checked)}
-                            className="h-3.5 w-3.5 rounded border-border"
-                          />
-                          <Label htmlFor="autoStart" className="text-xs cursor-pointer text-muted-foreground">
-                            {t("autoStartWorker")}
-                          </Label>
-                        </div>
-                      </div>
+                      {lastUpdated && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {t("lastUpdated", { date: new Date(lastUpdated).toLocaleString() })}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="p-5">
-                    <StructuredInstructionsForm
-                      value={instructionFields}
-                      onChange={setInstructionFields}
+                    <ExpandableTextarea
+                      value={rawInstructions}
+                      onChange={(e) => setRawInstructions(e.target.value)}
+                      placeholder="Define como o agente deve se comportar. Use linguagem natural ou markdown estruturado."
+                      className="font-mono text-sm min-h-[160px]"
+                      spellCheck={false}
+                      expandLabel="Expandir instruções"
+                      collapseLabel="Recolher"
                     />
                   </div>
                 </div>
