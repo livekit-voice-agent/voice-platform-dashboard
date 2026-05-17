@@ -264,9 +264,12 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
         );
       }
       if (type === "stt_metrics") {
+        const displayMs = (p.audioDurationMs && p.audioDurationMs > 0)
+          ? p.audioDurationMs
+          : (p.durationMs ?? p.duration);
         return (
           <span className="text-sm text-muted-foreground">
-            STT — duration: {(p.durationMs ?? p.duration)?.toFixed(0) ?? "?"}ms
+            STT — áudio: {displayMs?.toFixed(0) ?? "?"}ms
           </span>
         );
       }
@@ -788,21 +791,37 @@ export default function SessionDetailPage({
   };
   const eventCosts = useMemo<Record<string, { cost_usd: number | null; metric_id: string | null }>>(() => {
     if (!sessionCost?.metrics?.length || !events.length) return {};
+
+    // Primary: match by requestId (deterministic, survives missed flushes)
+    const byRequestId: Record<string, typeof sessionCost.metrics[0]> = {};
+    for (const m of sessionCost.metrics) {
+      if (m.request_id) byRequestId[m.request_id] = m;
+    }
+
+    // Fallback: sequential matching by component for old rows without request_id
     const byComponent: Record<string, typeof sessionCost.metrics> = {};
     for (const m of [...sessionCost.metrics].sort((a, b) => a.time.localeCompare(b.time))) {
-      (byComponent[m.component] ??= []).push(m);
+      if (!m.request_id) (byComponent[m.component] ??= []).push(m);
     }
     const counters: Record<string, number> = {};
+
     const result: Record<string, { cost_usd: number | null; metric_id: string | null }> = {};
     const sortedEvents = [...events].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
     for (const ev of sortedEvents) {
-      // The event_type in DB is "METRICS"; the specific type is in payload.type
       const payloadType = (ev.payload as any)?.type as string | undefined;
       const comp = payloadType ? PAYLOAD_TYPE_TO_COMPONENT[payloadType] : undefined;
       if (!comp) continue;
-      const idx = counters[comp] ?? 0;
-      counters[comp] = idx + 1;
-      const matched = byComponent[comp]?.[idx];
+
+      const requestId = (ev.payload as any)?.requestId as string | undefined;
+      let matched = requestId ? byRequestId[requestId] : undefined;
+
+      if (!matched) {
+        // Fallback: sequential
+        const idx = counters[comp] ?? 0;
+        counters[comp] = idx + 1;
+        matched = byComponent[comp]?.[idx];
+      }
+
       result[ev.id] = { cost_usd: matched?.cost_usd ?? null, metric_id: matched?.id ?? null };
     }
     return result;

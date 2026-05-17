@@ -92,6 +92,7 @@ export interface SessionMetricCost {
   price_unit: string | null;
   price_source: string | null;
   price_fetched_at: string | null;
+  request_id: string | null;
 }
 
 export interface SessionCost {
