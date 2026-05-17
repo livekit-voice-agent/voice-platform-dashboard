@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, use, useRef } from "react";
+import { useCallback, useEffect, useState, use, useRef, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   conversationEventsApi,
@@ -35,6 +35,7 @@ import {
   ArrowUpRight,
   ChevronDown,
   ChevronRight,
+  DollarSign,
   Loader2,
   RefreshCw,
   MessageSquare,
@@ -61,6 +62,7 @@ import {
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { useSessionCost, type SessionMetricCost } from "@/hooks/useMonitor";
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -765,11 +767,56 @@ export default function SessionDetailPage({
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<SessionEvent | null>(null);
   const [activeTab, setActiveTab] = useState("conversation");
+  const [highlightedMetricId, setHighlightedMetricId] = useState<string | null>(null);
+  const highlightedMetricRef = useRef<HTMLTableRowElement | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== "undefined" ? localStorage.getItem("room_sidebar_open") === "true" : false
   );
   const [sidebarRooms, setSidebarRooms] = useState<CallSession[]>([]);
   const [sidebarLive, setSidebarLive] = useState<Array<LiveKitRoom>>([]);
+
+  // Cost data — session_id in AgentProviderMetric is the LiveKit room_name
+  const { data: sessionCost, loading: loadingCost } = useSessionCost(session?.room_name ?? "");
+
+  // Map each timeline event to its matching cost metric (sequential match by component type)
+  const PAYLOAD_TYPE_TO_COMPONENT: Record<string, string> = {
+    tts_metrics: 'tts',
+    stt_metrics: 'stt',
+    llm_metrics: 'llm',
+    llm_turn_metrics: 'llm',
+    realtime_model_metrics: 'realtime',
+  };
+  const eventCosts = useMemo<Record<string, { cost_usd: number | null; metric_id: string | null }>>(() => {
+    if (!sessionCost?.metrics?.length || !events.length) return {};
+    const byComponent: Record<string, typeof sessionCost.metrics> = {};
+    for (const m of [...sessionCost.metrics].sort((a, b) => a.time.localeCompare(b.time))) {
+      (byComponent[m.component] ??= []).push(m);
+    }
+    const counters: Record<string, number> = {};
+    const result: Record<string, { cost_usd: number | null; metric_id: string | null }> = {};
+    const sortedEvents = [...events].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+    for (const ev of sortedEvents) {
+      // The event_type in DB is "METRICS"; the specific type is in payload.type
+      const payloadType = (ev.payload as any)?.type as string | undefined;
+      const comp = payloadType ? PAYLOAD_TYPE_TO_COMPONENT[payloadType] : undefined;
+      if (!comp) continue;
+      const idx = counters[comp] ?? 0;
+      counters[comp] = idx + 1;
+      const matched = byComponent[comp]?.[idx];
+      result[ev.id] = { cost_usd: matched?.cost_usd ?? null, metric_id: matched?.id ?? null };
+    }
+    return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionCost, events]);
+
+  // Scroll highlighted metric row into view and auto-clear after 2s
+  useEffect(() => {
+    if (activeTab === 'costs' && highlightedMetricId && highlightedMetricRef.current) {
+      highlightedMetricRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const timer = setTimeout(() => setHighlightedMetricId(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, highlightedMetricId]);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -1174,7 +1221,7 @@ export default function SessionDetailPage({
       )}
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); if (v !== 'costs') setHighlightedMetricId(null); }}>
         <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 gap-4">
           <TabsTrigger value="conversation" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2.5 pt-1.5 gap-1.5 text-xs">
             <MessageSquare className="h-3.5 w-3.5" />
@@ -1187,6 +1234,10 @@ export default function SessionDetailPage({
           <TabsTrigger value="metrics" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2.5 pt-1.5 gap-1.5 text-xs">
             <Activity className="h-3.5 w-3.5" />
             {t("metrics")}
+          </TabsTrigger>
+          <TabsTrigger value="costs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none px-1 pb-2.5 pt-1.5 gap-1.5 text-xs">
+            <DollarSign className="h-3.5 w-3.5" />
+            Custos
           </TabsTrigger>
         </TabsList>
 
@@ -1224,6 +1275,26 @@ export default function SessionDetailPage({
                 Todos os eventos da sessão em ordem cronológica.
               </p>
             </div>
+            {/* Cost summary strip */}
+            {sessionCost && sessionCost.total_cost_usd > 0 && (
+              <div className="px-5 py-2.5 border-b bg-muted/10 flex items-center gap-4 flex-wrap text-xs">
+                <span className="flex items-center gap-1.5 font-semibold text-emerald-700">
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Custo estimado: ${sessionCost.total_cost_usd.toFixed(6)}
+                </span>
+                {['llm', 'tts', 'stt', 'realtime'].map((comp) => {
+                  const compTotal = sessionCost.metrics
+                    .filter((m) => m.component === comp)
+                    .reduce((s, m) => s + (m.cost_usd ?? 0), 0);
+                  if (!compTotal) return null;
+                  return (
+                    <span key={comp} className="text-muted-foreground">
+                      {comp.toUpperCase()}: ${compTotal.toFixed(6)}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             {loadingEvents ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1238,12 +1309,14 @@ export default function SessionDetailPage({
               </div>
             ) : (
               <>
+                <div className="w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableHead className="w-[90px] text-xs font-medium">Hora</TableHead>
-                      <TableHead className="w-[140px] text-xs font-medium">Tipo</TableHead>
+                      <TableHead className="w-[80px] text-xs font-medium whitespace-nowrap">Hora</TableHead>
+                      <TableHead className="w-[130px] text-xs font-medium whitespace-nowrap">Tipo</TableHead>
                       <TableHead className="text-xs font-medium">Conteúdo</TableHead>
+                      <TableHead className="sticky right-0 bg-muted/40 w-[100px] text-xs font-medium text-right whitespace-nowrap border-l">Custo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1253,19 +1326,37 @@ export default function SessionDetailPage({
                         className="cursor-pointer hover:bg-muted/50 group"
                         onClick={() => setSelectedEvent(ev)}
                       >
-                        <TableCell className="text-xs text-muted-foreground font-mono">
+                        <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">
                           {formatTime(ev.occurred_at)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <EventBadge eventType={ev.event_type} />
                         </TableCell>
                         <TableCell>
                           <EventPayloadPreview event={ev} />
                         </TableCell>
+                        <TableCell className="sticky right-0 bg-background group-hover:bg-muted/50 text-right border-l">
+                          {eventCosts[ev.id]?.cost_usd != null ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setHighlightedMetricId(eventCosts[ev.id].metric_id);
+                                setActiveTab('costs');
+                              }}
+                              title="Ver no tab Custos"
+                              className="text-xs font-mono text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+                            >
+                              {eventCosts[ev.id].cost_usd! < 0.000001
+                                ? '<$0.000001'
+                                : `$${eventCosts[ev.id].cost_usd!.toFixed(6)}`}
+                            </button>
+                          ) : null}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                </div>
                 <div className="border-t px-4 py-2.5 bg-muted/20 text-xs text-muted-foreground">
                   {events.length} {events.length === 1 ? "evento" : "eventos"}
                 </div>
@@ -1292,6 +1383,132 @@ export default function SessionDetailPage({
               </div>
             ) : (
               <MetricsView events={events} />
+            )}
+          </div>
+        </TabsContent>
+
+        {/* ─── Custos ─── */}
+        <TabsContent value="costs" className="mt-4">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b bg-muted/40">
+              <h2 className="text-xs font-semibold flex items-center gap-2">
+                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                Custo Estimado da Sessão
+              </h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Valores aproximados calculados com preços LiteLLM fixados no momento do registro. Consulte os providers para valores exatos.
+              </p>
+            </div>
+            {loadingCost ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !sessionCost || sessionCost.metrics.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <DollarSign className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">Nenhum custo registrado</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Os custos aparecem após o processamento das métricas da sessão.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Total cost card */}
+                <div className="px-5 py-4 border-b bg-muted/20">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50">
+                      <DollarSign className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground">Custo Total Estimado</p>
+                      <p className="text-xl font-semibold tracking-tight">
+                        {sessionCost.total_cost_usd < 0.0001 && sessionCost.total_cost_usd > 0
+                          ? `< $0.0001`
+                          : `$${sessionCost.total_cost_usd.toFixed(6)}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metrics table */}
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="text-xs font-medium">Hora</TableHead>
+                      <TableHead className="text-xs font-medium">Provider</TableHead>
+                      <TableHead className="text-xs font-medium">Modelo</TableHead>
+                      <TableHead className="text-xs font-medium">Componente</TableHead>
+                      <TableHead className="text-xs font-medium">Uso</TableHead>
+                      <TableHead className="text-xs font-medium">Preço/Unidade</TableHead>
+                      <TableHead className="text-xs font-medium text-right">Custo Est. (USD)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sessionCost.metrics.map((m: SessionMetricCost) => {
+                      const isHighlighted = m.id === highlightedMetricId;
+                      return (
+                      <TableRow
+                        key={m.id}
+                        ref={isHighlighted ? highlightedMetricRef : null}
+                        className={`hover:bg-muted/50 transition-colors ${isHighlighted ? 'animate-[highlight-flash_2s_ease-out_forwards]' : ''}`}
+                      >
+                        <TableCell className="text-xs text-muted-foreground font-mono">
+                          {formatTime(m.time)}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium capitalize">{m.provider}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-mono">{m.model}</TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-700">
+                            {m.component.toUpperCase()}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {m.price_unit === "per_token"
+                            ? `${(m.input_tokens ?? 0) + (m.output_tokens ?? 0)} tok`
+                            : m.price_unit === "per_character"
+                            ? `${m.characters_count ?? 0} chars`
+                            : m.price_unit === "per_second"
+                            ? `${((m.audio_duration_ms ?? 0) / 1000).toFixed(1)}s`
+                            : m.price_unit === "per_audio_token"
+                            ? `${m.output_tokens ?? 0} audio tok`
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-mono">
+                          {m.price_per_unit != null
+                            ? `$${m.price_per_unit.toExponential(3)}`
+                            : "—"}
+                          {m.price_source && (
+                            <a
+                              href={m.price_source}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-1 text-blue-500 hover:underline text-[10px]"
+                            >
+                              ↗
+                            </a>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs font-semibold text-right">
+                          {m.cost_usd != null
+                            ? m.cost_usd < 0.000001
+                              ? "< $0.000001"
+                              : `$${m.cost_usd.toFixed(6)}`
+                            : "—"}
+                        </TableCell>
+                       </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <div className="border-t px-4 py-2.5 bg-muted/20 text-xs text-muted-foreground">
+                  {sessionCost.metrics.length} {sessionCost.metrics.length === 1 ? "métrica" : "métricas"}
+                  {sessionCost.metrics[0]?.price_fetched_at && (
+                    <span className="ml-2 opacity-60">
+                      · Preços de {new Date(sessionCost.metrics[0].price_fetched_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </TabsContent>

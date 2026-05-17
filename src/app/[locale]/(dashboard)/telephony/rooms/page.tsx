@@ -131,6 +131,7 @@ export default function RoomsPage() {
   const [sessionsTotal, setSessionsTotal] = useState(0);
   const [loadingLive, setLoadingLive] = useState(true);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [hasNewSessions, setHasNewSessions] = useState(false);
   const [deleteConfirmRoom, setDeleteConfirmRoom] = useState<string | null>(
     null
   );
@@ -207,7 +208,13 @@ export default function RoomsPage() {
       const hasFilters = !!(filterTicketField || filterTicketValue || filterAgent || filterStatus || filterHasTicket);
       const result = await roomApi.listSessions(params);
       setSessions(result.data);
-      setSessionsTotal(result.total);
+      setSessionsTotal((prev) => {
+        // Detect new sessions inserted at the top while user is on page > 1
+        if (page > 1 && result.total > prev) {
+          setHasNewSessions(true);
+        }
+        return result.total;
+      });
       setFiltersApplied(hasFilters);
     } catch (err: any) {
       toast.error(err.message || t("toastSessionsError"));
@@ -226,7 +233,8 @@ export default function RoomsPage() {
 
   useEffect(() => {
     fetchLiveRooms();
-    fetchSessions(1);
+    // Sessions are fetched by the [sessionPage] effect below — no need to call here
+    // (calling fetchSessions(1) here would race against [sessionPage] when sessionPage > 1)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -539,6 +547,21 @@ export default function RoomsPage() {
 
             {/* History Table */}
             <div className="rounded-b-lg border border-t-0 overflow-hidden">
+              {/* New sessions banner: shown when new sessions arrive while browsing page > 1 */}
+              {hasNewSessions && sessionPage > 1 && (
+                <div className="flex items-center justify-between gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-b text-sm text-blue-700 dark:text-blue-300">
+                  <span>New sessions are available.</span>
+                  <button
+                    className="font-medium underline underline-offset-2 hover:no-underline"
+                    onClick={() => {
+                      setHasNewSessions(false);
+                      setSessionPage(1);
+                    }}
+                  >
+                    Go to page 1
+                  </button>
+                </div>
+              )}
               {loadingSessions ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -651,8 +674,11 @@ export default function RoomsPage() {
                     </span>
                     {sessionsTotal > PAGE_SIZE && (
                       <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setSessionPage((p) => Math.max(1, p - 1))}
+                      <button
+                          onClick={() => {
+                            setSessionPage((p) => Math.max(1, p - 1));
+                            setHasNewSessions(false);
+                          }}
                           disabled={sessionPage === 1}
                           className="px-2 py-1 rounded border border-border text-[10px] text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
@@ -671,7 +697,10 @@ export default function RoomsPage() {
                             ) : (
                               <button
                                 key={p}
-                                onClick={() => setSessionPage(p as number)}
+                                onClick={() => {
+                                  setSessionPage(p as number);
+                                  if (p === 1) setHasNewSessions(false);
+                                }}
                                 className={`px-2 py-1 rounded border text-[10px] transition-colors ${
                                   sessionPage === p
                                     ? "border-foreground bg-foreground text-background font-medium"

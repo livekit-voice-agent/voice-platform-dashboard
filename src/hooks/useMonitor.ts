@@ -57,6 +57,63 @@ export interface AnomalyResponse {
   turns: AnomalyTurn[];
 }
 
+// ── Cost types ─────────────────────────────────────────────────────────────
+
+export interface CostBreakdownItem {
+  provider: string;
+  model: string;
+  component: string;
+  price_unit: string | null;
+  price_per_unit: number | null;
+  price_source: string | null;
+  total_cost_usd: number;
+  request_count: number;
+  avg_cost_per_request: number;
+}
+
+export interface CostSummary {
+  total_cost_usd: number;
+  fetched_at: string | null;
+  breakdown: CostBreakdownItem[];
+}
+
+export interface SessionMetricCost {
+  id: string;
+  time: string;
+  provider: string;
+  model: string;
+  component: string;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  audio_duration_ms: number | null;
+  characters_count: number | null;
+  cost_usd: number | null;
+  price_per_unit: number | null;
+  price_unit: string | null;
+  price_source: string | null;
+  price_fetched_at: string | null;
+}
+
+export interface SessionCost {
+  session_id: string;
+  total_cost_usd: number;
+  metrics: SessionMetricCost[];
+}
+
+export interface PricingEntry {
+  provider: string;
+  model: string;
+  component: string;
+  unit_type: string;
+  unit_price: number;
+  source?: string;
+}
+
+export interface PricingSnapshot {
+  fetched_at: string | null;
+  prices: PricingEntry[];
+}
+
 // ── Fetcher ────────────────────────────────────────────────────────────────
 
 async function fetchMonitor<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -227,4 +284,98 @@ export function useAgentAnomalies(name: string, hours = 24, refreshMs = 30_000) 
   }, [load, refreshMs]);
 
   return { data, loading, error };
+}
+
+export function useCostSummary(from?: string, to?: string, refreshMs = 60_000) {
+  const [data, setData] = useState<CostSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const qs = params.toString() ? `?${params}` : "";
+      const result = await fetchMonitor<CostSummary>(`/monitor/costs/summary${qs}`, signal);
+      setData(result);
+      setError(null);
+    } catch (e: any) {
+      if (e.name !== "AbortError") setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [from, to]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load(ctrl.signal);
+    const id = refreshMs > 0 ? setInterval(() => load(ctrl.signal), refreshMs) : undefined;
+    return () => {
+      ctrl.abort();
+      if (id) clearInterval(id);
+    };
+  }, [load, refreshMs]);
+
+  return { data, loading, error, reload: () => load() };
+}
+
+export function useSessionCost(sessionId: string) {
+  const [data, setData] = useState<SessionCost | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (signal?: AbortSignal) => {
+    if (!sessionId) return;
+    try {
+      const result = await fetchMonitor<SessionCost>(
+        `/monitor/costs/session/${encodeURIComponent(sessionId)}`,
+        signal,
+      );
+      setData(result);
+      setError(null);
+    } catch (e: any) {
+      if (e.name !== "AbortError") setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load(ctrl.signal);
+    return () => ctrl.abort();
+  }, [load]);
+
+  return { data, loading, error };
+}
+
+export function usePricingSnapshot(refreshMs = 300_000) {
+  const [data, setData] = useState<PricingSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const result = await fetchMonitor<PricingSnapshot>("/monitor/pricing", signal);
+      setData(result);
+      setError(null);
+    } catch (e: any) {
+      if (e.name !== "AbortError") setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load(ctrl.signal);
+    const id = refreshMs > 0 ? setInterval(() => load(ctrl.signal), refreshMs) : undefined;
+    return () => {
+      ctrl.abort();
+      if (id) clearInterval(id);
+    };
+  }, [load, refreshMs]);
+
+  return { data, loading, error, reload: () => load() };
 }
