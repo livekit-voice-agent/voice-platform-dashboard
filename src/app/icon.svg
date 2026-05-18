@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 24 87 87">
+  <style>
+    rect { fill: transparent; }
+    path { fill: #231F20; }
+    @media (prefers-color-scheme: dark) {
+      rect { fill: #ffffff; }
+      path { fill: #231F20; }
+    }
+  </style>
+  <rect x="-3" y="24" width="87" height="87"/>
+  <path d="M-.0003 80.6652 26.8877 80.6652 26.8877 26.8872-.0003 26.8872-.0003 80.6652Z"/>
+  <path d="M53.7777 26.8872 53.7777 80.6652 26.8887 80.6652 26.8887 107.5532 53.7777 107.5532 53.7777 80.6652 80.6657 80.6652 80.6657 26.8872 53.7777 26.8872Z"/>
+</svg>
