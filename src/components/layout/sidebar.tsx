@@ -68,7 +68,7 @@ function NavItem({
       className={cn(
         "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
         isActive
-          ? "bg-muted text-foreground font-medium"
+          ? "bg-foreground/[0.07] text-foreground font-semibold"
           : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
       )}
     >
@@ -118,7 +118,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           onClick={onNavigate}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="voxkit" className="h-5 w-auto" />
+          <img src="/logo.svg" alt="voxkit" className="h-5 w-auto dark:invert" />
         </Link>
       </div>
 

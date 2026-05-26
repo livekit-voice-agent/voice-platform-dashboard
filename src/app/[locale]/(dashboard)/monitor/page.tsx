@@ -1,11 +1,14 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
+import { AlertTriangle, XCircle, TrendingUp, ArrowRightLeft } from "lucide-react";
 import {
   useMonitorAgents,
   useMonitorProviders,
   type AgentHealth,
   type ProviderHealth,
 } from "@/hooks/useMonitor";
+import { SwitchDispatchRulesDialog } from "@/components/switch-dispatch-rules-dialog";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -60,58 +63,85 @@ function MetricRow({ label, tooltip, value, valueClass = "" }: {
 function AgentCard({ a }: { a: AgentHealth }) {
   const cfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.healthy;
   const hasHighP95 = a.p95_e2e_ms > a.avg_e2e_ms * 2;
+  const [switchOpen, setSwitchOpen] = useState(false);
 
   return (
-    <Link
-      href={`/monitor/agents/${a.agent_name}`}
-      className="bg-card rounded-xl p-4 hover:bg-accent/40 transition-colors border border-border block group"
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dot}`} />
-        <span className="font-semibold truncate flex-1 group-hover:text-primary transition-colors">
-          {a.agent_name}
-        </span>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.badge}`}>
-          {cfg.label}
-        </span>
+    <>
+      <div>
+        <Link
+          href={`/monitor/agents/${a.agent_name}`}
+          className="bg-card rounded-xl p-4 hover:bg-accent/40 transition-colors border border-border block group"
+        >
+          {/* Header */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dot}`} />
+            <span className="font-semibold truncate flex-1 group-hover:text-primary transition-colors">
+              {a.agent_name}
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.badge}`}>
+              {cfg.label}
+            </span>
+          </div>
+
+          {/* Metrics */}
+          <div className="text-sm grid grid-cols-2 gap-x-4 gap-y-2">
+            <MetricRow
+              label="E2E médio"
+              tooltip="Latência ponta a ponta média por turno: tempo desde o fim da fala do usuário até o início do áudio de resposta (EOU + LLM + TTS)"
+              value={`${a.avg_e2e_ms}ms`}
+              valueClass={latencyColor(a.avg_e2e_ms)}
+            />
+            <MetricRow
+              label="P95 E2E"
+              tooltip="95% das chamadas ficaram abaixo desse valor. Se muito acima da média, indica picos esporádicos de lentidão."
+              value={`${a.p95_e2e_ms}ms`}
+              valueClass={hasHighP95 ? "text-amber-400 font-semibold" : latencyColor(a.p95_e2e_ms)}
+            />
+            <MetricRow
+              label="Sessões (24h)"
+              tooltip="Número de chamadas únicas com métricas registradas nas últimas 24 horas"
+              value={a.sessions}
+            />
+            <MetricRow
+              label="Erros (24h)"
+              tooltip="Erros capturados pelo agente nas últimas 24 horas (timeouts, falhas de STT/LLM/TTS, etc.)"
+              value={a.errors_24h}
+              valueClass={a.errors_24h > 0 ? "text-red-400" : "text-green-400"}
+            />
+          </div>
+
+          {/* Footer hint */}
+          <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground group-hover:text-foreground/60 transition-colors flex items-center gap-1">
+            <span>Ver detalhes →</span>
+            {hasHighP95 && (
+              <span className="ml-auto text-amber-400 font-medium flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> P95 elevado
+              </span>
+            )}
+          </div>
+        </Link>
+
+        {/* Switch Agent button — always visible, below card */}
+        <button
+          className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-card text-xs text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors"
+          title="Trocar agent nas dispatch rules"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setSwitchOpen(true);
+          }}
+        >
+          <ArrowRightLeft className="h-3.5 w-3.5" />
+          Trocar Agent
+        </button>
       </div>
 
-      {/* Metrics */}
-      <div className="text-sm grid grid-cols-2 gap-x-4 gap-y-2">
-        <MetricRow
-          label="E2E médio"
-          tooltip="Latência ponta a ponta média por turno: tempo desde o fim da fala do usuário até o início do áudio de resposta (EOU + LLM + TTS)"
-          value={`${a.avg_e2e_ms}ms`}
-          valueClass={latencyColor(a.avg_e2e_ms)}
-        />
-        <MetricRow
-          label="P95 E2E"
-          tooltip="95% das chamadas ficaram abaixo desse valor. Se muito acima da média, indica picos esporádicos de lentidão."
-          value={`${a.p95_e2e_ms}ms`}
-          valueClass={hasHighP95 ? "text-amber-400 font-semibold" : latencyColor(a.p95_e2e_ms)}
-        />
-        <MetricRow
-          label="Sessões (24h)"
-          tooltip="Número de chamadas únicas com métricas registradas nas últimas 24 horas"
-          value={a.sessions}
-        />
-        <MetricRow
-          label="Erros (24h)"
-          tooltip="Erros capturados pelo agente nas últimas 24 horas (timeouts, falhas de STT/LLM/TTS, etc.)"
-          value={a.errors_24h}
-          valueClass={a.errors_24h > 0 ? "text-red-400" : "text-green-400"}
-        />
-      </div>
-
-      {/* Footer hint */}
-      <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground group-hover:text-foreground/60 transition-colors flex items-center gap-1">
-        <span>Ver detalhes →</span>
-        {hasHighP95 && (
-          <span className="ml-auto text-amber-400 font-medium">⚠ P95 elevado</span>
-        )}
-      </div>
-    </Link>
+      <SwitchDispatchRulesDialog
+        fromAgent={a.agent_name}
+        open={switchOpen}
+        onClose={() => setSwitchOpen(false)}
+      />
+    </>
   );
 }
 
@@ -176,9 +206,10 @@ export default function MonitorOverviewPage() {
           </div>
           <Link
             href="/monitor/costs"
-            className="shrink-0 text-sm px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-lg transition-colors font-medium"
+            className="shrink-0 flex items-center gap-1.5 text-sm px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-lg transition-colors font-medium cursor-pointer"
           >
-            💰 Ver Custos
+            <TrendingUp className="h-3.5 w-3.5" />
+            Ver Custos
           </Link>
         </div>
       </div>
@@ -186,7 +217,7 @@ export default function MonitorOverviewPage() {
       {/* Error banner */}
       {error && (
         <div className="text-sm text-red-400 bg-red-950/30 border border-red-800 rounded-lg px-4 py-3 flex items-center gap-2">
-          <span className="text-red-500">✕</span>
+          <XCircle className="h-4 w-4 shrink-0 text-red-500" />
           Erro ao carregar agentes: {error}
         </div>
       )}
@@ -293,11 +324,17 @@ export default function MonitorOverviewPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {loadingProviders ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground text-sm">
-                    Carregando providers...
-                  </td>
-                </tr>
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-4 py-3"><div className="h-3 bg-muted rounded w-24" /></td>
+                    <td className="px-4 py-3"><div className="h-3 bg-muted rounded w-32" /></td>
+                    <td className="px-4 py-3"><div className="h-3 bg-muted rounded w-16" /></td>
+                    <td className="px-4 py-3"><div className="h-3 bg-muted rounded w-20" /></td>
+                    <td className="px-4 py-3"><div className="h-3 bg-muted rounded w-14" /></td>
+                    <td className="px-4 py-3"><div className="h-3 bg-muted rounded w-10" /></td>
+                    <td className="px-4 py-3"><div className="h-3 bg-muted rounded w-10" /></td>
+                  </tr>
+                ))
               ) : providers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground text-sm">

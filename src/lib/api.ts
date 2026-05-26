@@ -242,6 +242,13 @@ export interface AgentConfig {
   updated_at: string;
 }
 
+export interface OpenAIModelGroup {
+  realtime: string[];
+  pipeline_llm: string[];
+  tts: string[];
+  stt: string[];
+}
+
 export const agentConfigApi = {
   get: (agentName: string) =>
     request<AgentConfig>(`/agent-config?agentName=${encodeURIComponent(agentName)}`),
@@ -262,6 +269,8 @@ export const agentConfigApi = {
     request<AgentConfig>(`/agent-config?agentName=${encodeURIComponent(agentName)}`, {
       method: "DELETE",
     }),
+
+  getOpenAIModels: () => request<OpenAIModelGroup>("/providers/openai-models"),
 };
 
 export interface AgentKnowledgeItem {

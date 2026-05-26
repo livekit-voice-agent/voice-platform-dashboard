@@ -21,6 +21,7 @@ import {
   type AgentDeployment,
   type DeploymentStatus,
   type DeployHealthResponse,
+  type OpenAIModelGroup,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -102,10 +103,12 @@ import {
   CircleStop,
   Terminal,
   FlaskConical,
+  ArrowRightLeft,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SwitchDispatchRulesDialog } from "@/components/switch-dispatch-rules-dialog";
 
 const LAST_AGENT_KEY = "voice-platform:lastAgent";
 
@@ -279,6 +282,12 @@ function AgentPageInner() {
   // Tracks when user explicitly chose "Custom Voice ID" in ElevenLabs voice selector
   const [isCustomVoiceMode, setIsCustomVoiceMode] = useState(false);
 
+  // Dynamic OpenAI model list (fetched once on mount; falls back to static list on error)
+  const [openAIModels, setOpenAIModels] = useState<OpenAIModelGroup | null>(null);
+  useEffect(() => {
+    agentConfigApi.getOpenAIModels().then(setOpenAIModels).catch(() => {});
+  }, []);
+
   // True if the model is a non-realtime pipeline model
   const isPipelineMode = !((runtimeConfig.model ?? "").includes("realtime"));
 
@@ -300,6 +309,7 @@ function AgentPageInner() {
   const [pendingDeleteToolId, setPendingDeleteToolId] = useState<string | null>(null);
   const [deleteAgentConfirm, setDeleteAgentConfirm] = useState(false);
   const [deletingAgent, setDeletingAgent] = useState(false);
+  const [switchAgentDialogOpen, setSwitchAgentDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Tools state ─────────────────────────────────────────────
@@ -1147,6 +1157,15 @@ function AgentPageInner() {
                 {t("testAgent")}
               </button>
               <button
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-blue-200 bg-card text-xs text-blue-600 hover:bg-blue-50 hover:border-blue-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => setSwitchAgentDialogOpen(true)}
+                title="Trocar agent nas dispatch rules"
+                disabled={!selectedAgent}
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                Trocar Agent
+              </button>
+              <button
                 className="p-1.5 rounded-md border bg-card text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-colors"
                 onClick={() => setDeleteAgentConfirm(true)}
                 title={t("deleteAgent")}
@@ -1296,30 +1315,45 @@ function AgentPageInner() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectGroup>
-                            <SelectLabel>OpenAI Realtime</SelectLabel>
-                            <SelectItem value="gpt-4o-mini-realtime-preview">gpt-4o-mini-realtime-preview</SelectItem>
-                            <SelectItem value="gpt-4o-realtime-preview">gpt-4o-realtime-preview</SelectItem>
-                          </SelectGroup>
-                          <SelectGroup>
-                            <SelectLabel>Pipeline — GPT-5</SelectLabel>
-                            <SelectItem value="gpt-5.4">gpt-5.4</SelectItem>
-                            <SelectItem value="gpt-5.2">gpt-5.2</SelectItem>
-                            <SelectItem value="gpt-5.1">gpt-5.1</SelectItem>
-                            <SelectItem value="gpt-5">gpt-5</SelectItem>
-                            <SelectItem value="gpt-5-mini">gpt-5-mini</SelectItem>
-                          </SelectGroup>
-                          <SelectGroup>
-                            <SelectLabel>Pipeline — GPT-4.1</SelectLabel>
-                            <SelectItem value="gpt-4.1">gpt-4.1</SelectItem>
-                            <SelectItem value="gpt-4.1-mini">gpt-4.1-mini</SelectItem>
-                            <SelectItem value="gpt-4.1-nano">gpt-4.1-nano</SelectItem>
-                          </SelectGroup>
-                          <SelectGroup>
-                            <SelectLabel>Pipeline — GPT-4o</SelectLabel>
-                            <SelectItem value="gpt-4o">gpt-4o</SelectItem>
-                            <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
-                          </SelectGroup>
+                          {openAIModels ? (
+                            <>
+                              {openAIModels.realtime.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel>OpenAI Realtime</SelectLabel>
+                                  {openAIModels.realtime.map((m) => (
+                                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
+                              {openAIModels.pipeline_llm.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel>Pipeline — LLM</SelectLabel>
+                                  {openAIModels.pipeline_llm.map((m) => (
+                                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <SelectGroup>
+                                <SelectLabel>OpenAI Realtime</SelectLabel>
+                                <SelectItem value="gpt-4o-mini-realtime-preview">gpt-4o-mini-realtime-preview</SelectItem>
+                                <SelectItem value="gpt-4o-realtime-preview">gpt-4o-realtime-preview</SelectItem>
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Pipeline — GPT-4.1</SelectLabel>
+                                <SelectItem value="gpt-4.1">gpt-4.1</SelectItem>
+                                <SelectItem value="gpt-4.1-mini">gpt-4.1-mini</SelectItem>
+                                <SelectItem value="gpt-4.1-nano">gpt-4.1-nano</SelectItem>
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Pipeline — GPT-4o</SelectLabel>
+                                <SelectItem value="gpt-4o">gpt-4o</SelectItem>
+                                <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
+                              </SelectGroup>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -5014,6 +5048,15 @@ function AgentPageInner() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Switch Dispatch Rules Dialog ───────────────────────────── */}
+      {selectedAgent && (
+        <SwitchDispatchRulesDialog
+          fromAgent={selectedAgent}
+          open={switchAgentDialogOpen}
+          onClose={() => setSwitchAgentDialogOpen(false)}
+        />
+      )}
 
       {/* ─── Delete Knowledge Confirmation ─────────────────────────── */}
       <Dialog open={!!pendingDeleteKnowledgeId} onOpenChange={() => setPendingDeleteKnowledgeId(null)}>

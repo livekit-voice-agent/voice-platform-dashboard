@@ -1,7 +1,7 @@
 "use client";
-import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import { Link } from "@/i18n/navigation";
 import {
   useCostSummary,
   usePricingSnapshot,
@@ -75,8 +75,9 @@ function PriceCard({ entry }: { entry: PricingEntry }) {
       <div className="font-medium text-sm truncate text-foreground">{entry.model}</div>
       <div className="font-mono text-base text-primary font-semibold">{formatUnitPrice(entry)}</div>
       {entry.source && (
-        <div className="text-xs text-muted-foreground group-hover:text-primary transition-colors mt-1 truncate">
-          ↗ fonte
+        <div className="text-xs text-muted-foreground group-hover:text-primary transition-colors mt-1 flex items-center gap-1">
+          <ExternalLink className="h-3 w-3 shrink-0" />
+          fonte
         </div>
       )}
     </a>
@@ -130,10 +131,10 @@ function CostTable({ rows }: { rows: CostBreakdownItem[] }) {
                     href={r.price_source}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ml-1.5 text-primary/60 hover:text-primary"
+                    className="ml-1.5 text-primary/60 hover:text-primary inline-flex items-center"
                     title="Ver fonte do preço"
                   >
-                    ↗
+                    <ExternalLink className="h-3 w-3 shrink-0" />
                   </a>
                 )}
               </td>
@@ -207,7 +208,7 @@ export default function CostsPage() {
               className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
             >
               LiteLLM model_prices_and_context_window.json
-              <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <ExternalLink className="h-3 w-3 shrink-0" />
             </a>{" "}
             fixados no momento do registro. Consulte cada provider para valores exatos.
           </p>
@@ -230,7 +231,7 @@ export default function CostsPage() {
             className="ml-auto text-xs text-muted-foreground hover:text-primary underline underline-offset-2 transition-colors flex items-center gap-1"
           >
             Fonte: litellm/model_prices_and_context_window.json
-            <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <ExternalLink className="h-3 w-3 shrink-0" />
           </a>
         </div>
         {pricingLoading ? (
@@ -261,6 +262,7 @@ export default function CostsPage() {
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
+                aria-pressed={period === p}
                 className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${
                   period === p
                     ? "bg-card text-foreground shadow-sm"

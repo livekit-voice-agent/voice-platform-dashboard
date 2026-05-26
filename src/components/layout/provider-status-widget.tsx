@@ -35,7 +35,7 @@ export function ProviderStatusWidget() {
         <button
           onClick={toggle}
           className={cn(
-            "rounded p-1 transition-colors",
+            "rounded p-1 transition-colors cursor-pointer",
             enabled
               ? "text-emerald-500 hover:bg-emerald-500/10"
               : "text-muted-foreground hover:bg-muted"

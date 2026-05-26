@@ -310,15 +310,15 @@ export default function ProvidersPage() {
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0",
                         indicator === "none" &&
-                          "border-emerald-200 bg-emerald-50 text-emerald-600",
+                          "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400",
                         indicator === "minor" &&
-                          "border-yellow-200 bg-yellow-50 text-yellow-600",
+                          "border-yellow-200 bg-yellow-50 text-yellow-600 dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400",
                         indicator === "major" &&
-                          "border-orange-200 bg-orange-50 text-orange-600",
+                          "border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-400",
                         indicator === "critical" &&
-                          "border-red-200 bg-red-50 text-red-600",
+                          "border-red-200 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400",
                         indicator === "unknown" &&
-                          "border-zinc-200 bg-zinc-50 text-zinc-500"
+                          "border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/30 dark:text-zinc-400"
                       )}
                     >
                       <span
@@ -353,6 +353,7 @@ export default function ProvidersPage() {
                   <div className="border-t">
                     <button
                       onClick={() => toggleExpanded(providerConfig.slug)}
+                      aria-expanded={isExpanded}
                       className="w-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-left"
                     >
                       {isExpanded

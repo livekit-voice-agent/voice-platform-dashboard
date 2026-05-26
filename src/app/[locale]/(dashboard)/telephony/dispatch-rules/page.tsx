@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import {
   dispatchRuleApi,
   sipTrunkApi,
+  agentWorkerApi,
   type DispatchRuleInfo,
   type CreateDispatchRuleRequest,
   type SipInboundTrunk,
@@ -27,6 +28,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Route, Plus, Pencil, Trash2, Loader2, GitBranch, Bot } from "lucide-react";
 
@@ -78,6 +86,7 @@ export default function DispatchRulesPage() {
   const [editingRule, setEditingRule] = useState<DispatchRuleInfo | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [availableAgents, setAvailableAgents] = useState<string[]>([]);
 
   const [formName, setFormName] = useState("");
   const [formRuleType, setFormRuleType] = useState<
@@ -94,12 +103,14 @@ export default function DispatchRulesPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [rulesData, trunksData] = await Promise.all([
+      const [rulesData, trunksData, agentsData] = await Promise.all([
         dispatchRuleApi.list(),
         sipTrunkApi.list().catch(() => [] as SipInboundTrunk[]),
+        agentWorkerApi.available().catch(() => [] as string[]),
       ]);
       setRules(rulesData);
       setTrunks(trunksData);
+      setAvailableAgents(agentsData);
     } catch (err: any) {
       toast.error(err.message || t("toastSaveError"));
     } finally {
@@ -464,13 +475,22 @@ export default function DispatchRulesPage() {
               <label htmlFor="agentName" className="text-xs font-medium mb-1 block">
                 {t("agentNameLabel")} <span className="text-muted-foreground font-normal">{t("agentNameHint")}</span>
               </label>
-              <Input
-                id="agentName"
-                className="h-8 font-mono text-xs"
-                placeholder="inbound-agent"
-                value={formAgentName}
-                onChange={(e) => setFormAgentName(e.target.value)}
-              />
+              <Select
+                value={formAgentName || "__none__"}
+                onValueChange={(v) => setFormAgentName(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger className="h-8 text-xs font-mono">
+                  <SelectValue placeholder="Sem agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">
+                    <span className="text-muted-foreground italic">Sem agent</span>
+                  </SelectItem>
+                  {availableAgents.map((a) => (
+                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label htmlFor="trunkIds" className="text-xs font-medium mb-1 block">

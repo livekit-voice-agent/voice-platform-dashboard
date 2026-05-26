@@ -20,7 +20,6 @@ import { Menu, LogOut, User, Shield } from "lucide-react";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: session } = useSession();
-  const t = useTranslations("sidebar");
   const tc = useTranslations("common");
   const ta = useTranslations("auth");
 
@@ -53,7 +52,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu className="h-4 w-4" />
             <span className="sr-only">{tc("openMenu")}</span>
           </Button>
-          <span className="text-sm font-semibold tracking-tight md:hidden">{t("brand")}</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="voxkit" className="h-4 w-auto dark:invert md:hidden" />
 
           <div className="ml-auto flex items-center gap-2">
             <LanguageSwitcher />
@@ -113,7 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="mx-auto max-w-5xl">{children}</div>
+          <div className="mx-auto max-w-7xl">{children}</div>
         </main>
       </div>
 
