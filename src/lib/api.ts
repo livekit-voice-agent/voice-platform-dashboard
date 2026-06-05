@@ -114,6 +114,66 @@ async function request<T>(
   return res.json();
 }
 
+async function requestFormData<T>(
+  path: string,
+  formData: FormData,
+  options?: Omit<RequestInit, "body" | "headers">
+): Promise<T> {
+  if (!cachedApiToken && _tokenReady) {
+    await Promise.race([
+      _tokenReady,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("NO_TOKEN")), 10_000)
+      ),
+    ]);
+  }
+
+  const token = cachedApiToken;
+  if (!token) {
+    throw new Error("NO_TOKEN");
+  }
+
+  const projectId = getCurrentProjectId();
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${token}`,
+  };
+
+  if (projectId) {
+    headers["x-project-id"] = projectId;
+  }
+
+  if (currentLocale) {
+    headers["Accept-Language"] = currentLocale;
+  }
+
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    method: options?.method ?? "POST",
+    headers,
+    body: formData,
+    cache: "no-store",
+  });
+
+  if (res.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    throw new Error("Unauthorized");
+  }
+
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({ message: "Forbidden" }));
+    throw new Error(body.message || "You don't have permission for this action");
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(body.message || `API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
 export interface TurnDetectionConfig {
   type?: 'server_vad' | 'semantic_vad';
   // semantic_vad
@@ -194,6 +254,39 @@ export interface InterruptionConfig {
   resumeFalseInterruption?: boolean;  // default true
 }
 
+// ─── B2 callRouter types ─────────────────────────────────────────────────────
+
+export interface CallRouterParamValue {
+  value: string;
+  description: string;
+}
+
+export interface CallRouterAction {
+  type: 'continue' | 'end_call' | 'play_audio' | 'play_tts' | 'execute_tool' | 'handoff_agent';
+  audioKey?: string;
+  text?: string;
+  toolName?: string;
+  targetAgentName?: string;
+  passTranscript?: boolean;
+  skipGreeting?: boolean;
+  skipPreCallHooks?: boolean;
+  skipCallRouter?: boolean;
+}
+
+export interface CallRouterConfig {
+  enabled: boolean;
+  param: {
+    name: string;
+    description: string;
+    timeoutSeconds?: number;
+    values: CallRouterParamValue[];
+  };
+  routes: Array<{ value: string; actions: CallRouterAction[] }>;
+  fallback: { actions: CallRouterAction[] };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface RuntimeConfig {
   model?: string;
   voice?: string;
@@ -229,6 +322,11 @@ export interface RuntimeConfig {
   followUpMode?: 'say' | 'generateReply' | null;
   maxFollowUps?: number | null;
   followUpGracePeriodMs?: number | null;
+  // B1
+  greetingAudioMode?: 'tts' | 'file' | null;
+  greetingAudioKey?: string | null;
+  // B2
+  callRouter?: CallRouterConfig | null;
 }
 
 export interface AgentConfig {
@@ -265,6 +363,13 @@ export const agentConfigApi = {
 
   listAgents: () => request<string[]>("/agent-config/agents"),
 
+  uploadAudio: (file: File, key: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("key", key);
+    return requestFormData<{ key: string }>("/agent-config/upload-audio", formData);
+  },
+
   delete: (agentName: string) =>
     request<AgentConfig>(`/agent-config?agentName=${encodeURIComponent(agentName)}`, {
       method: "DELETE",
@@ -290,35 +395,10 @@ export const agentKnowledgeApi = {
   upload: async (file: File, agentName: string, summarize: boolean) => {
     const formData = new FormData();
     formData.append("file", file);
-
-    const token = cachedApiToken;
-    const uploadHeaders: Record<string, string> = {};
-    if (token) {
-      uploadHeaders["Authorization"] = `Bearer ${token}`;
-    }
-    const projectId = getCurrentProjectId();
-    if (projectId) {
-      uploadHeaders["x-project-id"] = projectId;
-    }
-    if (currentLocale) {
-      uploadHeaders["Accept-Language"] = currentLocale;
-    }
-
-    const res = await fetch(
-      `${API_BASE_URL}/agent-knowledge/upload?agentName=${encodeURIComponent(agentName)}&summarize=${summarize}`,
-      {
-        method: "POST",
-        headers: uploadHeaders,
-        body: formData,
-      }
+    return requestFormData<AgentKnowledgeDetail>(
+      `/agent-knowledge/upload?agentName=${encodeURIComponent(agentName)}&summarize=${summarize}`,
+      formData
     );
-
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(error.message || `API error: ${res.status}`);
-    }
-
-    return res.json() as Promise<AgentKnowledgeDetail>;
   },
 
   list: (agentName: string) =>
@@ -842,6 +922,7 @@ export interface CallSession {
   ended_at: string | null;
   recording_path: string | null;
   recording_url: string | null;
+  extra_metadata: Record<string, any> | null;
 }
 
 export interface ListSessionsParams {
@@ -852,6 +933,9 @@ export interface ListSessionsParams {
   status?: string;
   limit?: number;
   offset?: number;
+  phoneNumber?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export interface PaginatedSessions {
@@ -927,6 +1011,9 @@ export const roomApi = {
     if (params?.status) searchParams.set("status", params.status);
     if (params?.limit) searchParams.set("limit", String(params.limit));
     if (params?.offset !== undefined) searchParams.set("offset", String(params.offset));
+    if (params?.phoneNumber) searchParams.set("phoneNumber", params.phoneNumber);
+    if (params?.dateFrom) searchParams.set("dateFrom", params.dateFrom);
+    if (params?.dateTo) searchParams.set("dateTo", params.dateTo);
     const qs = searchParams.toString();
     return request<PaginatedSessions>(`/rooms${qs ? `?${qs}` : ""}`);
   },
@@ -1048,4 +1135,90 @@ export const userApi = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+};
+
+// ─── Reports ────────────────────────────────────────────────────────────────
+
+export type ReportType = 'INDIVIDUAL' | 'PROJECT';
+export type ReportStatus = 'PENDING' | 'GENERATING' | 'DONE' | 'ERROR';
+
+export interface Report {
+  id: string;
+  type: ReportType;
+  status: ReportStatus;
+  filters: Record<string, any>;
+  s3_key?: string;
+  s3_url?: string;
+  error_message?: string;
+  expires_at?: string;
+  created_by: string;
+  project_id: string;
+  session_id?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface CreateReportRequest {
+  type: ReportType;
+  project_id: string;
+  session_id?: string;
+  expires_at?: string;
+  filters: {
+    agentName?: string;
+    status?: string;
+    phoneNumber?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  };
+}
+
+export const reportApi = {
+  create: (data: CreateReportRequest) =>
+    request<{ id: string; status: ReportStatus }>('/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  list: (projectId: string, page = 0, limit = 20) =>
+    request<{ reports: Report[]; total: number }>(
+      `/reports?projectId=${encodeURIComponent(projectId)}&page=${page}&limit=${limit}`
+    ),
+};
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  target: 'USER' | 'PROJECT' | 'GLOBAL';
+  user_ids: string[];
+  project_id?: string;
+  data?: Record<string, any>;
+  created_at: string;
+  is_read: boolean;
+}
+
+export const notificationApi = {
+  list: (projectId?: string, page = 0, limit = 20) => {
+    const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (projectId) q.set('projectId', projectId);
+    return request<{ notifications: Notification[]; total: number }>(
+      `/notifications?${q.toString()}`
+    );
+  },
+
+  unreadCount: (projectId?: string) => {
+    const q = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+    return request<{ count: number }>(`/notifications/unread-count${q}`);
+  },
+
+  markRead: (id: string) =>
+    request<{ success: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
+
+  markAllRead: (projectId?: string) => {
+    const q = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+    return request<{ success: boolean }>(`/notifications/read-all${q}`, { method: 'PATCH' });
+  },
 };

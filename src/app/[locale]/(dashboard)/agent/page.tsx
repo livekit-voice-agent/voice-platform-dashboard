@@ -17,6 +17,7 @@ import {
   type RuntimeConfig,
   type SileroVadConfig,
   type ExtractionField,
+  type CallRouterAction,
   type AgentVersionSummary,
   type AgentDeployment,
   type DeploymentStatus,
@@ -104,11 +105,13 @@ import {
   Terminal,
   FlaskConical,
   ArrowRightLeft,
+  GitBranch,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SwitchDispatchRulesDialog } from "@/components/switch-dispatch-rules-dialog";
+import { getExecutableToolOptions } from "@/lib/agent-tool-options";
 
 const LAST_AGENT_KEY = "voice-platform:lastAgent";
 
@@ -135,6 +138,7 @@ const CONFIG_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "model-voice", label: "Model & Voice", icon: Mic },
   { id: "stt", label: "Speech-to-Text", icon: Headphones },
   { id: "greeting", label: "Greeting", icon: MessageCircle },
+  { id: "call-router", label: "Call Router", icon: GitBranch },
   { id: "turn-detection", label: "Turn Detection", icon: Activity },
   { id: "interruption", label: "Interruptions", icon: Zap },
   { id: "humanization", label: "Humanization", icon: Heart },
@@ -276,9 +280,14 @@ function AgentPageInner() {
     followUpMode: null,
     maxFollowUps: null,
     followUpGracePeriodMs: null,
+    greetingAudioMode: null,
+    greetingAudioKey: null,
+    callRouter: null,
   };
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [runtimeExpanded, setRuntimeExpanded] = useState(true);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [greetingAudioFile, setGreetingAudioFile] = useState<File | null>(null);
   // Tracks when user explicitly chose "Custom Voice ID" in ElevenLabs voice selector
   const [isCustomVoiceMode, setIsCustomVoiceMode] = useState(false);
 
@@ -347,6 +356,65 @@ function AgentPageInner() {
   // Form builder mode state
   type ParamRow = { key: string; type: string; description: string; required: boolean; values: string };
   type ConfigField = { key: string; value: string };
+
+  // ─── Lifecycle action types (D2) ────────────────────────────────────────
+  type LifecycleActionType = "play_tts" | "play_audio" | "play_audio_url" | "pause" | "end_call";
+  type LifecycleAction = { type: LifecycleActionType; value: string }; // value = text | audioKey | url | durationMs | ""
+
+  const LIFECYCLE_ACTION_LABELS: Record<LifecycleActionType, string> = {
+    play_tts: "Falar texto (TTS)",
+    play_audio: "Reproduzir áudio S3",
+    play_audio_url: "Reproduzir áudio URL",
+    pause: "Pausa (ms)",
+    end_call: "Encerrar chamada",
+  };
+
+  const lifecycleActionToRaw = (a: LifecycleAction): Record<string, unknown> => {
+    switch (a.type) {
+      case "play_tts": return { type: "play_tts", text: a.value };
+      case "play_audio": return { type: "play_audio", audioKey: a.value };
+      case "play_audio_url": return { type: "play_audio_url", url: a.value };
+      case "pause": return { type: "pause", durationMs: Number(a.value) || 0 };
+      case "end_call": return { type: "end_call" };
+    }
+  };
+
+  const rawToLifecycleAction = (raw: Record<string, unknown>): LifecycleAction => {
+    const t = String(raw.type ?? "play_tts") as LifecycleActionType;
+    switch (t) {
+      case "play_tts": return { type: t, value: String(raw.text ?? "") };
+      case "play_audio": return { type: t, value: String(raw.audioKey ?? "") };
+      case "play_audio_url": return { type: t, value: String(raw.url ?? "") };
+      case "pause": return { type: t, value: String(raw.durationMs ?? "1000") };
+      case "end_call": return { type: t, value: "" };
+      default: return { type: "play_tts", value: "" };
+    }
+  };
+
+  const parseLifecycleActions = (cfFields: ConfigField[], key: "pre_actions" | "post_actions"): LifecycleAction[] => {
+    const field = cfFields.find((f) => f.key === key);
+    if (!field?.value) return [];
+    try {
+      const arr = JSON.parse(field.value);
+      if (!Array.isArray(arr)) return [];
+      return arr.map((r: Record<string, unknown>) => rawToLifecycleAction(r));
+    } catch {
+      return [];
+    }
+  };
+
+  const serializeLifecycleActions = (actions: LifecycleAction[], cfFields: ConfigField[], key: "pre_actions" | "post_actions"): ConfigField[] => {
+    const raw = actions.map(lifecycleActionToRaw);
+    const json = JSON.stringify(raw);
+    const idx = cfFields.findIndex((f) => f.key === key);
+    if (idx >= 0) {
+      const next = [...cfFields];
+      next[idx] = { key, value: json };
+      return next;
+    }
+    return [...cfFields, { key, value: json }];
+  };
+
   const [paramsMode, setParamsMode] = useState<"json" | "form">("json");
   const [configMode, setConfigMode] = useState<"json" | "form">("json");
   const [paramRows, setParamRows] = useState<ParamRow[]>([]);
@@ -472,7 +540,7 @@ function AgentPageInner() {
   };
 
   // Internal HTTP_REQUEST config keys managed by dedicated UI controls
-  const HTTP_INTERNAL_KEYS = new Set(["awaitResponse", "holdPhrases", "holdPhraseIntervalMs"]);
+  const HTTP_INTERNAL_KEYS = new Set(["awaitResponse", "holdPhrases", "holdPhraseIntervalMs", "pre_actions", "post_actions"]);
 
   const configFieldsToJson = (fields: ConfigField[]): string => {
     const obj: Record<string, any> = {};
@@ -572,6 +640,9 @@ function AgentPageInner() {
         return [{ key: "", value: "" }];
     }
   };
+
+  const getExecuteToolOptions = (currentToolName?: string) =>
+    getExecutableToolOptions(agentTools, currentToolName);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -898,6 +969,21 @@ function AgentPageInner() {
       toast.error(err instanceof Error ? err.message : t("configSaveError"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGreetingAudioUpload = async () => {
+    if (!greetingAudioFile || !selectedAgent) return;
+    setUploadingAudio(true);
+    try {
+      const data = await agentConfigApi.uploadAudio(greetingAudioFile, selectedAgent);
+      setRuntimeConfig((prev) => ({ ...prev, greetingAudioKey: data.key }));
+      setGreetingAudioFile(null);
+      toast.success("Áudio de saudação enviado com sucesso");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar áudio");
+    } finally {
+      setUploadingAudio(false);
     }
   };
 
@@ -2237,8 +2323,564 @@ function AgentPageInner() {
                       Aguarda N ms após conectar antes de iniciar a saudação. Útil para evitar corte das primeiras palavras.
                     </p>
                   </div>
+
+                  {/* Greeting Audio Mode */}
+                  <div className="space-y-1 pt-1">
+                    <Label className="text-xs text-muted-foreground">Modo de áudio da saudação</Label>
+                    <Select
+                      value={runtimeConfig.greetingAudioMode ?? "tts"}
+                      onValueChange={(v) =>
+                        setRuntimeConfig((prev) => ({
+                          ...prev,
+                          greetingAudioMode: v === "tts" ? null : (v as "file"),
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tts">TTS (gera voz via Eleven Labs)</SelectItem>
+                        <SelectItem value="file">Arquivo de áudio (não consome créditos)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      Quando "Arquivo de áudio", uma gravação pré-existente é reproduzida — sem custo de TTS.
+                    </p>
+                  </div>
+
+                  {/* Greeting Audio File Upload (only when mode=file) */}
+                  {runtimeConfig.greetingAudioMode === "file" && (
+                    <div className="space-y-2 pt-1 p-3 rounded-md border border-dashed bg-muted/30">
+                      <Label className="text-xs text-muted-foreground">Arquivo de áudio da saudação</Label>
+                      {runtimeConfig.greetingAudioKey && (
+                        <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-2 py-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                          <span className="font-mono truncate">{runtimeConfig.greetingAudioKey}</span>
+                          <button
+                            type="button"
+                            className="ml-auto text-zinc-400 hover:text-red-500 transition-colors"
+                            onClick={() => setRuntimeConfig((prev) => ({ ...prev, greetingAudioKey: null }))}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Input
+                          type="file"
+                          accept="audio/*"
+                          className="h-8 text-xs file:text-xs file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:bg-primary/10 file:text-primary"
+                          onChange={(e) => setGreetingAudioFile(e.target.files?.[0] ?? null)}
+                        />
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="shrink-0 h-8"
+                          disabled={!greetingAudioFile || uploadingAudio}
+                          onClick={handleGreetingAudioUpload}
+                        >
+                          {uploadingAudio ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CloudUpload className="h-3.5 w-3.5" />
+                          )}
+                          <span className="ml-1.5">Enviar</span>
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Formatos suportados: MP3, WAV, OGG. O arquivo será hospedado no S3.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
+                  </div>
+                </div>
+              )}
+
+              {/* ════ CALL ROUTER SECTION ════ */}
+              {configSection === "call-router" && (
+                <div className="rounded-lg border bg-card overflow-hidden">
+                  <div className="px-5 py-4 border-b bg-muted/40">
+                    <h2 className="text-sm font-semibold flex items-center gap-2">
+                      <GitBranch className="h-4 w-4 text-muted-foreground" />
+                      Call Router
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Classifica a primeira fala do cliente e direciona para ações diferentes (transferência, áudio, encerramento…).
+                    </p>
+                  </div>
+                  <div className="px-5 py-4 space-y-5">
+                    {/* Enable toggle */}
+                    <label className="flex items-center justify-between rounded-lg border px-3 py-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                      <div>
+                        <p className="text-sm font-medium">Ativar Call Router</p>
+                        <p className="text-xs text-muted-foreground">Quando ativo, intercepta a primeira fala do cliente antes de continuar.</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-primary"
+                        checked={runtimeConfig.callRouter?.enabled ?? false}
+                        onChange={(e) =>
+                          setRuntimeConfig((prev) => ({
+                            ...prev,
+                            callRouter: e.target.checked
+                              ? {
+                                  enabled: true,
+                                  param: prev.callRouter?.param ?? {
+                                    name: "intent",
+                                    description: "Identifique se o assunto é produtivo ou improdutivo para o atendimento.",
+                                    timeoutSeconds: 8,
+                                    values: [
+                                      { value: "productive", description: "Assunto relevante para o atendimento." },
+                                      { value: "unproductive", description: "Assunto fora do escopo ou irrelevante." },
+                                    ],
+                                  },
+                                  routes: prev.callRouter?.routes ?? [
+                                    { value: "productive", actions: [{ type: "continue" as const }] },
+                                    { value: "unproductive", actions: [{ type: "end_call" as const }] },
+                                  ],
+                                  fallback: prev.callRouter?.fallback ?? { actions: [{ type: "continue" as const }] },
+                                }
+                              : null,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    {runtimeConfig.callRouter?.enabled && (
+                      <>
+                        {/* Param Config */}
+                        <div className="space-y-3 p-3 rounded-md border bg-muted/20">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Parâmetro de classificação</p>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Nome interno</Label>
+                              <Input
+                                className="h-8 text-xs"
+                                placeholder="ex: intent"
+                                value={runtimeConfig.callRouter.param.name}
+                                onChange={(e) =>
+                                  setRuntimeConfig((prev) => ({
+                                    ...prev,
+                                    callRouter: { ...prev.callRouter!, param: { ...prev.callRouter!.param, name: e.target.value } },
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Timeout (segundos)</Label>
+                              <Input
+                                className="h-8 text-xs"
+                                type="number"
+                                min={1}
+                                max={60}
+                                step={1}
+                                placeholder="8"
+                                value={runtimeConfig.callRouter.param.timeoutSeconds ?? ""}
+                                onChange={(e) =>
+                                  setRuntimeConfig((prev) => ({
+                                    ...prev,
+                                    callRouter: { ...prev.callRouter!, param: { ...prev.callRouter!.param, timeoutSeconds: e.target.value ? Number(e.target.value) : undefined } },
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Instrução de classificação</Label>
+                            <Textarea
+                              className="text-xs resize-none"
+                              rows={2}
+                              placeholder="Identifique se o assunto é produtivo ou improdutivo..."
+                              value={runtimeConfig.callRouter.param.description}
+                              onChange={(e) =>
+                                setRuntimeConfig((prev) => ({
+                                  ...prev,
+                                  callRouter: { ...prev.callRouter!, param: { ...prev.callRouter!.param, description: e.target.value } },
+                                }))
+                              }
+                            />
+                          </div>
+
+                          {/* Combined route editor: each row = param.values[i] + routes[i] */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-medium">Rotas</p>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs gap-1"
+                                onClick={() =>
+                                  setRuntimeConfig((prev) => {
+                                    const cr = prev.callRouter!;
+                                    return {
+                                      ...prev,
+                                      callRouter: {
+                                        ...cr,
+                                        param: { ...cr.param, values: [...cr.param.values, { value: "", description: "" }] },
+                                        routes: [...cr.routes, { value: "", actions: [{ type: "continue" as const }] }],
+                                      },
+                                    };
+                                  })
+                                }
+                              >
+                                <Plus className="h-3 w-3" /> Adicionar rota
+                              </Button>
+                            </div>
+
+                            {runtimeConfig.callRouter.param.values.map((pv, ri) => {
+                              const route = runtimeConfig.callRouter!.routes[ri] ?? { value: pv.value, actions: [] };
+                              return (
+                                <div key={ri} className="border rounded-md p-3 space-y-2 bg-card">
+                                  <div className="flex items-center gap-2">
+                                    <div className="space-y-0.5 flex-1">
+                                      <Label className="text-[10px] text-muted-foreground">Valor (ex: productive)</Label>
+                                      <Input
+                                        className="h-7 text-xs font-mono"
+                                        placeholder="productive"
+                                        value={pv.value}
+                                        onChange={(e) => {
+                                          const values = [...runtimeConfig.callRouter!.param.values];
+                                          values[ri] = { ...values[ri], value: e.target.value };
+                                          const routes = [...runtimeConfig.callRouter!.routes];
+                                          if (routes[ri]) routes[ri] = { ...routes[ri], value: e.target.value };
+                                          setRuntimeConfig((prev) => ({
+                                            ...prev,
+                                            callRouter: { ...prev.callRouter!, param: { ...prev.callRouter!.param, values }, routes },
+                                          }));
+                                        }}
+                                      />
+                                    </div>
+                                    <div className="space-y-0.5 flex-1">
+                                      <Label className="text-[10px] text-muted-foreground">Descrição para a IA</Label>
+                                      <Input
+                                        className="h-7 text-xs"
+                                        placeholder="Assunto relevante para o atendimento."
+                                        value={pv.description}
+                                        onChange={(e) => {
+                                          const values = [...runtimeConfig.callRouter!.param.values];
+                                          values[ri] = { ...values[ri], description: e.target.value };
+                                          setRuntimeConfig((prev) => ({
+                                            ...prev,
+                                            callRouter: { ...prev.callRouter!, param: { ...prev.callRouter!.param, values } },
+                                          }));
+                                        }}
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="mt-4 text-zinc-400 hover:text-red-500 transition-colors"
+                                      onClick={() => {
+                                        const values = runtimeConfig.callRouter!.param.values.filter((_, i) => i !== ri);
+                                        const routes = runtimeConfig.callRouter!.routes.filter((_, i) => i !== ri);
+                                        setRuntimeConfig((prev) => ({
+                                          ...prev,
+                                          callRouter: { ...prev.callRouter!, param: { ...prev.callRouter!.param, values }, routes },
+                                        }));
+                                      }}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+
+                                  {/* Actions for this route */}
+                                  <div className="space-y-1.5 pt-1 border-t">
+                                    <p className="text-[10px] text-muted-foreground font-medium">Ações quando classificado como &quot;{pv.value || "?"}&quot;</p>
+                                    {route.actions.map((action, ai) => (
+                                      <div key={ai} className="flex items-start gap-2">
+                                        <Select
+                                          value={action.type}
+                                          onValueChange={(v) => {
+                                            const routes = [...runtimeConfig.callRouter!.routes];
+                                            if (!routes[ri]) routes[ri] = { value: pv.value, actions: [] };
+                                            const actions = [...routes[ri].actions];
+                                            actions[ai] = { type: v as CallRouterAction["type"] } as CallRouterAction;
+                                            routes[ri] = { ...routes[ri], actions };
+                                            setRuntimeConfig((prev) => ({
+                                              ...prev,
+                                              callRouter: { ...prev.callRouter!, routes },
+                                            }));
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-7 text-xs w-44 shrink-0">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="continue">Continuar (passthrough)</SelectItem>
+                                            <SelectItem value="end_call">Encerrar chamada</SelectItem>
+                                            <SelectItem value="play_tts">Falar texto (TTS)</SelectItem>
+                                            <SelectItem value="play_audio">Reproduzir áudio</SelectItem>
+                                            <SelectItem value="handoff_agent">Transferir para agent</SelectItem>
+                                            <SelectItem value="execute_tool">Executar ferramenta</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+
+                                        {action.type === "play_tts" && (
+                                          <Input
+                                            className="h-7 text-xs flex-1"
+                                            placeholder="Texto a falar..."
+                                            value={(action as { type: "play_tts"; text?: string }).text ?? ""}
+                                            onChange={(e) => {
+                                              const routes = [...runtimeConfig.callRouter!.routes];
+                                              if (!routes[ri]) routes[ri] = { value: pv.value, actions: [] };
+                                              const actions = [...routes[ri].actions];
+                                              actions[ai] = { ...actions[ai], text: e.target.value } as CallRouterAction;
+                                              routes[ri] = { ...routes[ri], actions };
+                                              setRuntimeConfig((prev) => ({ ...prev, callRouter: { ...prev.callRouter!, routes } }));
+                                            }}
+                                          />
+                                        )}
+                                        {action.type === "play_audio" && (
+                                          <Input
+                                            className="h-7 text-xs flex-1 font-mono"
+                                            placeholder="s3-key do áudio..."
+                                            value={(action as { type: "play_audio"; audioKey?: string }).audioKey ?? ""}
+                                            onChange={(e) => {
+                                              const routes = [...runtimeConfig.callRouter!.routes];
+                                              if (!routes[ri]) routes[ri] = { value: pv.value, actions: [] };
+                                              const actions = [...routes[ri].actions];
+                                              actions[ai] = { ...actions[ai], audioKey: e.target.value } as CallRouterAction;
+                                              routes[ri] = { ...routes[ri], actions };
+                                              setRuntimeConfig((prev) => ({ ...prev, callRouter: { ...prev.callRouter!, routes } }));
+                                            }}
+                                          />
+                                        )}
+                                        {action.type === "handoff_agent" && (
+                                          <Select
+                                            value={(action as { type: "handoff_agent"; targetAgentName?: string }).targetAgentName ?? ""}
+                                            onValueChange={(v) => {
+                                              const routes = [...runtimeConfig.callRouter!.routes];
+                                              if (!routes[ri]) routes[ri] = { value: pv.value, actions: [] };
+                                              const actions = [...routes[ri].actions];
+                                              actions[ai] = { ...actions[ai], targetAgentName: v } as CallRouterAction;
+                                              routes[ri] = { ...routes[ri], actions };
+                                              setRuntimeConfig((prev) => ({ ...prev, callRouter: { ...prev.callRouter!, routes } }));
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-7 text-xs flex-1">
+                                              <SelectValue placeholder="Selecione o agent..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {agents.filter((a) => a !== selectedAgent).map((a) => (
+                                                <SelectItem key={a} value={a}>{a}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        )}
+                                        {action.type === "execute_tool" && (
+                                          <Select
+                                            value={(action as { type: "execute_tool"; toolName?: string }).toolName ?? "__none"}
+                                            onValueChange={(v) => {
+                                              const routes = [...runtimeConfig.callRouter!.routes];
+                                              if (!routes[ri]) routes[ri] = { value: pv.value, actions: [] };
+                                              const actions = [...routes[ri].actions];
+                                              actions[ai] = {
+                                                ...actions[ai],
+                                                toolName: v === "__none" ? undefined : v,
+                                              } as CallRouterAction;
+                                              routes[ri] = { ...routes[ri], actions };
+                                              setRuntimeConfig((prev) => ({ ...prev, callRouter: { ...prev.callRouter!, routes } }));
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-7 text-xs flex-1">
+                                              <SelectValue placeholder="Selecione a ferramenta..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="__none">Selecione a ferramenta...</SelectItem>
+                                              {getExecuteToolOptions((action as { type: "execute_tool"; toolName?: string }).toolName).map((tool) => (
+                                                <SelectItem key={tool.value} value={tool.value}>
+                                                  {tool.label}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        )}
+
+                                        <button
+                                          type="button"
+                                          className="mt-0.5 text-zinc-400 hover:text-red-500 transition-colors"
+                                          onClick={() => {
+                                            const routes = [...runtimeConfig.callRouter!.routes];
+                                            if (!routes[ri]) return;
+                                            const actions = routes[ri].actions.filter((_, i) => i !== ai);
+                                            routes[ri] = { ...routes[ri], actions };
+                                            setRuntimeConfig((prev) => ({ ...prev, callRouter: { ...prev.callRouter!, routes } }));
+                                          }}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 text-[10px] gap-1"
+                                      onClick={() => {
+                                        const routes = [...runtimeConfig.callRouter!.routes];
+                                        if (!routes[ri]) routes[ri] = { value: pv.value, actions: [] };
+                                        routes[ri] = { ...routes[ri], actions: [...routes[ri].actions, { type: "continue" as const }] };
+                                        setRuntimeConfig((prev) => ({ ...prev, callRouter: { ...prev.callRouter!, routes } }));
+                                      }}
+                                    >
+                                      <Plus className="h-3 w-3" /> Adicionar ação
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Fallback actions */}
+                        <div className="space-y-2 p-3 rounded-md border bg-muted/20">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ações de fallback</p>
+                          <p className="text-[11px] text-muted-foreground">Executadas quando o timeout expira ou a classificação não coincide com nenhuma rota.</p>
+
+                          {runtimeConfig.callRouter.fallback.actions.map((action, ai) => (
+                            <div key={ai} className="flex items-start gap-2">
+                              <Select
+                                value={action.type}
+                                onValueChange={(v) => {
+                                  const actions = [...runtimeConfig.callRouter!.fallback.actions];
+                                  actions[ai] = { type: v as CallRouterAction["type"] } as CallRouterAction;
+                                  setRuntimeConfig((prev) => ({
+                                    ...prev,
+                                    callRouter: { ...prev.callRouter!, fallback: { actions } },
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger className="h-7 text-xs w-44 shrink-0">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="continue">Continuar (passthrough)</SelectItem>
+                                  <SelectItem value="end_call">Encerrar chamada</SelectItem>
+                                  <SelectItem value="play_tts">Falar texto (TTS)</SelectItem>
+                                  <SelectItem value="play_audio">Reproduzir áudio</SelectItem>
+                                  <SelectItem value="handoff_agent">Transferir para agent</SelectItem>
+                                  <SelectItem value="execute_tool">Executar ferramenta</SelectItem>
+                                </SelectContent>
+                              </Select>
+
+                              {action.type === "play_tts" && (
+                                <Input
+                                  className="h-7 text-xs flex-1"
+                                  placeholder="Texto a falar..."
+                                  value={(action as { type: "play_tts"; text?: string }).text ?? ""}
+                                  onChange={(e) => {
+                                    const actions = [...runtimeConfig.callRouter!.fallback.actions];
+                                    actions[ai] = { ...actions[ai], text: e.target.value } as CallRouterAction;
+                                    setRuntimeConfig((prev) => ({
+                                      ...prev,
+                                      callRouter: { ...prev.callRouter!, fallback: { actions } },
+                                    }));
+                                  }}
+                                />
+                              )}
+                              {action.type === "play_audio" && (
+                                <Input
+                                  className="h-7 text-xs flex-1 font-mono"
+                                  placeholder="s3-key do áudio..."
+                                  value={(action as { type: "play_audio"; audioKey?: string }).audioKey ?? ""}
+                                  onChange={(e) => {
+                                    const actions = [...runtimeConfig.callRouter!.fallback.actions];
+                                    actions[ai] = { ...actions[ai], audioKey: e.target.value } as CallRouterAction;
+                                    setRuntimeConfig((prev) => ({
+                                      ...prev,
+                                      callRouter: { ...prev.callRouter!, fallback: { actions } },
+                                    }));
+                                  }}
+                                />
+                              )}
+                              {action.type === "handoff_agent" && (
+                                <Select
+                                  value={(action as { type: "handoff_agent"; targetAgentName?: string }).targetAgentName ?? ""}
+                                  onValueChange={(v) => {
+                                    const actions = [...runtimeConfig.callRouter!.fallback.actions];
+                                    actions[ai] = { ...actions[ai], targetAgentName: v } as CallRouterAction;
+                                    setRuntimeConfig((prev) => ({
+                                      ...prev,
+                                      callRouter: { ...prev.callRouter!, fallback: { actions } },
+                                    }));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-7 text-xs flex-1">
+                                    <SelectValue placeholder="Selecione o agent..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {agents.filter((a) => a !== selectedAgent).map((a) => (
+                                      <SelectItem key={a} value={a}>{a}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              {action.type === "execute_tool" && (
+                                <Select
+                                  value={(action as { type: "execute_tool"; toolName?: string }).toolName ?? "__none"}
+                                  onValueChange={(v) => {
+                                    const actions = [...runtimeConfig.callRouter!.fallback.actions];
+                                    actions[ai] = {
+                                      ...actions[ai],
+                                      toolName: v === "__none" ? undefined : v,
+                                    } as CallRouterAction;
+                                    setRuntimeConfig((prev) => ({
+                                      ...prev,
+                                      callRouter: { ...prev.callRouter!, fallback: { actions } },
+                                    }));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-7 text-xs flex-1">
+                                    <SelectValue placeholder="Selecione a ferramenta..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none">Selecione a ferramenta...</SelectItem>
+                                    {getExecuteToolOptions((action as { type: "execute_tool"; toolName?: string }).toolName).map((tool) => (
+                                      <SelectItem key={tool.value} value={tool.value}>
+                                        {tool.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+
+                              <button
+                                type="button"
+                                className="mt-0.5 text-zinc-400 hover:text-red-500 transition-colors"
+                                onClick={() => {
+                                  const actions = runtimeConfig.callRouter!.fallback.actions.filter((_, i) => i !== ai);
+                                  setRuntimeConfig((prev) => ({
+                                    ...prev,
+                                    callRouter: { ...prev.callRouter!, fallback: { actions } },
+                                  }));
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs gap-1"
+                            onClick={() =>
+                              setRuntimeConfig((prev) => ({
+                                ...prev,
+                                callRouter: {
+                                  ...prev.callRouter!,
+                                  fallback: { actions: [...prev.callRouter!.fallback.actions, { type: "continue" as const }] },
+                                },
+                              }))
+                            }
+                          >
+                            <Plus className="h-3 w-3" /> Adicionar ação de fallback
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -4231,6 +4873,76 @@ function AgentPageInner() {
                               </div>
                             </>
                           )}
+
+                          {/* D2: Lifecycle actions (pre / post) */}
+                          {(["pre_actions", "post_actions"] as const).map((phase) => {
+                            const actions = parseLifecycleActions(configFields, phase);
+                            const label = phase === "pre_actions" ? "Ações antes da chamada HTTP (pre_actions)" : "Ações após a resposta HTTP (post_actions)";
+                            return (
+                              <div key={phase} className="space-y-2 pt-1">
+                                <label className="text-xs text-muted-foreground font-medium">{label}</label>
+                                {actions.length === 0 && (
+                                  <p className="text-[11px] text-muted-foreground italic">Nenhuma ação configurada.</p>
+                                )}
+                                {actions.map((action, ai) => (
+                                  <div key={ai} className="flex items-start gap-1.5 rounded border border-border bg-background p-1.5">
+                                    <select
+                                      className="h-7 rounded border border-border bg-background text-xs px-1 flex-shrink-0 w-40"
+                                      value={action.type}
+                                      onChange={(e) => {
+                                        const next = [...actions];
+                                        next[ai] = { type: e.target.value as LifecycleActionType, value: "" };
+                                        setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
+                                      }}
+                                    >
+                                      {(Object.keys(LIFECYCLE_ACTION_LABELS) as LifecycleActionType[]).map((t) => (
+                                        <option key={t} value={t}>{LIFECYCLE_ACTION_LABELS[t]}</option>
+                                      ))}
+                                    </select>
+                                    {action.type !== "end_call" && (
+                                      <input
+                                        className="h-7 flex-1 rounded border border-border bg-background text-xs px-2 font-mono min-w-0"
+                                        placeholder={
+                                          action.type === "play_tts" ? "Texto a ser falado…" :
+                                          action.type === "play_audio" ? "Chave S3 do áudio" :
+                                          action.type === "play_audio_url" ? "https://…/audio.wav" :
+                                          "Duração em ms (máx: 10000)"
+                                        }
+                                        type={action.type === "pause" ? "number" : "text"}
+                                        value={action.value}
+                                        onChange={(e) => {
+                                          const next = [...actions];
+                                          next[ai] = { ...next[ai], value: e.target.value };
+                                          setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
+                                        }}
+                                      />
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="h-7 w-7 flex-shrink-0 flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                                      onClick={() => {
+                                        const next = actions.filter((_, i) => i !== ai);
+                                        setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
+                                      }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                                  onClick={() => {
+                                    const next = [...actions, { type: "play_tts" as LifecycleActionType, value: "" }];
+                                    setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
+                                  }}
+                                >
+                                  <PlusCircle className="h-3 w-3" />
+                                  Adicionar ação
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       {configFields.filter((f) => !HTTP_INTERNAL_KEYS.has(f.key)).length === 0 && (

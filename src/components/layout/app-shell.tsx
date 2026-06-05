@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Menu, LogOut, User, Shield } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -57,6 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="ml-auto flex items-center gap-2">
             <LanguageSwitcher />
+            <NotificationBell />
 
             {user && (
               <DropdownMenu>

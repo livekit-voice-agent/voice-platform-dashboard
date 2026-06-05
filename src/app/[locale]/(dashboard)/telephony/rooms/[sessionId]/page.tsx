@@ -58,11 +58,13 @@ import {
   History,
   Download,
   Volume2,
+  Braces,
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { useSessionCost, type SessionMetricCost } from "@/hooks/useMonitor";
+import { getCallSessionExtraMetadata } from "@/lib/call-session-extra-metadata";
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -541,6 +543,50 @@ function MetricsView({ events }: { events: SessionEvent[] }) {
   );
 }
 
+// ─── Session Metadata Card ───────────────────────────────────
+
+function SessionMetadataCard({
+  metadata,
+  title = "Metadados da Sessão",
+}: {
+  metadata: Record<string, any>;
+  title?: string;
+}) {
+  const entries = Object.entries(metadata);
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="px-5 py-3.5 border-b bg-muted/40">
+        <h2 className="text-xs font-semibold flex items-center gap-2">
+          <Braces className="h-3.5 w-3.5 text-muted-foreground" />
+          {title}
+        </h2>
+      </div>
+      <div className="p-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {entries.map(([key, value]) => (
+            <div key={key} className="rounded-lg border bg-muted/20 p-3">
+              <p className="text-[11px] text-muted-foreground capitalize truncate">
+                {key.replace(/_/g, ' ')}
+              </p>
+              <p className="text-xs font-medium mt-0.5 break-all">
+                {value === null || value === undefined
+                  ? '—'
+                  : typeof value === 'boolean'
+                    ? (value ? 'Sim' : 'Não')
+                    : typeof value === 'object'
+                      ? JSON.stringify(value)
+                      : String(value)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Recording Player Card ───────────────────────────────────
 
 function RecordingPlayerCard({ sessionId, initialUrl }: { sessionId: string; initialUrl: string | null }) {
@@ -903,6 +949,7 @@ export default function SessionDetailPage({
   const { autoRefreshInterval, setAutoRefreshInterval } = useAutoRefresh(handleRefresh);
 
   const meta = session ? parseMetadata(session.metadata) : null;
+  const callSessionExtraMetadata = session ? getCallSessionExtraMetadata(session) : null;
 
   // Count by type
   const countByType: Record<string, number> = {};
@@ -1212,6 +1259,14 @@ export default function SessionDetailPage({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Call session extra_metadata */}
+      {callSessionExtraMetadata && (
+        <SessionMetadataCard
+          metadata={callSessionExtraMetadata as Record<string, any>}
+          title="Extra metadata da Call Session"
+        />
       )}
 
       {/* Recording Player */}

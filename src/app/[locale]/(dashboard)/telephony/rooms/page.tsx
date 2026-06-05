@@ -41,6 +41,23 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  getAdvancedFilterState,
+  getDefaultHistoryColumns,
+  HISTORY_COLUMN_OPTIONS,
+  type HistoryColumnId,
+} from "@/lib/rooms-toolbar";
+import {
+  Columns3,
+  ChevronDown,
+  ChevronUp,
   Clock,
   DoorOpen,
   Globe,
@@ -49,6 +66,7 @@ import {
   Phone,
   Radio,
   Search,
+  SlidersHorizontal,
   Timer,
   Trash2,
   Users,
@@ -144,6 +162,7 @@ export default function RoomsPage() {
   const router = useRouter();
   const t = useTranslations("telephony.rooms");
   const tc = useTranslations("common");
+  const historyColumnsStorageKey = "rooms_history_columns";
 
   // Pagination state
   const PAGE_SIZE = 30;
@@ -171,7 +190,44 @@ export default function RoomsPage() {
   const [filterAgent, setFilterAgent] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterHasTicket, setFilterHasTicket] = useState(false);
+  const [filterPhone, setFilterPhone] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
   const [filtersApplied, setFiltersApplied] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [visibleHistoryColumns, setVisibleHistoryColumns] = useState<HistoryColumnId[]>(() => {
+    if (typeof window === "undefined") {
+      return getDefaultHistoryColumns();
+    }
+
+    try {
+      const saved = localStorage.getItem(historyColumnsStorageKey);
+      if (!saved) {
+        return getDefaultHistoryColumns();
+      }
+
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed as HistoryColumnId[];
+      }
+    } catch {
+      return getDefaultHistoryColumns();
+    }
+
+    return getDefaultHistoryColumns();
+  });
+  const advancedFilterState = useMemo(
+    () => getAdvancedFilterState(filterTicketField, filterTicketValue),
+    [filterTicketField, filterTicketValue]
+  );
+  const isHistoryColumnVisible = useCallback(
+    (columnId: HistoryColumnId) => visibleHistoryColumns.includes(columnId),
+    [visibleHistoryColumns]
+  );
+
+  useEffect(() => {
+    localStorage.setItem(historyColumnsStorageKey, JSON.stringify(visibleHistoryColumns));
+  }, [historyColumnsStorageKey, visibleHistoryColumns]);
 
   useEffect(() => {
     agentConfigApi.listAgents().then(setAgents).catch(() => {});
@@ -187,9 +243,12 @@ export default function RoomsPage() {
     if (filterAgent) params.agentName = filterAgent;
     if (filterStatus) params.status = filterStatus;
     if (filterHasTicket) params.hasTicket = true;
+    if (filterPhone) params.phoneNumber = filterPhone;
+    if (filterDateFrom) params.dateFrom = filterDateFrom;
+    if (filterDateTo) params.dateTo = filterDateTo;
 
     return params;
-  }, [filterTicketField, filterTicketValue, filterAgent, filterStatus, filterHasTicket]);
+  }, [filterTicketField, filterTicketValue, filterAgent, filterStatus, filterHasTicket, filterPhone, filterDateFrom, filterDateTo]);
 
   const fetchLiveRooms = useCallback(async () => {
     try {
@@ -205,7 +264,7 @@ export default function RoomsPage() {
   const fetchSessions = useCallback(async (page = sessionPage) => {
     try {
       const params = buildFilterParams(page);
-      const hasFilters = !!(filterTicketField || filterTicketValue || filterAgent || filterStatus || filterHasTicket);
+      const hasFilters = !!(filterTicketField || filterTicketValue || filterAgent || filterStatus || filterHasTicket || filterPhone || filterDateFrom || filterDateTo);
       const result = await roomApi.listSessions(params);
       setSessions(result.data);
       setSessionsTotal((prev) => {
@@ -485,30 +544,87 @@ export default function RoomsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="flex-1 min-w-[120px]">
+                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                    Telefone
+                  </label>
+                  <Input
+                    placeholder="Ex: +55 11..."
+                    value={filterPhone}
+                    onChange={(e) => setFilterPhone(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
                 <div className="flex-1 min-w-[130px]">
                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
-                    {t("ticketField")}
+                    De
                   </label>
                   <Input
-                    placeholder={t("ticketFieldPlaceholder")}
-                    value={filterTicketField}
-                    onChange={(e) => setFilterTicketField(e.target.value)}
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={(e) => setFilterDateFrom(e.target.value)}
                     className="h-8 text-xs"
                   />
                 </div>
-                <div className="flex-1 min-w-[110px]">
+                <div className="flex-1 min-w-[130px]">
                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
-                    {t("value")}
+                    Até
                   </label>
                   <Input
-                    placeholder={t("valuePlaceholder")}
-                    value={filterTicketValue}
-                    onChange={(e) => setFilterTicketValue(e.target.value)}
+                    type="date"
+                    value={filterDateTo}
+                    onChange={(e) => setFilterDateTo(e.target.value)}
                     className="h-8 text-xs"
-                    disabled={!filterTicketField}
                   />
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                  <Button
+                    variant={showAdvancedFilters || advancedFilterState.active ? "secondary" : "outline"}
+                    size="sm"
+                    className="h-8 text-xs gap-1.5"
+                    onClick={() => setShowAdvancedFilters((v) => !v)}
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    {advancedFilterState.label}
+                    {showAdvancedFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                        <Columns3 className="h-3.5 w-3.5" />
+                        Colunas
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuLabel className="text-xs">Colunas visíveis</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {HISTORY_COLUMN_OPTIONS.map((column) => {
+                        const checked = visibleHistoryColumns.includes(column.id);
+                        const disableUncheck = checked && visibleHistoryColumns.length === 1;
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={column.id}
+                            checked={checked}
+                            disabled={disableUncheck}
+                            className="text-xs"
+                            onCheckedChange={() => {
+                              setVisibleHistoryColumns((current) => {
+                                if (current.includes(column.id)) {
+                                  if (current.length === 1) {
+                                    return current;
+                                  }
+                                  return current.filter((item) => item !== column.id);
+                                }
+                                return [...current, column.id];
+                              });
+                            }}
+                          >
+                            {column.label}
+                          </DropdownMenuCheckboxItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button
                     size="sm"
                     className="h-8 text-xs"
@@ -532,6 +648,9 @@ export default function RoomsPage() {
                         setFilterAgent("");
                         setFilterStatus("");
                         setFilterHasTicket(false);
+                        setFilterPhone("");
+                        setFilterDateFrom("");
+                        setFilterDateTo("");
                         setSessionPage(1);
                         setLoadingSessions(true);
                         roomApi.listSessions({ limit: PAGE_SIZE, offset: 0 }).then((r) => { setSessions(r.data); setSessionsTotal(r.total); setFiltersApplied(false); }).catch(() => {}).finally(() => setLoadingSessions(false));
@@ -543,6 +662,41 @@ export default function RoomsPage() {
                   )}
                 </div>
               </div>
+              {showAdvancedFilters && (
+                <div className="mt-3 rounded-lg border bg-background/80 p-3">
+                  <div className="mb-3">
+                    <p className="text-xs font-medium">Filtros avançados</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Use campos do ticket para refinar a lista sem poluir a barra principal.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                        {t("ticketField")}
+                      </label>
+                      <Input
+                        placeholder={t("ticketFieldPlaceholder")}
+                        value={filterTicketField}
+                        onChange={(e) => setFilterTicketField(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                        {t("value")}
+                      </label>
+                      <Input
+                        placeholder={t("valuePlaceholder")}
+                        value={filterTicketValue}
+                        onChange={(e) => setFilterTicketValue(e.target.value)}
+                        className="h-8 text-xs"
+                        disabled={!filterTicketField}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* History Table */}
@@ -581,14 +735,14 @@ export default function RoomsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        <TableHead className="text-xs font-medium">{t("tableRoomName")}</TableHead>
-                        <TableHead className="text-xs font-medium">{t("tableStatus")}</TableHead>
-                        <TableHead className="text-xs font-medium">{t("tableAgent")}</TableHead>
-                        <TableHead className="text-xs font-medium">{t("tableFrom")}</TableHead>
-                        <TableHead className="text-xs font-medium">{t("tableTicket")}</TableHead>
-                        <TableHead className="text-xs font-medium">{t("tableDuration")}</TableHead>
-                        <TableHead className="text-xs font-medium">Canal</TableHead>
-                        <TableHead className="text-xs font-medium">{t("tableCreated")}</TableHead>
+                        {isHistoryColumnVisible("roomName") && <TableHead className="text-xs font-medium">{t("tableRoomName")}</TableHead>}
+                        {isHistoryColumnVisible("status") && <TableHead className="text-xs font-medium">{t("tableStatus")}</TableHead>}
+                        {isHistoryColumnVisible("agent") && <TableHead className="text-xs font-medium">{t("tableAgent")}</TableHead>}
+                        {isHistoryColumnVisible("caller") && <TableHead className="text-xs font-medium">{t("tableFrom")}</TableHead>}
+                        {isHistoryColumnVisible("ticket") && <TableHead className="text-xs font-medium">{t("tableTicket")}</TableHead>}
+                        {isHistoryColumnVisible("duration") && <TableHead className="text-xs font-medium">{t("tableDuration")}</TableHead>}
+                        {isHistoryColumnVisible("channel") && <TableHead className="text-xs font-medium">Canal</TableHead>}
+                        {isHistoryColumnVisible("createdAt") && <TableHead className="text-xs font-medium">{t("tableCreated")}</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -609,58 +763,74 @@ export default function RoomsPage() {
                               router.push(`/telephony/rooms/${session.id}?page=${sessionPage}`);
                             }}
                           >
-                            <TableCell className="font-medium text-sm">
-                              {session.room_name}
-                            </TableCell>
-                            <TableCell>
-                              <StatusBadge status={session.status} />
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {session.agent_name || meta?.agent_name || "—"}
-                            </TableCell>
-                            <TableCell className="font-mono text-xs text-muted-foreground">
-                              {session.phone_number || meta?.from_number || "—"}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {ticketKeys.length > 0 ? (
-                                  ticketKeys.slice(0, 3).map((key) => (
-                                    <span
-                                      key={key}
-                                      className="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground cursor-pointer hover:border-foreground/30 hover:text-foreground transition-colors"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setFilterTicketField(key);
-                                        setFilterTicketValue("");
-                                        setSessionPage(1);
-                                        setLoadingSessions(true);
-                                        roomApi.listSessions({ ticketField: key, limit: PAGE_SIZE, offset: 0 }).then((r) => { setSessions(r.data); setSessionsTotal(r.total); setFiltersApplied(true); }).catch(() => {}).finally(() => {
-                                          setLoadingSessions(false);
-                                        });
-                                      }}
-                                    >
-                                      #{key}
+                            {isHistoryColumnVisible("roomName") && (
+                              <TableCell className="font-medium text-sm">
+                                {session.room_name}
+                              </TableCell>
+                            )}
+                            {isHistoryColumnVisible("status") && (
+                              <TableCell>
+                                <StatusBadge status={session.status} />
+                              </TableCell>
+                            )}
+                            {isHistoryColumnVisible("agent") && (
+                              <TableCell className="text-sm text-muted-foreground">
+                                {session.agent_name || meta?.agent_name || "—"}
+                              </TableCell>
+                            )}
+                            {isHistoryColumnVisible("caller") && (
+                              <TableCell className="font-mono text-xs text-muted-foreground">
+                                {session.phone_number || meta?.from_number || "—"}
+                              </TableCell>
+                            )}
+                            {isHistoryColumnVisible("ticket") && (
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {ticketKeys.length > 0 ? (
+                                    ticketKeys.slice(0, 3).map((key) => (
+                                      <span
+                                        key={key}
+                                        className="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground cursor-pointer hover:border-foreground/30 hover:text-foreground transition-colors"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setFilterTicketField(key);
+                                          setFilterTicketValue("");
+                                          setSessionPage(1);
+                                          setLoadingSessions(true);
+                                          roomApi.listSessions({ ticketField: key, limit: PAGE_SIZE, offset: 0 }).then((r) => { setSessions(r.data); setSessionsTotal(r.total); setFiltersApplied(true); }).catch(() => {}).finally(() => {
+                                            setLoadingSessions(false);
+                                          });
+                                        }}
+                                      >
+                                        #{key}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-muted-foreground/50 text-xs">—</span>
+                                  )}
+                                  {ticketKeys.length > 3 && (
+                                    <span className="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                      +{ticketKeys.length - 3}
                                     </span>
-                                  ))
-                                ) : (
-                                  <span className="text-muted-foreground/50 text-xs">—</span>
-                                )}
-                                {ticketKeys.length > 3 && (
-                                  <span className="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                    +{ticketKeys.length - 3}
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-xs text-muted-foreground">
-                              {formatDuration(session.duration_seconds)}
-                            </TableCell>
-                            <TableCell>
-                              <ChannelBadge channel={channel} />
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {formatDate(session.created_at)}
-                            </TableCell>
+                                  )}
+                                </div>
+                              </TableCell>
+                            )}
+                            {isHistoryColumnVisible("duration") && (
+                              <TableCell className="font-mono text-xs text-muted-foreground">
+                                {formatDuration(session.duration_seconds)}
+                              </TableCell>
+                            )}
+                            {isHistoryColumnVisible("channel") && (
+                              <TableCell>
+                                <ChannelBadge channel={channel} />
+                              </TableCell>
+                            )}
+                            {isHistoryColumnVisible("createdAt") && (
+                              <TableCell className="text-xs text-muted-foreground">
+                                {formatDate(session.created_at)}
+                              </TableCell>
+                            )}
                           </TableRow>
                         );
                       })}

@@ -13,6 +13,7 @@ import {
   Users,
   FolderKanban,
   BarChart3,
+  FileText,
 } from "lucide-react";
 import { useIsSuperAdmin } from "@/lib/auth-utils";
 import { ProviderStatusWidget } from "./provider-status-widget";
@@ -32,6 +33,7 @@ const telephonyItems = [
   { href: "/telephony/rooms" as const, labelKey: "rooms" as const, icon: DoorOpen },
   { href: "/telephony/sip-trunks" as const, labelKey: "sipTrunks" as const, icon: Phone },
   { href: "/telephony/dispatch-rules" as const, labelKey: "dispatchRules" as const, icon: Route },
+  { href: "/telephony/reports" as const, labelKey: "reports" as const, icon: FileText },
 ];
 
 const infraItems = [
