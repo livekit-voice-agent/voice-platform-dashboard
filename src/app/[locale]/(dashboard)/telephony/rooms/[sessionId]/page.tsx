@@ -208,6 +208,8 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
           <span className="shrink-0 mt-0.5">
             {p.role === "user" ? (
               <User className="h-3.5 w-3.5 text-blue-500" />
+            ) : p.source === "audio" ? (
+              <Volume2 className="h-3.5 w-3.5 text-amber-500" />
             ) : (
               <Bot className="h-3.5 w-3.5 text-green-500" />
             )}
@@ -217,6 +219,11 @@ function EventPayloadPreview({ event }: { event: SessionEvent }) {
               <span className="text-muted-foreground italic">{t("empty")}</span>
             )}
           </span>
+          {p.source === "audio" && (
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0 text-[10px] font-medium text-amber-600 shrink-0">
+              áudio
+            </span>
+          )}
           {p.interrupted && (
             <span className="inline-flex items-center rounded-full bg-red-50 px-1.5 py-0 text-[10px] font-medium text-red-600 shrink-0">
               {t("interrupted")}
@@ -372,6 +379,7 @@ function ConversationTimeline({ events }: { events: SessionEvent[] }) {
 
         if (!text) return null;
 
+        const isAudio = ev.payload.source === "audio";
         return (
           <div
             key={ev.id}
@@ -381,15 +389,25 @@ function ConversationTimeline({ events }: { events: SessionEvent[] }) {
               className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                 isUser
                   ? "bg-muted text-foreground rounded-bl-sm"
-                  : "bg-foreground text-background rounded-br-sm"
+                  : isAudio
+                    ? "bg-amber-500/15 text-foreground border border-amber-300/50 rounded-br-sm"
+                    : "bg-foreground text-background rounded-br-sm"
               }`}
             >
+              {isAudio && (
+                <div className="flex items-center gap-1 mb-1">
+                  <Volume2 className="h-3 w-3 text-amber-600" />
+                  <span className="text-[10px] font-medium text-amber-600">áudio</span>
+                </div>
+              )}
               <p className="text-sm whitespace-pre-wrap">{text}</p>
               <p
                 className={`text-[10px] mt-1 ${
                   isUser
                     ? "text-muted-foreground"
-                    : "text-background/70"
+                    : isAudio
+                      ? "text-amber-600/70"
+                      : "text-background/70"
                 }`}
               >
                 {formatTime(ev.occurred_at)}

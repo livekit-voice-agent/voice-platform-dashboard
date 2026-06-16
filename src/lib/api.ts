@@ -325,6 +325,7 @@ export interface RuntimeConfig {
   // B1
   greetingAudioMode?: 'tts' | 'file' | null;
   greetingAudioKey?: string | null;
+  greetingAudioTranscription?: string | null;
   // B2
   callRouter?: CallRouterConfig | null;
 }

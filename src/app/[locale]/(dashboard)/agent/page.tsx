@@ -359,7 +359,7 @@ function AgentPageInner() {
 
   // ─── Lifecycle action types (D2) ────────────────────────────────────────
   type LifecycleActionType = "play_tts" | "play_audio" | "play_audio_url" | "pause" | "end_call";
-  type LifecycleAction = { type: LifecycleActionType; value: string }; // value = text | audioKey | url | durationMs | ""
+  type LifecycleAction = { type: LifecycleActionType; value: string; transcription?: string; add_to_context?: boolean }; // value = text | audioKey | url | durationMs | ""
 
   const LIFECYCLE_ACTION_LABELS: Record<LifecycleActionType, string> = {
     play_tts: "Falar texto (TTS)",
@@ -372,8 +372,8 @@ function AgentPageInner() {
   const lifecycleActionToRaw = (a: LifecycleAction): Record<string, unknown> => {
     switch (a.type) {
       case "play_tts": return { type: "play_tts", text: a.value };
-      case "play_audio": return { type: "play_audio", audioKey: a.value };
-      case "play_audio_url": return { type: "play_audio_url", url: a.value };
+      case "play_audio": return { type: "play_audio", audioKey: a.value, ...(a.transcription ? { transcription: a.transcription } : {}), ...(a.add_to_context === false ? { add_to_context: false } : {}) };
+      case "play_audio_url": return { type: "play_audio_url", url: a.value, ...(a.transcription ? { transcription: a.transcription } : {}), ...(a.add_to_context === false ? { add_to_context: false } : {}) };
       case "pause": return { type: "pause", durationMs: Number(a.value) || 0 };
       case "end_call": return { type: "end_call" };
     }
@@ -383,8 +383,8 @@ function AgentPageInner() {
     const t = String(raw.type ?? "play_tts") as LifecycleActionType;
     switch (t) {
       case "play_tts": return { type: t, value: String(raw.text ?? "") };
-      case "play_audio": return { type: t, value: String(raw.audioKey ?? "") };
-      case "play_audio_url": return { type: t, value: String(raw.url ?? "") };
+      case "play_audio": return { type: t, value: String(raw.audioKey ?? ""), transcription: raw.transcription ? String(raw.transcription) : undefined, add_to_context: raw.add_to_context !== false };
+      case "play_audio_url": return { type: t, value: String(raw.url ?? ""), transcription: raw.transcription ? String(raw.transcription) : undefined, add_to_context: raw.add_to_context !== false };
       case "pause": return { type: t, value: String(raw.durationMs ?? "1000") };
       case "end_call": return { type: t, value: "" };
       default: return { type: "play_tts", value: "" };
@@ -2391,6 +2391,16 @@ function AgentPageInner() {
                       <p className="text-[11px] text-muted-foreground">
                         Formatos suportados: MP3, WAV, OGG. O arquivo será hospedado no S3.
                       </p>
+                      <div className="space-y-1 pt-1">
+                        <Label className="text-xs text-muted-foreground">Transcrição do áudio (opcional)</Label>
+                        <textarea
+                          className="w-full rounded-md border bg-background px-3 py-1.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                          rows={2}
+                          placeholder="Texto falado no áudio — exibido na timeline sem custo de STT"
+                          value={runtimeConfig.greetingAudioTranscription ?? ""}
+                          onChange={(e) => setRuntimeConfig((prev) => ({ ...prev, greetingAudioTranscription: e.target.value || null }))}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -4885,48 +4895,80 @@ function AgentPageInner() {
                                   <p className="text-[11px] text-muted-foreground italic">Nenhuma ação configurada.</p>
                                 )}
                                 {actions.map((action, ai) => (
-                                  <div key={ai} className="flex items-start gap-1.5 rounded border border-border bg-background p-1.5">
-                                    <select
-                                      className="h-7 rounded border border-border bg-background text-xs px-1 flex-shrink-0 w-40"
-                                      value={action.type}
-                                      onChange={(e) => {
-                                        const next = [...actions];
-                                        next[ai] = { type: e.target.value as LifecycleActionType, value: "" };
-                                        setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
-                                      }}
-                                    >
-                                      {(Object.keys(LIFECYCLE_ACTION_LABELS) as LifecycleActionType[]).map((t) => (
-                                        <option key={t} value={t}>{LIFECYCLE_ACTION_LABELS[t]}</option>
-                                      ))}
-                                    </select>
-                                    {action.type !== "end_call" && (
-                                      <input
-                                        className="h-7 flex-1 rounded border border-border bg-background text-xs px-2 font-mono min-w-0"
-                                        placeholder={
-                                          action.type === "play_tts" ? "Texto a ser falado…" :
-                                          action.type === "play_audio" ? "Chave S3 do áudio" :
-                                          action.type === "play_audio_url" ? "https://…/audio.wav" :
-                                          "Duração em ms (máx: 10000)"
-                                        }
-                                        type={action.type === "pause" ? "number" : "text"}
-                                        value={action.value}
+                                  <div key={ai} className="flex flex-col gap-1 rounded border border-border bg-background p-1.5">
+                                    <div className="flex items-start gap-1.5">
+                                      <select
+                                        className="h-7 rounded border border-border bg-background text-xs px-1 flex-shrink-0 w-40"
+                                        value={action.type}
                                         onChange={(e) => {
                                           const next = [...actions];
-                                          next[ai] = { ...next[ai], value: e.target.value };
+                                          next[ai] = { type: e.target.value as LifecycleActionType, value: "" };
                                           setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
                                         }}
-                                      />
+                                      >
+                                        {(Object.keys(LIFECYCLE_ACTION_LABELS) as LifecycleActionType[]).map((t) => (
+                                          <option key={t} value={t}>{LIFECYCLE_ACTION_LABELS[t]}</option>
+                                        ))}
+                                      </select>
+                                      {action.type !== "end_call" && (
+                                        <input
+                                          className="h-7 flex-1 rounded border border-border bg-background text-xs px-2 font-mono min-w-0"
+                                          placeholder={
+                                            action.type === "play_tts" ? "Texto a ser falado…" :
+                                            action.type === "play_audio" ? "Chave S3 do áudio" :
+                                            action.type === "play_audio_url" ? "https://…/audio.wav" :
+                                            "Duração em ms (máx: 10000)"
+                                          }
+                                          type={action.type === "pause" ? "number" : "text"}
+                                          value={action.value}
+                                          onChange={(e) => {
+                                            const next = [...actions];
+                                            next[ai] = { ...next[ai], value: e.target.value };
+                                            setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
+                                          }}
+                                        />
+                                      )}
+                                      <button
+                                        type="button"
+                                        className="h-7 w-7 flex-shrink-0 flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                                        onClick={() => {
+                                          const next = actions.filter((_, i) => i !== ai);
+                                          setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
+                                        }}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                    {(action.type === "play_audio" || action.type === "play_audio_url") && (
+                                      <>
+                                        <input
+                                          className="h-7 w-full rounded border border-border bg-background text-xs px-2 min-w-0"
+                                          placeholder="Transcrição do áudio (opcional — aparece na timeline)"
+                                          type="text"
+                                          value={action.transcription ?? ""}
+                                          onChange={(e) => {
+                                            const next = [...actions];
+                                            next[ai] = { ...next[ai], transcription: e.target.value || undefined };
+                                            setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
+                                          }}
+                                        />
+                                        {action.transcription && (
+                                          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                                            <input
+                                              type="checkbox"
+                                              className="h-3.5 w-3.5"
+                                              checked={action.add_to_context !== false}
+                                              onChange={(e) => {
+                                                const next = [...actions];
+                                                next[ai] = { ...next[ai], add_to_context: e.target.checked };
+                                                setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
+                                              }}
+                                            />
+                                            Inserir no contexto do LLM
+                                          </label>
+                                        )}
+                                      </>
                                     )}
-                                    <button
-                                      type="button"
-                                      className="h-7 w-7 flex-shrink-0 flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                                      onClick={() => {
-                                        const next = actions.filter((_, i) => i !== ai);
-                                        setConfigFields((prev) => serializeLifecycleActions(next, prev, phase));
-                                      }}
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </button>
                                   </div>
                                 ))}
                                 <button
